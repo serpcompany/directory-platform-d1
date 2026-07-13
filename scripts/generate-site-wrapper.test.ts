@@ -142,12 +142,10 @@ describe('generateSiteWrapper', () => {
     expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/layout.tsx'))).toBe(true)
     expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/brands/page.tsx'))).toBe(true)
     expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/listing/page.tsx'))).toBe(true)
-    expect(
-      existsSync(resolve(workspaceRoot, 'apps/example.com/app/listing/[slug]/page.tsx'))
-    ).toBe(true)
-    expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/websites/page.tsx'))).toBe(
-      false
+    expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/listing/[slug]/page.tsx'))).toBe(
+      true
     )
+    expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/websites/page.tsx'))).toBe(false)
     expect(
       existsSync(resolve(workspaceRoot, 'apps/example.com/app/sitemap-index.xml/route.ts'))
     ).toBe(true)
@@ -158,7 +156,9 @@ describe('generateSiteWrapper', () => {
       existsSync(resolve(workspaceRoot, 'apps/example.com/components/auth/sign-out-button.tsx'))
     ).toBe(true)
     expect(
-      existsSync(resolve(workspaceRoot, 'apps/example.com/components/auth/sign-out-button.test.tsx'))
+      existsSync(
+        resolve(workspaceRoot, 'apps/example.com/components/auth/sign-out-button.test.tsx')
+      )
     ).toBe(false)
     expect(existsSync(resolve(workspaceRoot, 'apps/example.com/public/logo.png'))).toBe(true)
     expect(existsSync(resolve(workspaceRoot, 'apps/example.com/app/api/submission/route.ts'))).toBe(
@@ -226,22 +226,22 @@ describe('generateSiteWrapper', () => {
     )
 
     generateSiteWrapper({
-      siteId: 'serpdownloaders.com',
+      siteId: 'serp.software',
       workspaceRoot
     })
 
-    expect(existsSync(resolve(workspaceRoot, 'apps/serpdownloaders.com/app/products/page.tsx'))).toBe(
+    expect(existsSync(resolve(workspaceRoot, 'apps/serp.software/app/products/page.tsx'))).toBe(
       true
     )
     expect(
-      existsSync(resolve(workspaceRoot, 'apps/serpdownloaders.com/app/products/[slug]/page.tsx'))
+      existsSync(resolve(workspaceRoot, 'apps/serp.software/app/products/[slug]/page.tsx'))
     ).toBe(true)
-    expect(existsSync(resolve(workspaceRoot, 'apps/serpdownloaders.com/app/websites/page.tsx'))).toBe(
+    expect(existsSync(resolve(workspaceRoot, 'apps/serp.software/app/websites/page.tsx'))).toBe(
       false
     )
 
     const generatedNextConfig = readFileSync(
-      resolve(workspaceRoot, 'apps/serpdownloaders.com/next.config.ts'),
+      resolve(workspaceRoot, 'apps/serp.software/next.config.ts'),
       'utf8'
     )
     expect(generatedNextConfig).not.toContain('createAliasRewrites(listingBasePath,')

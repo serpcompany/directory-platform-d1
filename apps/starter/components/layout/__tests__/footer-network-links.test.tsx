@@ -10,8 +10,8 @@ describe('Footer network links', () => {
 
   beforeEach(() => {
     jest.resetModules()
-    process.env.NEXT_PUBLIC_SITE_ID = 'serpdownloaders.com'
-    process.env.SITE_ID = 'serpdownloaders.com'
+    process.env.NEXT_PUBLIC_SITE_ID = 'serp.software'
+    process.env.SITE_ID = 'serp.software'
   })
 
   afterEach(() => {
@@ -19,16 +19,15 @@ describe('Footer network links', () => {
     process.env.SITE_ID = originalSiteId
   })
 
-  it('renders SerpDownloaders site-owned profile links as footer icon links', async () => {
+  it('renders SERP Software social links as footer icon links', async () => {
     const { Footer } = await import('@thedaviddias/web-core/layout/footer')
 
     render(<Footer />)
 
     const expectedIconLinks = [
-      ['Medium', 'https://medium.com/howtodownloadvideosimages'],
-      ['Google Sites', 'https://sites.google.com/serp.co/serpdownloaders/'],
-      ['Peerlist', 'https://peerlist.io/company/serpdownloaders'],
-      ['YouTube', 'https://youtube.com/@serp-downloaders']
+      ['GitHub', 'https://github.com/serpcompany'],
+      ['Reddit', 'https://www.reddit.com/r/serpapps/'],
+      ['X (Twitter)', 'https://x.com/serpapps']
     ] as const
 
     for (const [label, href] of expectedIconLinks) {

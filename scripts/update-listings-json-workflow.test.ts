@@ -6,12 +6,7 @@ import { describe, expect, it } from 'vitest'
 const activeListingSourcePaths = [
   'data/listings.json',
   'd1/**',
-  'sites/browserextensions.io/products.json',
-  'sites/pornvideodownloaders.com/products.json',
-  'sites/serp.ai/products.json',
-  'sites/serp.co/products.json',
   'sites/serp.software/products.json',
-  'sites/serpdownloaders.com/products.json',
   'wrangler.jsonc'
 ]
 

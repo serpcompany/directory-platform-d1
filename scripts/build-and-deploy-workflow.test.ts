@@ -28,7 +28,7 @@ interface WorkflowDefinition {
       paths?: string[]
     }
     workflow_dispatch: {
-      inputs: Record<string, { default?: string; required?: boolean }>
+      inputs: Record<string, { default?: string; options?: string[]; required?: boolean }>
     }
   }
   permissions?: Record<string, string>
@@ -43,26 +43,10 @@ function loadWorkflow(): WorkflowDefinition {
 }
 
 describe('build-and-deploy workflow', () => {
-  it('runs when shared web-core brands sources change', () => {
+  it('does not deploy automatically from pushes', () => {
     const workflow = loadWorkflow()
 
-    expect(workflow.on.push?.paths).toEqual(expect.arrayContaining(['packages/web-core/**']))
-  })
-
-  it('does not rebuild sites for target workflow-only maintenance changes', () => {
-    const workflow = loadWorkflow()
-
-    expect(workflow.on.push?.paths).toEqual(
-      expect.arrayContaining([
-        '!scripts/deploy-to-repo.sh',
-        '!scripts/build-and-deploy-workflow.test.ts',
-        '!scripts/deploy-to-repo-script.test.ts',
-        '!scripts/target-verify-badge-workflow.test.ts',
-        '!scripts/templates/target-verify-badge.yml'
-      ])
-    )
-    expect(workflow.on.push?.paths).not.toContain('.github/workflows/build-and-deploy.yml')
-    expect(workflow.on.push?.paths).not.toContain('.github/workflows/reusable-verify-badge.yml')
+    expect(workflow.on.push).toBeUndefined()
   })
 
   it('runs push and workflow dispatch through a resolver plus deploy matrix', () => {
@@ -109,6 +93,7 @@ describe('build-and-deploy workflow', () => {
 
     expect(dispatchInputs.site_id).toBeDefined()
     expect(dispatchInputs.site_id?.required).toBe(true)
+    expect(dispatchInputs.site_id?.options).toEqual(['serp.software'])
     expect(dispatchInputs.site_id?.default).toBeUndefined()
     expect(dispatchInputs.build_spec_path).toBeUndefined()
     expect(dispatchInputs.deploy_repo).toBeUndefined()
@@ -240,22 +225,5 @@ describe('build-and-deploy workflow', () => {
     const deployJob = workflow.jobs.deploy
 
     expect(deployJob.if).toBe(`needs.resolve.outputs.should_deploy == 'true'`)
-  })
-
-  it('runs for changes to active wrapper apps', () => {
-    const workflow = loadWorkflow()
-    const paths = workflow.on.push?.paths ?? []
-
-    expect(paths).toEqual(
-      expect.arrayContaining([
-        'apps/browserextensions.io/**',
-        'apps/pornvideodownloaders.com/**',
-        'apps/serp.ai/**',
-        'apps/serp.co/**',
-        'apps/serp.software/**',
-        'apps/serpdownloaders.com/**',
-        'apps/starter/**'
-      ])
-    )
   })
 })

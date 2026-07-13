@@ -2,10 +2,11 @@
 
 This directory is the checked-in source of truth for per-site configuration and site-owned source inputs.
 
-Only active sites should live directly under `sites/<site-id>/`.
+`serp.software` is the only active site. `sites/default` is non-deployable starter
+infrastructure used by shared tooling and wrapper generation.
 
 Inactive or incubating sites belong under
-[_archive/incubating-sites](/Users/devin/dev/repos/json-directory-template/_archive/incubating-sites)
+[_archive/incubating-sites](../_archive/incubating-sites)
 until they are explicitly promoted into the active registry.
 
 ## What belongs here

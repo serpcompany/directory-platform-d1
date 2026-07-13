@@ -1,4 +1,4 @@
-# JSON Directory Template
+# Directory Platform D1
 
 Static-first starter for directory-style sites.
 
@@ -18,7 +18,7 @@ pnpm install
 pnpm dev
 ```
 
-That starts the default active site wrapper, currently `serpdownloaders.com`, at `http://localhost:3005`.
+That starts the only active site wrapper, `serp.software`, at `http://localhost:3005`.
 
 If you want the starter wrapper specifically:
 
@@ -37,14 +37,13 @@ pnpm generate:site-wrapper -- --site your-site-id
 Active checked-in site:
 
 ```bash
-pnpm validate:site -- --site serpdownloaders.com
-pnpm build:site -- --site serpdownloaders.com
-pnpm deploy:site -- --site serpdownloaders.com
+pnpm validate:site -- --site serp.software
+pnpm build:site -- --site serp.software
+pnpm deploy:site -- --site serp.software --dry-run
 ```
 
-Other active checked-in sites can be selected with `--site`, for example
-`browserextensions.io`, `pornvideodownloaders.com`, `serp.ai`, `serp.co`,
-or `serp.software`.
+`serp.software` is the only active, deployable site in this repository. The starter
+wrapper and default config remain non-deployable framework infrastructure.
 
 Starter wrapper:
 
@@ -64,7 +63,8 @@ pnpm --dir apps/starter exec jest --runInBand
 
 - site config: `sites/site-config.default.ts` plus `sites/<site-id>/site-config.ts`
 - optional site-owned content: `sites/<site-id>/site-content.ts`
-- active listing data: `data/listings.json`
+- active listing source: `sites/serp.software/products.json`
+- generated normalized listing data: `data/listings.json`
 - public docs content: `packages/content/data/docs/*.mdx`
 - legal content: `packages/content/data/legal/*.mdx`
 

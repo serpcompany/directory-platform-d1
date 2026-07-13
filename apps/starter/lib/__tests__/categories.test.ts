@@ -22,7 +22,7 @@ describe('categories', () => {
   })
 
   it('applies fallback metadata when a category only supplies slug and name', () => {
-    const category = resolveCategories('serpdownloaders.com').find(
+    const category = resolveCategories('serp.software').find(
       item => item.slug === 'video-downloaders'
     )
 

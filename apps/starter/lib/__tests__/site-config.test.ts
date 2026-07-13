@@ -6,21 +6,21 @@ import {
 } from '@thedaviddias/web-core/site-config'
 
 describe('resolveSiteConfig', () => {
-  it('loads the checked-in per-site config for serpdownloaders.com', () => {
-    const config = resolveSiteConfig('serpdownloaders.com')
+  it('loads the checked-in per-site config for serp.software', () => {
+    const config = resolveSiteConfig('serp.software')
 
-    expect(config.name).toBe('SERP Downloaders')
-    expect(config.domain).toBe('serpdownloaders.com')
+    expect(config.name).toBe('SERP Software')
+    expect(config.domain).toBe('serp.software')
     expect(config.description).toBe(
-      'A collection of tools to help you download anything from anywhere, anytime.'
+      'A searchable directory of downloader products from the SERP network.'
     )
     expect(config.githubIssueOwner).toBe('serpcompany')
-    expect(config.githubIssueRepo).toBe('serpdownloaders.com')
-    expect(config.githubIssuesUrl).toBe('https://github.com/serpcompany/serpdownloaders.com/issues')
-    expect(config.githubRepoUrl).toBe('https://github.com/serpdownloaders')
-    expect(config.githubUrl).toBe('https://github.com/serpdownloaders')
-    expect(config.publicUrl).toBe('https://serpdownloaders.com')
-    expect(config.gtmId).toBe('GTM-M82HC3SC')
+    expect(config.githubIssueRepo).toBe('serp.software')
+    expect(config.githubIssuesUrl).toBe('https://github.com/serpcompany/serp.software/issues')
+    expect(config.githubRepoUrl).toBe('https://github.com/serpcompany')
+    expect(config.githubUrl).toBe('https://github.com/serpcompany')
+    expect(config.publicUrl).toBe('https://serp.software')
+    expect(config.gtmId).toBe('GTM-W59GNHXF')
     expect(config.listingRouteBasePath).toBe('products')
     expect(config.docsRouteBasePath).toBe('docs')
     expect(config.networkRouteBasePath).toBe('network')
@@ -49,10 +49,10 @@ describe('resolveSiteConfig', () => {
       showProjects: false
     })
     expect(config.branding).toEqual({
-      appleTouchIconUrl: '/apple-touch-icon.png',
-      faviconUrl: '/favicon.ico',
-      logoUrl: '/logo.png',
-      opengraphImageUrl: '/opengraph-image.png'
+      appleTouchIconUrl: undefined,
+      faviconUrl: undefined,
+      logoUrl: undefined,
+      opengraphImageUrl: undefined
     })
   })
 
@@ -65,13 +65,13 @@ describe('resolveSiteConfig', () => {
   })
 
   it('keeps public socials and resolves configured issue targets for active sites', () => {
-    const config = resolveSiteConfig('serpdownloaders.com')
+    const config = resolveSiteConfig('serp.software')
 
     expect(config.githubIssueOwner).toBe('serpcompany')
-    expect(config.githubIssueRepo).toBe('serpdownloaders.com')
-    expect(config.githubIssuesUrl).toBe('https://github.com/serpcompany/serpdownloaders.com/issues')
-    expect(config.githubRepoUrl).toBe('https://github.com/serpdownloaders')
-    expect(config.githubUrl).toBe('https://github.com/serpdownloaders')
+    expect(config.githubIssueRepo).toBe('serp.software')
+    expect(config.githubIssuesUrl).toBe('https://github.com/serpcompany/serp.software/issues')
+    expect(config.githubRepoUrl).toBe('https://github.com/serpcompany')
+    expect(config.githubUrl).toBe('https://github.com/serpcompany')
     expect(config.listingRouteBasePath).toBe('products')
     expect(config.docsRouteBasePath).toBe('docs')
     expect(config.networkRouteBasePath).toBe('network')
@@ -131,14 +131,14 @@ describe('resolveSiteConfig', () => {
   })
 
   it('treats checked-in site socials and issue targets as configured', () => {
-    const config = resolveSiteConfig('serpdownloaders.com')
+    const config = resolveSiteConfig('serp.software')
 
     expect(hasConfiguredGitHubIssueTarget(config)).toBe(true)
     expect(hasConfiguredPublicSocialLinks(config)).toBe(true)
     expect(getConfiguredSocialLinks(config)).toEqual([
-      'https://github.com/serpdownloaders',
-      'https://www.reddit.com/r/serpdownloaders/',
-      'https://x.com/serpdownloaders'
+      'https://github.com/serpcompany',
+      'https://www.reddit.com/r/serpapps/',
+      'https://x.com/serpapps'
     ])
   })
 })

@@ -24,28 +24,6 @@ afterEach(() => {
 })
 
 describe('buildDeployPlan', () => {
-  it('builds a deterministic deploy plan from the checked-in site config', () => {
-    expect(buildDeployPlan({ siteId: 'serpdownloaders.com' })).toEqual({
-      branch: 'main',
-      buildDir: expect.stringMatching(/dist\/sites\/serpdownloaders.com$/),
-      preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-      repoUrl: 'https://github.com/serpcompany/serpdownloaders.com.git',
-      siteId: 'serpdownloaders.com',
-      strategy: 'github-pages-repo-sync'
-    })
-  })
-
-  it('builds a deterministic deploy plan for pornvideodownloaders.com', () => {
-    expect(buildDeployPlan({ siteId: 'pornvideodownloaders.com' })).toEqual({
-      branch: 'main',
-      buildDir: expect.stringMatching(/dist\/sites\/pornvideodownloaders.com$/),
-      preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-      repoUrl: 'https://github.com/serpcompany/pornvideodownloaders.com.git',
-      siteId: 'pornvideodownloaders.com',
-      strategy: 'github-pages-repo-sync'
-    })
-  })
-
   it('builds a deterministic deploy plan for serp.software', () => {
     expect(buildDeployPlan({ siteId: 'serp.software' })).toEqual({
       branch: 'main',
@@ -57,28 +35,6 @@ describe('buildDeployPlan', () => {
     })
   })
 
-  it('builds a deterministic deploy plan for browserextensions.io', () => {
-    expect(buildDeployPlan({ siteId: 'browserextensions.io' })).toEqual({
-      branch: 'main',
-      buildDir: expect.stringMatching(/dist\/sites\/browserextensions.io$/),
-      preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-      repoUrl: 'https://github.com/serpcompany/browserextensions.io.git',
-      siteId: 'browserextensions.io',
-      strategy: 'github-pages-repo-sync'
-    })
-  })
-
-  it('builds a deterministic deploy plan for serp.ai', () => {
-    expect(buildDeployPlan({ siteId: 'serp.ai' })).toEqual({
-      branch: 'main',
-      buildDir: expect.stringMatching(/dist\/sites\/serp.ai$/),
-      preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-      repoUrl: 'https://github.com/serpcompany/serp.ai.git',
-      siteId: 'serp.ai',
-      strategy: 'github-pages-repo-sync'
-    })
-  })
-
   it('throws when the selected site has no deploy target', () => {
     expect(() => buildDeployPlan({ siteId: 'default' })).toThrow(/does not define a deploy target/)
   })
@@ -86,7 +42,7 @@ describe('buildDeployPlan', () => {
   it('rejects normal deploy target overrides instead of bypassing checked-in config', () => {
     expect(() =>
       buildDeployPlan(
-        { siteId: 'browserextensions.io' },
+        { siteId: 'serp.software' },
         {
           env: {
             DEPLOY_REPO_URL: 'https://github.com/example/other.git'
@@ -99,7 +55,7 @@ describe('buildDeployPlan', () => {
   it('requires an explicit audited bypass for deploy target overrides', () => {
     expect(
       buildDeployPlan(
-        { siteId: 'browserextensions.io' },
+        { siteId: 'serp.software' },
         {
           env: {
             ALLOW_DEPLOY_TARGET_OVERRIDE: 'true',
@@ -129,9 +85,9 @@ describe('deploy source guard', () => {
   it('allows dry-run deploy plan inspection without a built artifact', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
-    expect(() => runDeploySite({ siteId: 'browserextensions.io' }, true)).not.toThrow()
+    expect(() => runDeploySite({ siteId: 'serp.software' }, true)).not.toThrow()
 
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('"siteId": "browserextensions.io"'))
+    expect(log).toHaveBeenCalledWith(expect.stringContaining('"siteId": "serp.software"'))
   })
 
   it('allows real deploys from a clean branch synced with upstream', () => {
@@ -204,6 +160,8 @@ describe('deploy guardrail docs', () => {
     expect(source).toContain('Local verification flow')
     expect(source).toContain('deploy:site -- --site <site-id> --dry-run')
     expect(source).toContain('Do not run a real local deploy while source changes are uncommitted')
-    expect(source).toContain('let `.github/workflows/build-and-deploy.yml` deploy')
+    expect(source).toContain(
+      'explicitly approve and manually dispatch `.github/workflows/build-and-deploy.yml`'
+    )
   })
 })

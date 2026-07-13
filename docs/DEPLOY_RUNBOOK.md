@@ -6,9 +6,9 @@ That means this repo builds static artifacts for resolved checked-in site
 targets, then deploys each artifact through the target strategy in
 `sites/<site-id>/site-config.ts`.
 
-Current active checked-in deployable sites include `browserextensions.io`,
-`pornvideodownloaders.com`, `serp.ai`, `serp.co`, `serp.software`, and
-`serpdownloaders.com`.
+`serp.software` is the only active checked-in deployable site. Automatic push deploys
+are disabled; `.github/workflows/build-and-deploy.yml` requires an explicit manual
+dispatch selecting `serp.software`.
 
 ## Prerequisites
 
@@ -51,7 +51,7 @@ The normal production path is:
 2. run local verification, including `pnpm deploy:site -- --site <site-id> --dry-run`
 3. commit and push the source branch
 4. open and merge the PR
-5. let `.github/workflows/build-and-deploy.yml` deploy the checked-out source commit
+5. explicitly approve and manually dispatch `.github/workflows/build-and-deploy.yml`
 6. verify the target hosting provider and live site
 
 `pnpm deploy`, `pnpm deploy:site`, and target GitHub Pages repo syncs are push
@@ -96,8 +96,7 @@ The repo workflow is `.github/workflows/build-and-deploy.yml`.
 
 The workflow:
 
-1. resolves deploy targets from workflow dispatch `site_id`, push changed paths,
-   associated merged PR files, or submission-aware PR metadata
+1. accepts only the manually selected `serp.software` target
 2. runs a matrix over the resolved site targets
 3. runs `pnpm validate:site`
 4. runs `pnpm build:site`
@@ -106,18 +105,8 @@ The workflow:
 7. verifies the deploy secret required by the checked-in site strategy
 8. runs `pnpm deploy:site` against the checked-in site config deploy target
 
-Workflow dispatch with a concrete `site_id` deploys that site. Workflow dispatch
-with `site_id=all` deploys every active checked-in site.
-
-Push changed paths that identify one site deploy that site. Push changed paths
-that identify multiple concrete sites deploy those exact sites. Shared-only
-pushes with no concrete site signal deploy every active checked-in site. Shared
-maintainer PRs may still deploy one site when metadata mentions exactly one
-checked-in site domain/public URL or links to exactly one configured public issue
-repo. Metadata that matches multiple concrete sites fails and requires manual
-workflow dispatch per `site_id`, unless concrete changed paths already identify
-the exact deploy targets. Do not add fallback deploy sites through repository
-variables.
+Workflow dispatch accepts only `site_id=serp.software`. Pushes and merges do not
+automatically deploy. Do not add fallback deploy sites through repository variables.
 
 The generated artifact stays in the same GitHub Actions job workspace between
 build, audit, and deploy. Normal deploys do not upload/download the large
@@ -133,22 +122,15 @@ For a normal static-site update, the redeploy path is the same as the first depl
 4. run `pnpm audit:sitemaps -- --site <site-id>`
 5. run `pnpm deploy:site -- --site <site-id> --dry-run`
 6. commit, push, review, and merge the source change
-7. let the workflow deploy or, with explicit approval, run a local real deploy from a clean synced source branch
+7. with explicit approval, manually dispatch the workflow or run a local real deploy
+   from a clean synced source branch
 8. verify the target provider and live site
 
 ## Submit-intake rollout
 
-The public `/submit` GitHub issue intake is active for:
-
-- `browserextensions.io`
-- `pornvideodownloaders.com`
-- `serp.ai`
-- `serp.co`
-- `serp.software`
-- `serpdownloaders.com`
-
-Each active site's public issue repo is `serpcompany/<site-id>`. These repos must stay public and
-must keep Issues enabled because the static submit form opens GitHub's public issue composer.
+The public `/submit` GitHub issue intake is active only for `serp.software`. Its
+public issue repo must keep Issues enabled because the static submit form opens
+GitHub's public issue composer.
 The target repo badge workflow is a thin caller source-managed in
 `scripts/templates/target-verify-badge.yml`; the implementation lives in
 `.github/workflows/reusable-verify-badge.yml` and is called at `@main` so badge logic fixes land in
@@ -162,21 +144,11 @@ When a verified submission's slug already exists in `sites/<site-id>/products.js
 central workflow comments on the issue and stops without creating a branch, changing content, or
 opening a duplicate PR.
 
-Required setup for every active public issue repo:
+Required setup:
 
 | Public issue repo | Issues | Workflow | Secret | Badge assets |
 |---|---|---|---|---|
-| `serpcompany/browserextensions.io` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
-| `serpcompany/pornvideodownloaders.com` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
-| `serpcompany/serp.ai` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
-| `serpcompany/serp.co` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
 | `serpcompany/serp.software` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
-| `serpcompany/serpdownloaders.com` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
-
-Prefer rolling out submit-intake config changes one site per source PR so review
-and live verification stay simple. If a PR changes multiple concrete site paths,
-the push deploy resolver deploys those exact sites. Metadata-only multi-site
-signals still fail and require manual `workflow_dispatch` per `site_id`.
 
 For each site PR:
 

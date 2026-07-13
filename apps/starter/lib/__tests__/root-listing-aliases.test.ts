@@ -1,8 +1,8 @@
 import { getSiteRootListingAliases } from '@thedaviddias/site-contract/site-root-listing-aliases'
 
 describe('site root listing aliases', () => {
-  it('returns root-path aliases for all serpdownloaders product slugs', () => {
-    const aliases = getSiteRootListingAliases('serpdownloaders.com')
+  it('returns root-path aliases for all serp.software product slugs', () => {
+    const aliases = getSiteRootListingAliases('serp.software')
 
     expect(aliases).toContain('instagram-downloader')
     expect(aliases).toContain('getty-images-downloader')

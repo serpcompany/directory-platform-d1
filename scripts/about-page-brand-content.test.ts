@@ -44,12 +44,7 @@ const removedStepsSections = [
 ]
 
 const expectedSiteNames: Record<string, string> = {
-  'browserextensions.io': 'BrowserExtensions.io',
-  'pornvideodownloaders.com': 'Porn Video Downloaders',
-  'serp.ai': 'SERP AI',
-  'serp.co': 'SERP',
-  'serp.software': 'SERP Software',
-  'serpdownloaders.com': 'SERP Downloaders'
+  'serp.software': 'SERP Software'
 }
 
 function siteAboutPath(siteId: string): string {
@@ -66,14 +61,7 @@ function aboutArtifactPath(siteId: string): string {
 
 describe('active site About page brand content', () => {
   it('keeps one site-owned About MDX file for every active checked-in site', () => {
-    expect(activeSiteIds).toEqual([
-      'browserextensions.io',
-      'pornvideodownloaders.com',
-      'serp.ai',
-      'serp.co',
-      'serp.software',
-      'serpdownloaders.com'
-    ])
+    expect(activeSiteIds).toEqual(['serp.software'])
 
     for (const siteId of activeSiteIds) {
       expect(siteAboutPath(siteId), `${siteId} must own About content`).toSatisfy(existsSync)
@@ -151,16 +139,16 @@ describe('active site About page brand content', () => {
     expect(starterCollections).toContain("const aboutPath = '../../packages/content/data/about'")
   })
 
-  it('renders BrowserExtensions.io About with the shared content loader', () => {
+  it('renders SERP Software About with the shared content loader', () => {
     const source = readFileSync(
-      resolve(process.cwd(), 'apps/browserextensions.io/app/about/page.tsx'),
+      resolve(process.cwd(), 'apps/serp.software/app/about/page.tsx'),
       'utf8'
     )
 
     expect(source).toContain("import { getAboutPage } from '@/lib/content-loader'")
     expect(source).toContain('AboutStaticPage')
     expect(source).toContain('generateAboutPageMetadata')
-    expect(source).not.toContain('BrowserExtensions.io is a curated directory')
+    expect(source).not.toContain('SERP Software is a curated directory')
     expect(source).not.toContain('great products')
     expect(source).not.toContain('export const metadata')
   })

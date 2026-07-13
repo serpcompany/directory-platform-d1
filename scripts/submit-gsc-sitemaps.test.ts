@@ -22,10 +22,10 @@ describe('getSitemapTargets', () => {
   })
 
   it('can scope canonical sitemap targets to specific site ids', () => {
-    expect(getSitemapTargets(['browserextensions.io'])).toEqual([
+    expect(getSitemapTargets(['serp.software'])).toEqual([
       {
-        domain: 'browserextensions.io',
-        sitemapUrl: 'https://browserextensions.io/sitemap-index.xml'
+        domain: 'serp.software',
+        sitemapUrl: 'https://serp.software/sitemap-index.xml'
       }
     ])
   })
@@ -35,10 +35,10 @@ describe('runSubmitGscSitemaps', () => {
   it('prints canonical submit operations during dry-run without credentials', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
-    await runSubmitGscSitemaps(['--dry-run', '--site', 'browserextensions.io'], {})
+    await runSubmitGscSitemaps(['--dry-run', '--site', 'serp.software'], {})
 
     expect(log).toHaveBeenCalledWith(
-      'SUBMIT https://browserextensions.io/ -> https://browserextensions.io/sitemap-index.xml'
+      'SUBMIT https://serp.software/ -> https://serp.software/sitemap-index.xml'
     )
   })
 
@@ -48,38 +48,34 @@ describe('runSubmitGscSitemaps', () => {
     await runSubmitGscSitemaps(['--dry-run'], {})
 
     expect(log).toHaveBeenCalledTimes(activeCheckedInSiteIds.length)
-    expect(log).toHaveBeenCalledWith('SUBMIT https://serp.co/ -> https://serp.co/sitemap-index.xml')
+    expect(log).toHaveBeenCalledWith(
+      'SUBMIT https://serp.software/ -> https://serp.software/sitemap-index.xml'
+    )
   })
 
   it('can scope canonical submit operations from the workflow site id env', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await runSubmitGscSitemaps(['--dry-run'], {
-      GSC_SITE_IDS: 'browserextensions.io,serp.ai'
+      GSC_SITE_IDS: 'serp.software'
     })
 
-    expect(log).toHaveBeenCalledTimes(2)
+    expect(log).toHaveBeenCalledTimes(1)
     expect(log).toHaveBeenCalledWith(
-      'SUBMIT https://browserextensions.io/ -> https://browserextensions.io/sitemap-index.xml'
+      'SUBMIT https://serp.software/ -> https://serp.software/sitemap-index.xml'
     )
-    expect(log).toHaveBeenCalledWith('SUBMIT https://serp.ai/ -> https://serp.ai/sitemap-index.xml')
   })
 
   it('prints delete operations for stale sitemap URLs during dry-run', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await runSubmitGscSitemaps(
-      [
-        '--dry-run',
-        '--no-submit',
-        '--delete-sitemap',
-        'https://browserextensions.io/pages-sitemap.xml'
-      ],
+      ['--dry-run', '--no-submit', '--delete-sitemap', 'https://serp.software/pages-sitemap.xml'],
       {}
     )
 
     expect(log).toHaveBeenCalledWith(
-      'DELETE https://browserextensions.io/ -> https://browserextensions.io/pages-sitemap.xml'
+      'DELETE https://serp.software/ -> https://serp.software/pages-sitemap.xml'
     )
   })
 
@@ -99,12 +95,7 @@ describe('runSubmitGscSitemaps', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await runSubmitGscSitemaps(
-      [
-        '--site',
-        'browserextensions.io',
-        '--delete-sitemap',
-        'https://browserextensions.io/pages-sitemap.xml'
-      ],
+      ['--site', 'serp.software', '--delete-sitemap', 'https://serp.software/pages-sitemap.xml'],
       {
         GSC_ACCESS_TOKEN: 'token'
       }
@@ -112,16 +103,16 @@ describe('runSubmitGscSitemaps', () => {
 
     expect(calls.map(call => call.method)).toEqual(['DELETE', 'PUT'])
     expect(calls[0]?.url).toContain(
-      '/sites/https%3A%2F%2Fbrowserextensions.io%2F/sitemaps/https%3A%2F%2Fbrowserextensions.io%2Fpages-sitemap.xml'
+      '/sites/https%3A%2F%2Fserp.software%2F/sitemaps/https%3A%2F%2Fserp.software%2Fpages-sitemap.xml'
     )
     expect(calls[1]?.url).toContain(
-      '/sites/https%3A%2F%2Fbrowserextensions.io%2F/sitemaps/https%3A%2F%2Fbrowserextensions.io%2Fsitemap-index.xml'
+      '/sites/https%3A%2F%2Fserp.software%2F/sitemaps/https%3A%2F%2Fserp.software%2Fsitemap-index.xml'
     )
     expect(log).toHaveBeenCalledWith(
-      'Deleted https://browserextensions.io/pages-sitemap.xml for https://browserextensions.io/'
+      'Deleted https://serp.software/pages-sitemap.xml for https://serp.software/'
     )
     expect(log).toHaveBeenCalledWith(
-      'Submitted https://browserextensions.io/sitemap-index.xml for https://browserextensions.io/'
+      'Submitted https://serp.software/sitemap-index.xml for https://serp.software/'
     )
   })
 
@@ -136,21 +127,16 @@ describe('runSubmitGscSitemaps', () => {
     )
 
     await runSubmitGscSitemaps(
-      [
-        '--site',
-        'browserextensions.io',
-        '--delete-sitemap',
-        'https://browserextensions.io/pages-sitemap.xml'
-      ],
+      ['--site', 'serp.software', '--delete-sitemap', 'https://serp.software/pages-sitemap.xml'],
       {
         GSC_ACCESS_TOKEN: 'token',
         GSC_SITE_URL_MAP: JSON.stringify({
-          'browserextensions.io': 'sc-domain:browserextensions.io'
+          'serp.software': 'sc-domain:serp.software'
         })
       }
     )
 
-    expect(calls.every(url => url.includes('/sites/sc-domain%3Abrowserextensions.io/'))).toBe(true)
+    expect(calls.every(url => url.includes('/sites/sc-domain%3Aserp.software/'))).toBe(true)
   })
 
   it('treats already-deleted stale sitemap URLs as successful deletes', async () => {
@@ -171,12 +157,7 @@ describe('runSubmitGscSitemaps', () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await runSubmitGscSitemaps(
-      [
-        '--site',
-        'browserextensions.io',
-        '--delete-sitemap',
-        'https://browserextensions.io/pages-sitemap.xml'
-      ],
+      ['--site', 'serp.software', '--delete-sitemap', 'https://serp.software/pages-sitemap.xml'],
       {
         GSC_ACCESS_TOKEN: 'token'
       }
@@ -184,7 +165,7 @@ describe('runSubmitGscSitemaps', () => {
 
     expect(calls.map(call => call.method)).toEqual(['DELETE', 'PUT'])
     expect(log).toHaveBeenCalledWith(
-      'Deleted https://browserextensions.io/pages-sitemap.xml for https://browserextensions.io/'
+      'Deleted https://serp.software/pages-sitemap.xml for https://serp.software/'
     )
   })
 })

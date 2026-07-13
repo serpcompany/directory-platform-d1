@@ -6,14 +6,7 @@ import { getActiveCheckedInSiteIds } from './validate-active-sites.ts'
 
 describe('getActiveCheckedInSiteIds', () => {
   it('derives the active checked-in site ids from the live registry only', () => {
-    expect(getActiveCheckedInSiteIds()).toEqual([
-      'browserextensions.io',
-      'pornvideodownloaders.com',
-      'serp.ai',
-      'serp.co',
-      'serp.software',
-      'serpdownloaders.com'
-    ])
+    expect(getActiveCheckedInSiteIds()).toEqual(['serp.software'])
   })
 
   it('requires every active checked-in site to expose the brands page', () => {

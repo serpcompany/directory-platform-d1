@@ -17,9 +17,8 @@ For completed execution history, see:
 - The wrapper refactor is complete.
 - `apps/web` no longer exists.
 - `apps/starter` is the neutral starter wrapper.
-- `apps/browserextensions.io`, `apps/pornvideodownloaders.com`, `apps/serp.ai`,
-  `apps/serp.co`, `apps/serp.software`, and `apps/serpdownloaders.com` are
-  active checked-in site wrappers.
+- `apps/serp.software` is the only active checked-in site wrapper.
+- `apps/starter` and `sites/default` are non-deployable framework infrastructure.
 - Shared runtime and route logic lives in `packages/web-core`.
 - Checked-in site contract and site resolution live in `packages/site-contract`.
 - The starter submit flow now uses a static-friendly GitHub issue handoff with PR-reviewed
@@ -27,18 +26,12 @@ For completed execution history, see:
 
 ## Current priorities
 
-1. Keep the active-site pipeline stable:
-   - `pnpm validate:site -- --site serpdownloaders.com`
-   - `pnpm build:site -- --site serpdownloaders.com`
-   - `pnpm deploy:site -- --site serpdownloaders.com --dry-run`
-   - `pnpm validate:site -- --site pornvideodownloaders.com`
-   - `pnpm build:site -- --site pornvideodownloaders.com`
-   - `pnpm deploy:site -- --site pornvideodownloaders.com --dry-run`
-   - `pnpm validate:site -- --site serp.co`
-   - `pnpm build:site -- --site serp.co`
-   - `pnpm deploy:site -- --site serp.co --dry-run`
+1. Keep the single-site pipeline stable:
+   - `pnpm validate:site -- --site serp.software`
+   - `pnpm build:site -- --site serp.software`
+   - `pnpm deploy:site -- --site serp.software --dry-run`
 2. Keep `apps/starter` thin and generic.
-3. Add or promote new sites only through the checked-in site contract and promotion checklist.
+3. Do not add another active site during the runtime-D1 pilot.
 4. Use `pnpm generate:site-wrapper -- --site <site-id>` as the standard starting point for new wrapper apps.
 5. Treat old migration docs as historical context, not live implementation guidance.
 

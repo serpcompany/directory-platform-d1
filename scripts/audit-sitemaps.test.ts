@@ -19,7 +19,7 @@ function writeFile(path: string, contents = 'test'): void {
 }
 
 function makeSiteConfig(artifactDir: string) {
-  const siteConfig = resolveCheckedInSiteConfig('browserextensions.io')
+  const siteConfig = resolveCheckedInSiteConfig('serp.software')
 
   return {
     ...siteConfig,

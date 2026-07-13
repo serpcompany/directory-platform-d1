@@ -1,32 +1,14 @@
 name: Build & Deploy
 
 on:
-  push:
-    branches: [main]
-    paths:
-      - 'data/listings.json'
-      - 'd1/**'
-      - 'sites/**'
-      - 'apps/browserextensions.io/**'
-      - 'apps/pornvideodownloaders.com/**'
-      - 'apps/serp.ai/**'
-      - 'apps/serp.co/**'
-      - 'apps/serp.software/**'
-      - 'apps/serpdownloaders.com/**'
-      - 'apps/starter/**'
-      - 'packages/web-core/**'
-      - 'scripts/**'
-      - 'wrangler.jsonc'
-      - '!scripts/build-and-deploy-workflow.test.ts'
-      - '!scripts/deploy-to-repo.sh'
-      - '!scripts/deploy-to-repo-script.test.ts'
-      - '!scripts/target-verify-badge-workflow.test.ts'
-      - '!scripts/templates/target-verify-badge.yml'
   workflow_dispatch:
     inputs:
       site_id:
-        description: 'Checked-in site config id'
+        description: 'Checked-in site config id (serp.software only)'
         required: true
+        type: choice
+        options:
+          - serp.software
 
 concurrency:
   group: main-ci-${{ github.ref }}

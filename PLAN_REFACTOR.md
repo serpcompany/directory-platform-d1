@@ -1009,8 +1009,7 @@ Implementation slices:
      after the last accepted write and before traffic changes so approvals cannot be
      lost between snapshot and cutover.
 5. Pilot runtime cutover:
-   - Use `serpdownloaders.com` as the pilot unless the ADR selects another site with
-     recorded evidence.
+   - Use `serp.software` as the sole pilot site.
    - Move its build and deploy workflow to the selected runtime with development,
      preview, and production D1 bindings separated.
    - Verify homepage, search, category, listing detail, favorites behavior, metadata,
@@ -1200,8 +1199,8 @@ Every PR should have:
 
 ## Open Decisions
 
-- Which site is the visual pilot? Recommended: `serpdownloaders.com`, because it is
-  the default `pnpm dev` site.
+- `serp.software` is the sole visual and runtime-D1 pilot and the default `pnpm dev`
+  site.
 - Should Payblocks be used as source code, design reference, or not at all?
 - D1 is the intended canonical source for published listing data; Phase 5 must still
   record the ownership, backup, and operational consequences.
