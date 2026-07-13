@@ -1,5 +1,11 @@
 'use client'
 
+import { ScrollArea } from '@thedaviddias/design-system/scroll-area'
+import {
+  DirectoryNavigationItem,
+  DirectoryNavigationSection,
+  directoryNavigationInteractiveClassName
+} from '@thedaviddias/design-system/shadcnblocks/directory-navigation'
 import { ExternalLink, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { categories } from '../categories'
@@ -29,78 +35,82 @@ export function AppSidebar({
     : categories
 
   return (
-    <div className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[240px] max-w-[240px] min-w-[240px] overflow-y-auto border-r sm:block">
-      <div className="space-y-6 p-4">
-        <h2 className="sr-only">Navigation</h2>
+    <div className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[240px] max-w-[240px] min-w-[240px] border-r sm:block">
+      <ScrollArea className="h-full">
+        <div className="space-y-6 p-4">
+          <h2 className="sr-only">Navigation</h2>
 
-        {siteConfig.features.showFavorites ? (
-          <div>
-            <h3 className="font-semibold text-sm mb-4 text-muted-foreground">My Collection</h3>
-            <nav className="space-y-1">
+          {siteConfig.features.showFavorites ? (
+            <DirectoryNavigationSection title="My Collection">
               <FavoritesLink />
-            </nav>
-          </div>
-        ) : null}
+            </DirectoryNavigationSection>
+          ) : null}
 
-        <div>
-          <h3 className="font-semibold text-sm mb-4 text-muted-foreground">Categories</h3>
-          <nav className="space-y-1">
+          <DirectoryNavigationSection title="Categories">
             {showFeaturedCategory ? (
               <Link
                 href={getFeaturedCategoryRoute()}
-                className="flex items-center justify-between gap-2 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors cursor-pointer"
+                className={directoryNavigationInteractiveClassName}
               >
-                <div className="flex items-center gap-2">
-                  <Trophy className="h-4 w-4" />
+                <DirectoryNavigationItem
+                  icon={<Trophy className="h-4 w-4" />}
+                  trailing={
+                    featuredCount > 0 ? (
+                      <span className="rounded-full bg-muted px-1.5 py-0.5 text-xs">
+                        {featuredCount}
+                      </span>
+                    ) : null
+                  }
+                >
                   Featured
-                </div>
-                {featuredCount > 0 && (
-                  <span className="text-xs bg-muted px-1.5 py-0.5 rounded-full">
-                    {featuredCount}
-                  </span>
-                )}
+                </DirectoryNavigationItem>
               </Link>
             ) : null}
-            {availableCategories.map(category => (
-              <Link
-                key={category.slug}
-                href={getRoute('category.page', { category: category.slug })}
-                className={`flex items-center gap-2 px-2 py-1 text-sm rounded-md transition-colors ${
-                  category.slug === currentCategory
-                    ? 'text-foreground font-medium bg-accent'
-                    : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                }`}
-              >
-                <category.icon className="h-4 w-4" />
-                {getCategoryDisplayName(category.slug)}
-              </Link>
-            ))}
-          </nav>
-        </div>
+            {availableCategories.map(category => {
+              const isActive = category.slug === currentCategory
 
-        {showExternalResources ? (
-          <div>
-            <h3 className="font-semibold text-sm mb-4 text-muted-foreground">Resources</h3>
-            <nav className="space-y-1">
+              return (
+                <Link
+                  key={category.slug}
+                  href={getRoute('category.page', { category: category.slug })}
+                  aria-current={isActive ? 'page' : undefined}
+                  className={directoryNavigationInteractiveClassName}
+                >
+                  <DirectoryNavigationItem
+                    icon={<category.icon className="h-4 w-4" />}
+                    active={isActive}
+                  >
+                    {getCategoryDisplayName(category.slug)}
+                  </DirectoryNavigationItem>
+                </Link>
+              )
+            })}
+          </DirectoryNavigationSection>
+
+          {showExternalResources ? (
+            <DirectoryNavigationSection title="Resources">
               {externalResources.map(resource => (
                 <Link
                   key={resource.slug}
                   href={resource.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between gap-2 px-2 py-1 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 rounded-md transition-colors group"
+                  className={directoryNavigationInteractiveClassName}
                 >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <resource.icon className="h-4 w-4 flex-shrink-0" />
-                    <span className="truncate">{resource.name}</span>
-                  </div>
-                  <ExternalLink className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                  <DirectoryNavigationItem
+                    icon={<resource.icon className="h-4 w-4 flex-shrink-0" />}
+                    trailing={
+                      <ExternalLink className="h-3 w-3 flex-shrink-0 opacity-0 transition-opacity group-hover:opacity-100" />
+                    }
+                  >
+                    {resource.name}
+                  </DirectoryNavigationItem>
                 </Link>
               ))}
-            </nav>
-          </div>
-        ) : null}
-      </div>
+            </DirectoryNavigationSection>
+          ) : null}
+        </div>
+      </ScrollArea>
     </div>
   )
 }

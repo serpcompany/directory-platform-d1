@@ -1,8 +1,13 @@
 'use client'
+import {
+  DirectoryApplicationMobileSearchBackdrop,
+  DirectoryApplicationMobileSearchPanel,
+  DirectoryApplicationSearchColumn
+} from '@thedaviddias/design-system/shadcnblocks/directory-application-shell'
 import { siteCopy } from '@thedaviddias/web-core/site-copy'
-import { Search } from 'lucide-react'
 import { useRef } from 'react'
 import { SearchAutocomplete } from '../search/search-autocomplete'
+import { SearchInput } from '../search/search-input'
 
 interface DesktopSearchFormProps {
   availableCategorySlugs: string[]
@@ -40,29 +45,20 @@ export function DesktopSearchForm({
   const searchInputRef = useRef<HTMLInputElement>(null)
 
   return (
-    <div className="hidden md:block flex-1 2xl:flex-none 2xl:w-full max-w-2xl 2xl:max-w-none">
+    <DirectoryApplicationSearchColumn>
       <form
         aria-label="Desktop search"
         onSubmit={onSubmit}
         className="relative 2xl:max-w-2xl 2xl:mx-auto"
       >
-        <input
+        <SearchInput
           ref={searchInputRef}
           aria-label="Search"
-          type="text"
           placeholder={siteCopy.listingSearchPlaceholder}
           value={searchQuery}
           onChange={onSearchChange}
           onFocus={onInputFocus}
-          className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
         />
-        <button
-          type="submit"
-          className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-          aria-label="Search"
-        >
-          <Search className="h-4 w-4" />
-        </button>
         <SearchAutocomplete
           availableCategorySlugs={availableCategorySlugs}
           searchQuery={searchQuery}
@@ -72,7 +68,7 @@ export function DesktopSearchForm({
           onSelect={onAutocompleteSelect}
         />
       </form>
-    </div>
+    </DirectoryApplicationSearchColumn>
   )
 }
 
@@ -119,33 +115,26 @@ export function MobileSearchOverlay({
   return (
     <>
       {/* Backdrop */}
-      <button
-        type="button"
-        className="md:hidden fixed inset-0 top-16 z-40 bg-black/50 backdrop-blur-sm"
-        onClick={onMobileSearchClose}
-        aria-label="Close search"
-      />
+      <DirectoryApplicationMobileSearchBackdrop>
+        <button
+          type="button"
+          className="h-full w-full bg-black/50 backdrop-blur-sm"
+          onClick={onMobileSearchClose}
+          aria-label="Close search"
+        />
+      </DirectoryApplicationMobileSearchBackdrop>
       {/* Search container */}
-      <div className="md:hidden fixed inset-x-0 top-16 z-50 bg-background">
+      <DirectoryApplicationMobileSearchPanel>
         <div className="px-4 sm:px-6 py-3 border-t">
           <form aria-label="Mobile search" onSubmit={onSubmit} className="relative">
-            <input
+            <SearchInput
               ref={mobileSearchInputRef}
               aria-label="Search listings"
-              type="text"
               placeholder={siteCopy.listingSearchPlaceholder}
               value={searchQuery}
               onChange={onSearchChange}
               onFocus={onInputFocus}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
             />
-            <button
-              type="submit"
-              className="absolute inset-y-0 right-0 flex items-center px-3 text-muted-foreground hover:text-foreground"
-              aria-label="Search"
-            >
-              <Search className="h-4 w-4" />
-            </button>
             <SearchAutocomplete
               availableCategorySlugs={availableCategorySlugs}
               searchQuery={searchQuery}
@@ -156,7 +145,7 @@ export function MobileSearchOverlay({
             />
           </form>
         </div>
-      </div>
+      </DirectoryApplicationMobileSearchPanel>
     </>
   )
 }

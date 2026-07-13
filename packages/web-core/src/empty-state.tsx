@@ -1,5 +1,5 @@
-import { Button } from '@thedaviddias/design-system/button'
 import { cn } from '@thedaviddias/design-system/lib/utils'
+import { DirectoryEmpty } from '@thedaviddias/design-system/shadcnblocks/directory-empty'
 import { FolderOpen, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 
@@ -46,24 +46,24 @@ export function EmptyState({
   titleClassName,
   descriptionClassName
 }: EmptyStateProps) {
+  const action =
+    onAction && actionLabel
+      ? { label: actionLabel, onClick: onAction }
+      : actionHref && actionLabel
+        ? { label: actionLabel, slot: <Link href={actionHref}>{actionLabel}</Link> }
+        : undefined
+
   return (
-    <div
-      className={cn('flex flex-col items-center justify-center h-[50vh] text-center', className)}
-    >
-      <div className={iconContainerClassName}>
-        <Icon className={cn('h-16 w-16 text-muted-foreground mb-4', iconClassName)} />
-      </div>
-      <h2 className={cn('text-2xl font-bold mb-2', titleClassName)}>{title}</h2>
-      <p className={cn('text-muted-foreground mb-4 max-w-md', descriptionClassName)}>
-        {description}
-      </p>
-      {onAction && actionLabel ? (
-        <Button onClick={onAction}>{actionLabel}</Button>
-      ) : actionHref && actionLabel ? (
-        <Button asChild>
-          <Link href={actionHref}>{actionLabel}</Link>
-        </Button>
-      ) : null}
-    </div>
+    <DirectoryEmpty
+      title={title}
+      description={description}
+      action={action}
+      icon={Icon}
+      iconClassName={cn('h-16 w-16 text-muted-foreground mb-4', iconClassName)}
+      iconContainerClassName={iconContainerClassName}
+      className={className}
+      titleClassName={titleClassName}
+      descriptionClassName={descriptionClassName}
+    />
   )
 }
