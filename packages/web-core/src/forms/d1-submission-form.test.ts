@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 
 describe('buildBadgeSubmissionInstructions', () => {
@@ -32,5 +33,16 @@ describe('buildBadgeSubmissionInstructions', () => {
     expect(instructions.badgeEmbeds.dark).toContain(
       'https://serp.software/badge/featured-on-serp.software-dark.svg'
     )
+  })
+
+  it('tells the submitter that verification queues and notifies the admin', () => {
+    const source = readFileSync('packages/web-core/src/forms/d1-submission-form.tsx', 'utf8')
+    expect(source).toContain(
+      'Your submission is saved in D1. Publish one badge on your site, then verify it to'
+    )
+    expect(source).toContain('Badge verification is required')
+    expect(source).toContain('Your submission enters admin review')
+    expect(source).toContain('enter the maintainer review queue.')
+    expect(source).toContain('Badge verified — admin notified within a few minutes')
   })
 })

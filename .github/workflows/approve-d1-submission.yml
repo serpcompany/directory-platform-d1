@@ -25,6 +25,7 @@ concurrency:
 
 permissions:
   contents: read
+  issues: write
 
 jobs:
   approve:
@@ -67,3 +68,44 @@ jobs:
       - name: Review D1 submission
         env: *production_env
         run: pnpm d1:approve:production -- "${{ inputs.submission_id }}" "${{ inputs.decision }}"
+      - name: Close the admin review issue
+        uses: actions/github-script@v8
+        env:
+          SUBMISSION_ID: ${{ inputs.submission_id }}
+          SUBMISSION_DECISION: ${{ inputs.decision }}
+          SUBMISSION_REVIEWER: ${{ github.actor }}
+        with:
+          script: |
+            const marker = `<!-- serp-submission-id: ${process.env.SUBMISSION_ID} -->`
+            const issues = await github.paginate(github.rest.issues.listForRepo, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              state: 'all',
+              per_page: 100
+            })
+            const issue = issues.find(item => !item.pull_request && item.body?.includes(marker))
+            if (!issue) {
+              core.notice('No GitHub review issue exists for this D1 submission.')
+              return
+            }
+            if (issue.state === 'closed') {
+              core.notice(`Review issue #${issue.number} is already closed.`)
+              return
+            }
+            const outcome =
+              process.env.SUBMISSION_DECISION === 'approve'
+                ? 'approved and published'
+                : 'declined without publishing'
+            await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              body: `D1 submission **${outcome}** by @${process.env.SUBMISSION_REVIEWER}.`
+            })
+            await github.rest.issues.update({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: issue.number,
+              state: 'closed',
+              state_reason: 'completed'
+            })

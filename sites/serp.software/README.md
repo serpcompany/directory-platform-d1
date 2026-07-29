@@ -8,7 +8,8 @@ Public product detail pages remain under `/products/[slug]/`.
 
 - Canonical runtime data: Cloudflare D1.
 - Schema changes: `d1/migrations/`.
-- Badge-verified intake: normalized private D1 submission tables.
+- Badge-verified intake: normalized private D1 submission tables with assigned
+  private GitHub review notifications.
 - Approved mutations: versioned YAML manifests under `d1/publications/`.
 - Initial bootstrap evidence: immutable SQL and parity files under `d1/artifacts/`.
 

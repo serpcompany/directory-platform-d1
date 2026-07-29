@@ -1,0 +1,40 @@
+name: Notify verified D1 submissions
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '*/5 * * * *'
+
+concurrency:
+  group: serp-software-production-d1
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main'
+    environment:
+      name: production
+    steps:
+      - name: Checkout reviewed source
+        uses: actions/checkout@v6
+      - name: Install dependencies
+        uses: ./.github/actions/install
+      - name: Notify the configured submission reviewer
+        env:
+          CI: 'true'
+          GITHUB_ACTIONS: 'true'
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+          GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GITHUB_TOKEN: ${{ github.token }}
+          SUBMISSION_REVIEWER_GITHUB_LOGIN: ${{ vars.SUBMISSION_REVIEWER_GITHUB_LOGIN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
+        run: pnpm d1:notify:production
