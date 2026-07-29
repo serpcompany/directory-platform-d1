@@ -69,12 +69,24 @@ describe('private submission review preview', () => {
       'utf8'
     )
     const nextConfig = readFileSync(resolve('apps/serp.software/next.config.ts'), 'utf8')
+    const breadcrumb = readFileSync(
+      resolve('packages/design-system/components/custom/breadcrumb.tsx'),
+      'utf8'
+    )
+    const websiteHero = readFileSync(
+      resolve('packages/web-core/src/website/website-hero-route.tsx'),
+      'utf8'
+    )
 
     expect(repository).toContain("s.status='verified'")
     expect(repository).toContain('n.preview_token_hash=?')
     expect(repository).toContain('.bind(CHANNEL, access.id, SITE_ID, await sha256(access.token))')
     expect(repository).not.toMatch(/readFile|\\.json/)
     expect(route).toContain('JsonLd: PrivatePreviewJsonLd')
+    expect(route).toContain('structuredData={false}')
+    expect(breadcrumb).toContain('structuredData = true')
+    expect(breadcrumb).toContain('{structuredData && (')
+    expect(websiteHero).toContain('structuredData={structuredData}')
     expect(route).toContain("dynamic = 'force-dynamic'")
     expect(nextConfig).toContain("value: 'private, no-store, max-age=0'")
     expect(nextConfig).toContain("value: 'noindex, nofollow, noarchive'")
