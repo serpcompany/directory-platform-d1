@@ -13,7 +13,7 @@ test.describe('Minimal Tests', () => {
 
     // Basic content check
     const title = await page.title()
-    expect(title).toContain('Directory Starter')
+    expect(title).toContain('SERP Software')
   })
 
   test('about page loads', async ({ page }) => {

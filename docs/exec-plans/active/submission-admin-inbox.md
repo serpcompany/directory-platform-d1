@@ -49,6 +49,9 @@ will record the external issue identity so the process is idempotent and auditab
 - [x] 2026-07-30 03:01 JST Proved normalized local submission storage, applied the
       new migration to existing isolated state, passed the full eight-stage harness,
       and captured the badge-required form and embed modal.
+- [x] 2026-07-30 03:10 JST Repaired the stale Playwright server/expectation
+      configuration exposed by PR CI; all 14 functional E2E tests pass against the
+      local OpenNext Worker and D1.
 - [ ] Configure the production reviewer, deploy the migration/application, exercise
       a live badge-verified submission, and prove its assigned issue can be declined
       without publishing.
@@ -74,6 +77,12 @@ will record the external issue identity so the process is idempotent and auditab
   Evidence: the local submission was stored successfully, but a read-only
   `sqlite_schema` query did not find `listing_submission_notifications` until
   `pnpm d1:local:migrate` applied `0007_submission_notifications.sql`.
+- Observation: the PR E2E job still targeted a removed `apps/starter` directory, ran
+  the agent-only capture spec without its required environment, and expected an old
+  autocomplete role/title.
+  Evidence: GitHub run `30478305706` failed before server startup with
+  `cd: can't cd to ../starter`; after targeting the guarded D1 Worker, local CI-mode
+  Playwright exposed and fixed the two stale expectations, then passed 14/14 tests.
 
 ## Decision log
 

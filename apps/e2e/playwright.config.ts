@@ -4,12 +4,16 @@ const playwrightPort = Number(process.env.PLAYWRIGHT_PORT ?? 3100)
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${playwrightPort}`
 const webServerCommand =
   process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ??
-  `cd ../starter && pnpm exec next dev --hostname 127.0.0.1 --port ${playwrightPort}`
+  `cd ../.. && pnpm d1:local:migrate && pnpm d1:local:import && pnpm d1:local:verify && PORT=${playwrightPort} pnpm worker:preview`
 const workerCount = Number(process.env.E2E_WORKERS ?? 2)
+const ignoredTests = [
+  ...(process.env.E2E_VISUAL === '1' ? [] : ['**/visual.spec.ts']),
+  ...(process.env.AGENT_CAPTURE_DIRECTORY ? [] : ['**/agent-capture.spec.ts'])
+]
 
 export default defineConfig({
   testDir: './tests',
-  testIgnore: process.env.E2E_VISUAL === '1' ? [] : ['**/visual.spec.ts'],
+  testIgnore: ignoredTests,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
@@ -83,7 +87,7 @@ export default defineConfig({
     command: webServerCommand,
     url: baseUrl,
     reuseExistingServer: !process.env.CI,
-    timeout: 60000, // 1 minute to start server
+    timeout: 180000, // D1 initialization plus the OpenNext Worker build
     env: {
       // Minimize external dependencies for testing
       NEXT_PUBLIC_SENTRY_DSN:
