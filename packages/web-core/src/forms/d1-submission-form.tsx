@@ -10,7 +10,7 @@ import {
   DialogTitle
 } from '@thedaviddias/design-system/dialog'
 import { Check, Copy, ExternalLink } from 'lucide-react'
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { siteConfig } from '../site-config'
@@ -30,6 +30,7 @@ export interface CategoryOption {
 const HTTPS_PREFIX = 'https://'
 const MAX_FAQS = 5
 const MAX_RESOURCE_LINKS = 5
+const SUBMISSION_RESUME_STORAGE_KEY = 'serp.software:submission-verification'
 type BadgeTheme = 'light' | 'dark'
 
 type BadgeSubmissionInstructions = {
@@ -40,6 +41,71 @@ type BadgeSubmissionInstructions = {
   listingUrl: string
   name: string
   siteName: string
+}
+
+const submissionResumeCapabilitySchema = z.object({
+  submissionId: z.string().uuid(),
+  token: z.string().min(32).max(256)
+})
+
+type SubmissionResumeCapability = z.infer<typeof submissionResumeCapabilitySchema>
+
+export function buildSubmissionResumeHash(capability: SubmissionResumeCapability): string {
+  const parsed = submissionResumeCapabilitySchema.parse(capability)
+  return `#${new URLSearchParams({
+    submission: parsed.submissionId,
+    token: parsed.token
+  }).toString()}`
+}
+
+export function parseSubmissionResumeHash(hash: string): SubmissionResumeCapability | null {
+  const params = new URLSearchParams(hash.replace(/^#/, ''))
+  const parsed = submissionResumeCapabilitySchema.safeParse({
+    submissionId: params.get('submission'),
+    token: params.get('token')
+  })
+  return parsed.success ? parsed.data : null
+}
+
+function readStoredResumeCapability(): SubmissionResumeCapability | null {
+  try {
+    const stored = window.localStorage.getItem(SUBMISSION_RESUME_STORAGE_KEY)
+    if (!stored) return null
+    const parsed = submissionResumeCapabilitySchema.safeParse(JSON.parse(stored))
+    return parsed.success ? parsed.data : null
+  } catch {
+    return null
+  }
+}
+
+function storeResumeCapability(capability: SubmissionResumeCapability): void {
+  try {
+    window.localStorage.setItem(SUBMISSION_RESUME_STORAGE_KEY, JSON.stringify(capability))
+  } catch {
+    // The fragment remains a portable recovery path when browser storage is unavailable.
+  }
+  try {
+    window.history.replaceState(
+      null,
+      '',
+      `${window.location.pathname}${window.location.search}${buildSubmissionResumeHash(capability)}`
+    )
+  } catch {
+    // Saving the D1 submission must not be reported as failed because history is unavailable.
+  }
+}
+
+function clearResumeCapability(): void {
+  try {
+    window.localStorage.removeItem(SUBMISSION_RESUME_STORAGE_KEY)
+  } catch {
+    // Browser storage may be disabled.
+  }
+  try {
+    window.history.replaceState(null, '', `${window.location.pathname}${window.location.search}`)
+  } catch {
+    // The server-side status still prevents a completed session from re-entering review.
+  }
 }
 
 function hasCompleteHttpUrl(value: string): boolean {
@@ -264,9 +330,12 @@ export function D1SubmissionForm({
 }) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [copiedTheme, setCopiedTheme] = useState<BadgeTheme | null>(null)
+  const [copiedResumeLink, setCopiedResumeLink] = useState(false)
   const [badgeInstructions, setBadgeInstructions] = useState<BadgeSubmissionInstructions | null>(
     null
   )
+  const [isRestoringSubmission, setIsRestoringSubmission] = useState(false)
+  const [verificationDialogOpen, setVerificationDialogOpen] = useState(false)
   const [verificationState, setVerificationState] = useState<'pending' | 'checking' | 'verified'>(
     'pending'
   )
@@ -311,6 +380,65 @@ export function D1SubmissionForm({
   const isSubmitDisabled =
     !isValid || isSubmitting || hasPartiallyFilledFaq || hasPartiallyFilledResourceLink
 
+  useEffect(() => {
+    const capability =
+      parseSubmissionResumeHash(window.location.hash) || readStoredResumeCapability()
+    if (!capability) return
+
+    const controller = new AbortController()
+    setIsRestoringSubmission(true)
+    storeResumeCapability(capability)
+
+    void (async () => {
+      try {
+        const response = await fetch(
+          `/api/submissions/${capability.submissionId}?token=${encodeURIComponent(capability.token)}`,
+          { signal: controller.signal }
+        )
+        const result = (await response.json()) as {
+          error?: string
+          name?: string
+          status?: 'pending_badge' | 'verified' | 'approved' | 'rejected'
+          website?: string
+        }
+        if (!response.ok || !result.name || !result.website || !result.status) {
+          if (response.status === 404) clearResumeCapability()
+          throw new Error(result.error || 'Unable to restore this saved submission.')
+        }
+        if (result.status === 'approved' || result.status === 'rejected') {
+          clearResumeCapability()
+          throw new Error(
+            result.status === 'approved'
+              ? 'This submission has already been approved.'
+              : 'This submission has been declined.'
+          )
+        }
+
+        setBadgeInstructions(
+          buildBadgeSubmissionInstructions({
+            submissionId: capability.submissionId,
+            token: capability.token,
+            name: result.name,
+            website: result.website
+          })
+        )
+        setVerificationState(result.status === 'verified' ? 'verified' : 'pending')
+        setVerificationDialogOpen(result.status !== 'verified')
+        if (result.status === 'verified') clearResumeCapability()
+      } catch (error) {
+        if (!controller.signal.aborted) {
+          setSubmitError(
+            error instanceof Error ? error.message : 'Unable to restore this saved submission.'
+          )
+        }
+      } finally {
+        if (!controller.signal.aborted) setIsRestoringSubmission(false)
+      }
+    })()
+
+    return () => controller.abort()
+  }, [])
+
   async function handleValidSubmit(values: SubmissionFormValues): Promise<void> {
     setSubmitError(null)
     try {
@@ -329,26 +457,30 @@ export function D1SubmissionForm({
       if (!response.ok || !result.id || !result.token) {
         throw new Error(result.error || 'Unable to save your submission.')
       }
-      setBadgeInstructions(
-        buildBadgeSubmissionInstructions({
-          submissionId: result.id,
-          token: result.token,
-          name: values.name,
-          website: values.website
-        })
-      )
+      const capability = { submissionId: result.id, token: result.token }
+      const instructions = buildBadgeSubmissionInstructions({
+        ...capability,
+        name: values.name,
+        website: values.website
+      })
+      storeResumeCapability(capability)
+      setBadgeInstructions(instructions)
       setVerificationState('pending')
+      setVerificationDialogOpen(true)
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to save your submission.')
     }
   }
 
   function handleReset(): void {
+    clearResumeCapability()
     reset(INITIAL_FORM_STATE)
     setSubmitError(null)
     setBadgeInstructions(null)
     setCopiedTheme(null)
+    setCopiedResumeLink(false)
     setVerificationState('pending')
+    setVerificationDialogOpen(false)
   }
 
   async function handleVerifyBadge(): Promise<void> {
@@ -375,6 +507,7 @@ export function D1SubmissionForm({
         )
       }
       setVerificationState('verified')
+      clearResumeCapability()
     } catch (error) {
       setVerificationState('pending')
       setSubmitError(error instanceof Error ? error.message : 'Unable to verify the badge.')
@@ -391,6 +524,23 @@ export function D1SubmissionForm({
     setTimeout(() => setCopiedTheme(null), 2000)
   }
 
+  async function handleCopyResumeLink(): Promise<void> {
+    if (!badgeInstructions) return
+    try {
+      const hash = buildSubmissionResumeHash({
+        submissionId: badgeInstructions.submissionId,
+        token: badgeInstructions.token
+      })
+      await navigator.clipboard.writeText(
+        `${window.location.origin}${window.location.pathname}${hash}`
+      )
+      setCopiedResumeLink(true)
+      setTimeout(() => setCopiedResumeLink(false), 2000)
+    } catch {
+      setSubmitError('Unable to copy the private resume link. Bookmark this page instead.')
+    }
+  }
+
   return (
     <div className="space-y-8">
       <div className="space-y-4">
@@ -403,264 +553,329 @@ export function D1SubmissionForm({
         </div>
       ) : null}
 
-      <form className="space-y-6" noValidate onSubmit={handleSubmit(handleValidSubmit)}>
-        <div className="grid gap-6 md:grid-cols-2">
-          <label className="space-y-2">
-            <FieldLabel required>Name</FieldLabel>
-            <input
-              required
-              type="text"
-              aria-label="Name"
-              aria-invalid={errors.name ? 'true' : 'false'}
-              {...register('name')}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              placeholder={`Example ${listingLabel}`}
-            />
-            <FieldError message={errors.name?.message} />
-          </label>
-
-          <label className="space-y-2">
-            <FieldLabel required>Category</FieldLabel>
-            <select
-              required
-              aria-label="Category"
-              aria-invalid={errors.category ? 'true' : 'false'}
-              {...register('category')}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            >
-              <option value="">Choose a category</option>
-              {categoryOptions.map(category => (
-                <option key={category.slug} value={category.slug}>
-                  {category.label}
-                </option>
-              ))}
-            </select>
-            <FieldError message={errors.category?.message} />
-          </label>
-
-          <label className="space-y-2 md:col-span-2">
-            <FieldLabel required>Website URL</FieldLabel>
-            <input
-              required
-              type="url"
-              aria-label="Website URL"
-              aria-invalid={errors.website ? 'true' : 'false'}
-              {...register('website')}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              placeholder="https://example.com"
-            />
-            <FieldError message={errors.website?.message} />
-          </label>
-
-          <label className="space-y-2 md:col-span-2">
-            <FieldLabel required>Logo URL</FieldLabel>
-            <input
-              required
-              type="url"
-              aria-label="Logo URL"
-              aria-invalid={errors.logoUrl ? 'true' : 'false'}
-              {...register('logoUrl')}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              placeholder="https://example.com/logo.png"
-            />
-            <FieldError message={errors.logoUrl?.message} />
-          </label>
-
-          <label className="space-y-2 md:col-span-2">
-            <FieldLabel>Video URL</FieldLabel>
-            <input
-              type="url"
-              aria-label="Video URL"
-              aria-invalid={errors.videoUrl ? 'true' : 'false'}
-              {...register('videoUrl')}
-              className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-              placeholder="https://www.youtube.com/watch?v=..."
-            />
-            <FieldError message={errors.videoUrl?.message} />
-          </label>
+      {isRestoringSubmission ? (
+        <div
+          className="rounded-lg border border-border bg-muted/30 p-5 text-sm text-muted-foreground"
+          role="status"
+        >
+          Restoring your saved submission…
         </div>
+      ) : null}
 
-        <label className="block space-y-2">
-          <FieldLabel required>Short Description</FieldLabel>
-          <textarea
-            required
-            aria-label="Short Description"
-            aria-invalid={errors.description ? 'true' : 'false'}
-            {...register('description')}
-            className="min-h-24 w-full rounded-lg border border-input bg-background px-4 py-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            placeholder="One sentence describing what this listing covers."
-          />
-          <FieldError message={errors.description?.message} />
-        </label>
-
-        <label className="block space-y-2">
-          <FieldLabel required>Full Description</FieldLabel>
-          <textarea
-            required
-            aria-label="Full Description"
-            aria-invalid={errors.content ? 'true' : 'false'}
-            {...register('content')}
-            className="min-h-48 w-full rounded-lg border border-input bg-background px-4 py-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-            placeholder="Markdown supported. Describe what makes this listing valuable."
-          />
-          <FieldError message={errors.content?.message} />
-        </label>
-
-        <div className="space-y-3">
-          <span className="text-sm font-medium">FAQs</span>
-          {faqFields.map((field, index) => {
-            const faqError = errors.faqs?.[index]
-            const watchedFaq = watchedFaqs[index]
-            const questionMissing =
-              Boolean(watchedFaq?.answer.trim()) && !watchedFaq?.question.trim()
-            const answerMissing = Boolean(watchedFaq?.question.trim()) && !watchedFaq?.answer.trim()
-
-            return (
-              <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_2fr_auto]">
-                <label className="space-y-1">
-                  <span className="sr-only">FAQ question</span>
-                  <input
-                    type="text"
-                    aria-invalid={faqError?.question ? 'true' : 'false'}
-                    {...register(`faqs.${index}.question` as const)}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="Question"
-                  />
-                  <FieldError
-                    message={
-                      faqError?.question?.message || (questionMissing ? 'Enter a question.' : '')
-                    }
-                  />
-                </label>
-                <label className="space-y-1">
-                  <span className="sr-only">FAQ answer</span>
-                  <input
-                    type="text"
-                    aria-invalid={faqError?.answer ? 'true' : 'false'}
-                    {...register(`faqs.${index}.answer` as const)}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="Answer"
-                  />
-                  <FieldError
-                    message={faqError?.answer?.message || (answerMissing ? 'Enter an answer.' : '')}
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => removeFaq(index)}
-                  disabled={faqFields.length <= 1}
-                  className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50"
-                  aria-label="Remove FAQ"
-                >
-                  x
-                </button>
-              </div>
-            )
-          })}
-          {faqFields.length < MAX_FAQS ? (
-            <button
-              type="button"
-              onClick={() => appendFaq({ answer: '', question: '' })}
-              className="text-sm text-primary underline-offset-2 hover:underline"
-            >
-              Add another FAQ
-            </button>
-          ) : null}
-        </div>
-
-        <div className="space-y-3">
-          <span className="text-sm font-medium">Resource Links</span>
-          {resourceLinkFields.map((field, index) => {
-            const resourceLinkError = errors.resourceLinks?.[index]
-
-            return (
-              <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_2fr_auto]">
-                <label className="space-y-1">
-                  <span className="sr-only">Resource link label</span>
-                  <input
-                    type="text"
-                    aria-invalid={resourceLinkError?.label ? 'true' : 'false'}
-                    {...register(`resourceLinks.${index}.label` as const)}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="Label"
-                  />
-                  <FieldError message={resourceLinkError?.label?.message} />
-                </label>
-                <label className="space-y-1">
-                  <span className="sr-only">Resource link URL</span>
-                  <input
-                    type="url"
-                    aria-invalid={resourceLinkError?.url ? 'true' : 'false'}
-                    {...register(`resourceLinks.${index}.url` as const)}
-                    className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
-                    placeholder="https://example.com/docs"
-                  />
-                  <FieldError message={resourceLinkError?.url?.message} />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => removeResourceLink(index)}
-                  disabled={resourceLinkFields.length <= 1}
-                  className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50"
-                  aria-label="Remove link"
-                >
-                  x
-                </button>
-              </div>
-            )
-          })}
-          {resourceLinkFields.length < MAX_RESOURCE_LINKS ? (
-            <button
-              type="button"
-              onClick={() => appendResourceLink({ label: '', url: '' })}
-              className="text-sm text-primary underline-offset-2 hover:underline"
-            >
-              Add another link
-            </button>
-          ) : null}
-        </div>
-
-        <div className="border border-border bg-muted/30 p-4">
-          <p className="text-sm font-semibold">Badge verification is required</p>
-          <p className="mt-1 text-sm text-muted-foreground">
-            After saving, you will receive badge embed code. Your submission enters admin review
-            only after the live badge is verified on your website.
+      {badgeInstructions ? (
+        <section
+          className="space-y-4 rounded-lg border border-emerald-300 bg-emerald-50 p-5 text-emerald-950 dark:border-emerald-800 dark:bg-emerald-950/40 dark:text-emerald-50"
+          aria-labelledby="saved-submission-heading"
+        >
+          <div>
+            <p className="text-xs font-bold uppercase tracking-wide">
+              {verificationState === 'verified' ? 'Step 2 complete' : 'Step 1 complete'}
+            </p>
+            <h2 id="saved-submission-heading" className="mt-1 text-xl font-bold">
+              {verificationState === 'verified' ? 'Submission verified' : 'Submission saved'}
+            </h2>
+          </div>
+          <p className="text-sm">
+            {verificationState === 'verified'
+              ? `${badgeInstructions.name} is in the maintainer review queue. The administrator will be notified within a few minutes.`
+              : `${badgeInstructions.name} is safely stored in D1. You can close this page and finish badge verification later; this browser will remember your submission.`}
           </p>
-        </div>
+          <div className="flex flex-wrap gap-3">
+            {verificationState !== 'verified' ? (
+              <>
+                <button
+                  type="button"
+                  onClick={() => setVerificationDialogOpen(true)}
+                  className="inline-flex items-center justify-center rounded-none bg-emerald-950 px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-emerald-900 dark:bg-emerald-50 dark:text-emerald-950 dark:hover:bg-white"
+                >
+                  Continue badge verification
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void handleCopyResumeLink()}
+                  className="inline-flex items-center gap-2 rounded-none border border-emerald-700 px-4 py-2 text-sm font-bold transition-colors hover:bg-emerald-100 dark:border-emerald-300 dark:hover:bg-emerald-900"
+                >
+                  {copiedResumeLink ? <Check className="size-4" /> : <Copy className="size-4" />}
+                  {copiedResumeLink ? 'Resume link copied' : 'Copy private resume link'}
+                </button>
+              </>
+            ) : null}
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center justify-center rounded-none border border-emerald-700 px-4 py-2 text-sm font-bold transition-colors hover:bg-emerald-100 dark:border-emerald-300 dark:hover:bg-emerald-900"
+            >
+              Start another submission
+            </button>
+          </div>
+          {verificationState !== 'verified' ? (
+            <p className="text-xs opacity-80">
+              Keep the resume link private. It grants access to this submission’s verification step.
+            </p>
+          ) : null}
+        </section>
+      ) : null}
 
-        <div className="flex flex-col gap-3 sm:flex-row">
-          <button
-            type="submit"
-            disabled={isSubmitDisabled}
-            className="inline-flex items-center justify-center rounded-none bg-foreground px-6 py-3 text-sm font-bold text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
-          >
-            Submit
-          </button>
-          <button
-            type="button"
-            onClick={handleReset}
-            className="inline-flex items-center justify-center rounded-none border border-border px-6 py-3 text-sm font-bold transition-colors hover:bg-muted/50"
-          >
-            Reset
-          </button>
-        </div>
-      </form>
+      {!badgeInstructions && !isRestoringSubmission ? (
+        <form className="space-y-6" noValidate onSubmit={handleSubmit(handleValidSubmit)}>
+          <div className="grid gap-6 md:grid-cols-2">
+            <label className="space-y-2">
+              <FieldLabel required>Name</FieldLabel>
+              <input
+                required
+                type="text"
+                aria-label="Name"
+                aria-invalid={errors.name ? 'true' : 'false'}
+                {...register('name')}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder={`Example ${listingLabel}`}
+              />
+              <FieldError message={errors.name?.message} />
+            </label>
+
+            <label className="space-y-2">
+              <FieldLabel required>Category</FieldLabel>
+              <select
+                required
+                aria-label="Category"
+                aria-invalid={errors.category ? 'true' : 'false'}
+                {...register('category')}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              >
+                <option value="">Choose a category</option>
+                {categoryOptions.map(category => (
+                  <option key={category.slug} value={category.slug}>
+                    {category.label}
+                  </option>
+                ))}
+              </select>
+              <FieldError message={errors.category?.message} />
+            </label>
+
+            <label className="space-y-2 md:col-span-2">
+              <FieldLabel required>Website URL</FieldLabel>
+              <input
+                required
+                type="url"
+                aria-label="Website URL"
+                aria-invalid={errors.website ? 'true' : 'false'}
+                {...register('website')}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="https://example.com"
+              />
+              <FieldError message={errors.website?.message} />
+            </label>
+
+            <label className="space-y-2 md:col-span-2">
+              <FieldLabel required>Logo URL</FieldLabel>
+              <input
+                required
+                type="url"
+                aria-label="Logo URL"
+                aria-invalid={errors.logoUrl ? 'true' : 'false'}
+                {...register('logoUrl')}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="https://example.com/logo.png"
+              />
+              <FieldError message={errors.logoUrl?.message} />
+            </label>
+
+            <label className="space-y-2 md:col-span-2">
+              <FieldLabel>Video URL</FieldLabel>
+              <input
+                type="url"
+                aria-label="Video URL"
+                aria-invalid={errors.videoUrl ? 'true' : 'false'}
+                {...register('videoUrl')}
+                className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                placeholder="https://www.youtube.com/watch?v=..."
+              />
+              <FieldError message={errors.videoUrl?.message} />
+            </label>
+          </div>
+
+          <label className="block space-y-2">
+            <FieldLabel required>Short Description</FieldLabel>
+            <textarea
+              required
+              aria-label="Short Description"
+              aria-invalid={errors.description ? 'true' : 'false'}
+              {...register('description')}
+              className="min-h-24 w-full rounded-lg border border-input bg-background px-4 py-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              placeholder="One sentence describing what this listing covers."
+            />
+            <FieldError message={errors.description?.message} />
+          </label>
+
+          <label className="block space-y-2">
+            <FieldLabel required>Full Description</FieldLabel>
+            <textarea
+              required
+              aria-label="Full Description"
+              aria-invalid={errors.content ? 'true' : 'false'}
+              {...register('content')}
+              className="min-h-48 w-full rounded-lg border border-input bg-background px-4 py-3 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+              placeholder="Markdown supported. Describe what makes this listing valuable."
+            />
+            <FieldError message={errors.content?.message} />
+          </label>
+
+          <div className="space-y-3">
+            <span className="text-sm font-medium">FAQs</span>
+            {faqFields.map((field, index) => {
+              const faqError = errors.faqs?.[index]
+              const watchedFaq = watchedFaqs[index]
+              const questionMissing =
+                Boolean(watchedFaq?.answer.trim()) && !watchedFaq?.question.trim()
+              const answerMissing =
+                Boolean(watchedFaq?.question.trim()) && !watchedFaq?.answer.trim()
+
+              return (
+                <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_2fr_auto]">
+                  <label className="space-y-1">
+                    <span className="sr-only">FAQ question</span>
+                    <input
+                      type="text"
+                      aria-invalid={faqError?.question ? 'true' : 'false'}
+                      {...register(`faqs.${index}.question` as const)}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Question"
+                    />
+                    <FieldError
+                      message={
+                        faqError?.question?.message || (questionMissing ? 'Enter a question.' : '')
+                      }
+                    />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="sr-only">FAQ answer</span>
+                    <input
+                      type="text"
+                      aria-invalid={faqError?.answer ? 'true' : 'false'}
+                      {...register(`faqs.${index}.answer` as const)}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Answer"
+                    />
+                    <FieldError
+                      message={
+                        faqError?.answer?.message || (answerMissing ? 'Enter an answer.' : '')
+                      }
+                    />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeFaq(index)}
+                    disabled={faqFields.length <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50"
+                    aria-label="Remove FAQ"
+                  >
+                    x
+                  </button>
+                </div>
+              )
+            })}
+            {faqFields.length < MAX_FAQS ? (
+              <button
+                type="button"
+                onClick={() => appendFaq({ answer: '', question: '' })}
+                className="text-sm text-primary underline-offset-2 hover:underline"
+              >
+                Add another FAQ
+              </button>
+            ) : null}
+          </div>
+
+          <div className="space-y-3">
+            <span className="text-sm font-medium">Resource Links</span>
+            {resourceLinkFields.map((field, index) => {
+              const resourceLinkError = errors.resourceLinks?.[index]
+
+              return (
+                <div key={field.id} className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_2fr_auto]">
+                  <label className="space-y-1">
+                    <span className="sr-only">Resource link label</span>
+                    <input
+                      type="text"
+                      aria-invalid={resourceLinkError?.label ? 'true' : 'false'}
+                      {...register(`resourceLinks.${index}.label` as const)}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="Label"
+                    />
+                    <FieldError message={resourceLinkError?.label?.message} />
+                  </label>
+                  <label className="space-y-1">
+                    <span className="sr-only">Resource link URL</span>
+                    <input
+                      type="url"
+                      aria-invalid={resourceLinkError?.url ? 'true' : 'false'}
+                      {...register(`resourceLinks.${index}.url` as const)}
+                      className="w-full rounded-lg border border-input bg-background px-4 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                      placeholder="https://example.com/docs"
+                    />
+                    <FieldError message={resourceLinkError?.url?.message} />
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => removeResourceLink(index)}
+                    disabled={resourceLinkFields.length <= 1}
+                    className="inline-flex h-10 items-center justify-center rounded-lg border border-border px-3 py-2 text-sm text-muted-foreground transition-colors hover:bg-muted/50"
+                    aria-label="Remove link"
+                  >
+                    x
+                  </button>
+                </div>
+              )
+            })}
+            {resourceLinkFields.length < MAX_RESOURCE_LINKS ? (
+              <button
+                type="button"
+                onClick={() => appendResourceLink({ label: '', url: '' })}
+                className="text-sm text-primary underline-offset-2 hover:underline"
+              >
+                Add another link
+              </button>
+            ) : null}
+          </div>
+
+          <div className="border border-border bg-muted/30 p-4">
+            <p className="text-sm font-semibold">Badge verification is required</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              After saving, you will receive badge embed code. Your submission enters admin review
+              only after the live badge is verified on your website.
+            </p>
+          </div>
+
+          <div className="flex flex-col gap-3 sm:flex-row">
+            <button
+              type="submit"
+              disabled={isSubmitDisabled}
+              className="inline-flex items-center justify-center rounded-none bg-foreground px-6 py-3 text-sm font-bold text-background transition-colors hover:bg-foreground/90 disabled:cursor-not-allowed disabled:opacity-50"
+            >
+              Submit
+            </button>
+            <button
+              type="button"
+              onClick={handleReset}
+              className="inline-flex items-center justify-center rounded-none border border-border px-6 py-3 text-sm font-bold transition-colors hover:bg-muted/50"
+            >
+              Reset
+            </button>
+          </div>
+        </form>
+      ) : null}
       <Dialog
-        open={Boolean(badgeInstructions)}
+        open={Boolean(badgeInstructions) && verificationDialogOpen}
         onOpenChange={open => {
-          if (!open) {
-            setBadgeInstructions(null)
-            setCopiedTheme(null)
-            setVerificationState('pending')
-          }
+          setVerificationDialogOpen(open)
+          if (!open) setCopiedTheme(null)
         }}
       >
         <DialogContent className="max-h-[min(760px,calc(100dvh-2rem))] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>Verify your featured badge</DialogTitle>
+            <DialogTitle>Step 2 of 2 — Install and verify your badge</DialogTitle>
             <DialogDescription>
-              Your submission is saved in D1. Publish one badge on your site, then verify it to
-              enter the maintainer review queue.
+              Step 1 is complete: your submission is saved in D1. You can close this window and
+              return later without losing your progress.
             </DialogDescription>
           </DialogHeader>
 
@@ -723,10 +938,10 @@ export function D1SubmissionForm({
           <DialogFooter>
             <button
               type="button"
-              onClick={() => setBadgeInstructions(null)}
+              onClick={() => setVerificationDialogOpen(false)}
               className="inline-flex items-center justify-center rounded-none border border-border px-4 py-2 text-sm font-bold transition-colors hover:bg-muted/50"
             >
-              Back to form
+              Close for now
             </button>
             {verificationState === 'verified' ? (
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">

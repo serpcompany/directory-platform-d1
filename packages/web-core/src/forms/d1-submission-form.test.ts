@@ -12,7 +12,11 @@ describe('buildBadgeSubmissionInstructions', () => {
     process.env.SITE_ID = 'serp.software'
     vi.resetModules()
 
-    const { buildBadgeSubmissionInstructions } = await import('./d1-submission-form')
+    const {
+      buildBadgeSubmissionInstructions,
+      buildSubmissionResumeHash,
+      parseSubmissionResumeHash
+    } = await import('./d1-submission-form')
     const instructions = buildBadgeSubmissionInstructions({
       submissionId: 'submission-id',
       token: 'capability-token',
@@ -33,16 +37,30 @@ describe('buildBadgeSubmissionInstructions', () => {
     expect(instructions.badgeEmbeds.dark).toContain(
       'https://serp.software/badge/featured-on-serp.software-dark.svg'
     )
+
+    const resumeCapability = {
+      submissionId: '11111111-1111-4111-8111-111111111111',
+      token: 'a'.repeat(43)
+    }
+    const resumeHash = buildSubmissionResumeHash(resumeCapability)
+    expect(resumeHash).toMatch(/^#submission=/)
+    expect(parseSubmissionResumeHash(resumeHash)).toEqual(resumeCapability)
+    expect(parseSubmissionResumeHash('#submission=invalid&token=short')).toBeNull()
+    expect(new URL(`https://serp.software/submit/${resumeHash}`).search).toBe('')
   })
 
-  it('tells the submitter that verification queues and notifies the admin', () => {
+  it('makes the saved submission and resumable verification lifecycle explicit', () => {
     const source = readFileSync('packages/web-core/src/forms/d1-submission-form.tsx', 'utf8')
-    expect(source).toContain(
-      'Your submission is saved in D1. Publish one badge on your site, then verify it to'
-    )
+    expect(source).toContain('Submission saved')
+    expect(source).toContain('Continue badge verification')
+    expect(source).toContain('Copy private resume link')
+    expect(source).toContain('this browser will remember your submission')
+    expect(source).toContain('return later without losing your progress')
+    expect(source).toContain('SUBMISSION_RESUME_STORAGE_KEY')
+    expect(source).toContain('parseSubmissionResumeHash(window.location.hash)')
+    expect(source).toContain('open={Boolean(badgeInstructions) && verificationDialogOpen}')
     expect(source).toContain('Badge verification is required')
     expect(source).toContain('Your submission enters admin review')
-    expect(source).toContain('enter the maintainer review queue.')
     expect(source).toContain('Badge verified — admin notified within a few minutes')
   })
 })

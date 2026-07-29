@@ -8,7 +8,10 @@ published: true
 # Submit Workflow
 
 The `/submit` form loads active category options from D1 and sends validated fields to
-a server route that writes normalized private submission rows to D1.
+a server route that writes normalized private submission rows to D1. After that write,
+the page visibly confirms that the submission is saved and provides a private resume
+link. The submitter can close the badge instructions and finish verification later;
+the same browser also remembers the unfinished verification automatically.
 
 The submitter installs the supplied badge and asks the server to verify the live
 website. Only a successful dofollow badge check enters the maintainer review queue.

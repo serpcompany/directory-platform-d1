@@ -3,7 +3,11 @@
 The public `/submit` page queries active categories from D1. Its client form sends a
 validated request to `POST /api/submissions`, which writes the submission, resource
 links, FAQs, and creation event to normalized D1 staging tables. The response includes
-an opaque capability token; only its SHA-256 digest is stored.
+an opaque capability token; only its SHA-256 digest is stored. The submit page
+immediately replaces the form with a visible saved-submission receipt. It retains the
+capability in browser storage and a URL fragment, allowing the submitter to close the
+badge dialog, reload, return later in the same browser, or bookmark/copy a private
+resume link. The fragment is not sent with the initial HTTP request.
 
 The submitter installs either generated badge and selects **Verify installed badge**.
 `POST /api/submissions/<id>/verify` authenticates the capability, enforces attempt and
@@ -12,6 +16,11 @@ website. Verification succeeds only when the expected badge image links to the f
 listing URL without `nofollow`. Successful verification changes the staging status to
 `verified`; it does not make the listing public. The form tells the submitter that the
 administrator will be notified within a few minutes.
+
+Restoring a saved verification session calls the capability-protected submission
+status endpoint and rebuilds the badge instructions from D1 state. Successful
+verification clears the saved resume capability. A copied resume link is a bearer
+secret and must remain private.
 
 A scheduled and manually dispatchable
 `.github/workflows/notify-d1-submissions.yml` reads verified rows that have no
