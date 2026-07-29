@@ -63,6 +63,12 @@ test.describe(`${siteId} D1 Worker smoke`, () => {
   test('has no horizontal overflow on a mobile viewport', async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 })
     await page.goto('/', { waitUntil: 'networkidle' })
+    const heroName = page.getByRole('heading', { level: 1, name: siteName }).locator('> span')
+    expect(
+      await heroName.evaluate(
+        element => element.getBoundingClientRect().right <= document.documentElement.clientWidth
+      )
+    ).toBe(true)
     expect(
       await page.evaluate(
         () => document.documentElement.scrollWidth > document.documentElement.clientWidth
