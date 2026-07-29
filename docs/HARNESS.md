@@ -77,6 +77,14 @@ pnpm agent:evidence
 pnpm agent:ui:capture -- --name home --path /
 ```
 
+These root aliases select `serp.software`. The
+`agent:pornvideodownloaders:{manifest,doctor,dev,logs,evidence}` aliases select the
+second Worker. The underlying runtime command rejects a missing or unknown site.
+
+Run `pnpm test:e2e:pornvideodownloaders` for the dedicated browser smoke suite. The
+command explicitly selects the Porn Video Downloaders app, local D1 identity, port,
+parity counts, representative listing, and representative category.
+
 `agent:manifest` prints URLs, ports, D1 and Wrangler state paths, log/artifact paths,
 Git identity, Worker name, D1 binding, and runtime variables as JSON.
 
@@ -153,7 +161,7 @@ pnpm migration:preflight -- \
 
 It reports source hashes, listing/category counts, supporting files, slug/category
 integrity, structural issues, and warnings. Passing means the source is coherent
-enough to map; it does not mean the current single-site runtime can accept it.
+enough to map; it does not activate or deploy a site.
 
 Follow [the migration SOP](./MIGRATION_SOP.md) and the
 [migration skill](../.agents/skills/migrate-json-directory-site/SKILL.md).
@@ -184,8 +192,8 @@ permission.
 
 ## Known boundaries
 
-- The repository is currently a single production site, not a generic multisite
-  template.
+- The repository has two explicit production sites; it is not a product-neutral
+  starter and has no default tenant.
 - Named route capture is available; scripted before/after interaction sequences remain
   a future improvement.
 - Local logs are file-queryable; a local metrics/tracing backend is not yet included.

@@ -1,5 +1,8 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
+vi.stubEnv('SITE_ID', 'serp.software')
+vi.stubEnv('NEXT_PUBLIC_SITE_ID', 'serp.software')
+
 type BoundStatement = {
   bind: (...values: unknown[]) => BoundStatement
   first: <T>() => Promise<T>

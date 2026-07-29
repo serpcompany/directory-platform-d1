@@ -7,13 +7,20 @@ on:
         description: 'Reviewed manifest under d1/publications'
         required: true
         type: string
+      site_id:
+        description: 'Manifest and production D1 tenant'
+        required: true
+        type: choice
+        options:
+          - serp.software
+          - pornvideodownloaders.com
       confirmation:
-        description: 'Type publish-serp.software-production to authorize publication'
+        description: 'Type publish-<site>-production to authorize publication'
         required: true
         type: string
 
 concurrency:
-  group: serp-software-production-d1
+  group: ${{ inputs.site_id }}-production-d1
   cancel-in-progress: false
 
 permissions:
@@ -22,9 +29,9 @@ permissions:
 jobs:
   publish:
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'publish-serp.software-production'
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == format('publish-{0}-production', inputs.site_id)
     environment:
-      name: production
+      name: ${{ inputs.site_id == 'pornvideodownloaders.com' && 'pornvideodownloaders-production' || 'production' }}
     steps:
       - name: Checkout reviewed source
         uses: actions/checkout@v6
@@ -42,18 +49,19 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
           D1_PUBLICATION_CONFIRM: ${{ inputs.confirmation }}
+          DEPLOY_SITE_ID: ${{ inputs.site_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
           CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME }}
           CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
-        run: pnpm worker:d1:backup:production
+        run: pnpm tsx scripts/worker-release.ts backup production --site "${{ inputs.site_id }}"
 
       - name: Retain pre-publication backup
         uses: actions/upload-artifact@v6
         with:
-          name: serp-software-d1-pre-publication-${{ github.sha }}
-          path: .wrangler/backups/${{ github.sha }}.sql
+          name: ${{ inputs.site_id }}-d1-pre-publication-${{ github.sha }}
+          path: .wrangler/backups/${{ inputs.site_id == 'pornvideodownloaders.com' && 'pornvideodownloaders-com' || 'serp-software' }}/production/${{ github.sha }}.sql
           if-no-files-found: error
           retention-days: 30
 

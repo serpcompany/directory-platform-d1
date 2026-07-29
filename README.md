@@ -1,7 +1,8 @@
-# SERP Software on Cloudflare D1
+# Directory Platform on Cloudflare D1
 
-This repository contains the production `serp.software` application: a Next.js
-OpenNext Worker whose directory catalog is stored in Cloudflare D1.
+This repository contains the production `serp.software` and
+`pornvideodownloaders.com` applications. Each is a distinct Next.js OpenNext Worker
+whose directory catalog is stored in its own Cloudflare D1 database.
 
 There is one catalog authority:
 
@@ -26,6 +27,10 @@ pnpm d1:local:verify
 pnpm dev
 ```
 
+These aliases select `serp.software`. Use the
+`d1:pornvideodownloaders:local:*`, `preview:pornvideodownloaders`, and
+`agent:pornvideodownloaders:*` commands for the second site.
+
 The guarded preview builds the OpenNext Worker and runs it with a local D1 database.
 It cannot target preview or production Cloudflare resources.
 
@@ -46,5 +51,4 @@ For agent-first development, use `pnpm harness:fast` during implementation and
 runtime and binding identity.
 
 See the [documentation index](./docs/README.md), [Harness](./docs/HARNESS.md), and
-[Migration SOP](./docs/MIGRATION_SOP.md). The SOP prepares future legacy-site
-migrations; it does not authorize or begin one.
+[Migration SOP](./docs/MIGRATION_SOP.md).

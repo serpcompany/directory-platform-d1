@@ -46,6 +46,7 @@ describe('labels workflow', () => {
 
     expect(globs).toContain('d1/migrations/**')
     expect(globs).toContain('apps/serp.software/lib/submissions/**')
+    expect(globs).toContain('apps/pornvideodownloaders.com/lib/submissions/**')
     expect(globs).toContain('d1/publications/**')
   })
 })

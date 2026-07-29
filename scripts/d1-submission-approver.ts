@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
 interface D1Result {
   results?: Array<Record<string, unknown>>
@@ -24,7 +25,7 @@ function required(env: NodeJS.ProcessEnv, name: string): string {
   return value
 }
 
-export function validateApprovalContext(env: NodeJS.ProcessEnv): void {
+export function validateApprovalContext(env: NodeJS.ProcessEnv): SiteTarget {
   if (env.CI !== 'true' || env.GITHUB_ACTIONS !== 'true') {
     throw new Error('Remote submission approval requires GitHub Actions.')
   }
@@ -34,9 +35,11 @@ export function validateApprovalContext(env: NodeJS.ProcessEnv): void {
   if (env.GITHUB_REF !== 'refs/heads/main' || !env.GITHUB_SHA) {
     throw new Error('Remote submission approval requires reviewed main.')
   }
-  if (env.D1_SUBMISSION_APPROVAL_CONFIRM !== 'approve-serp.software-submission-production') {
+  const target = resolveSiteTarget(env.DEPLOY_SITE_ID)
+  if (env.D1_SUBMISSION_APPROVAL_CONFIRM !== target.confirmation.submission) {
     throw new Error('Explicit production submission approval confirmation is required.')
   }
+  return target
 }
 
 async function query(
@@ -81,7 +84,8 @@ export async function approveRemoteSubmission(
   env: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch
 ): Promise<{ idempotent: boolean; listingId: string | null }> {
-  validateApprovalContext(env)
+  const target = validateApprovalContext(env)
+  const siteId = target.siteId
   if (!/^[0-9a-f-]{36}$/i.test(submissionId)) throw new Error('Submission ID must be a UUID.')
   if (!reviewer.trim()) throw new Error('Reviewer identity is required.')
 
@@ -90,8 +94,8 @@ export async function approveRemoteSubmission(
       {
         sql: `SELECT s.id,s.slug,s.status,s.listing_id,ps.version,ps.checksum
           FROM listing_submissions s JOIN publication_state ps ON ps.site_id=s.site_id
-          WHERE s.id=? AND s.site_id='serp.software'`,
-        params: [submissionId]
+          WHERE s.id=? AND s.site_id=?`,
+        params: [submissionId, siteId]
       }
     ],
     env,
@@ -145,9 +149,10 @@ export async function approveRemoteSubmission(
         sql: `INSERT INTO publication_runs
           (id,site_id,manifest_id,base_version,input_checksum,affected_records,affected_routes,outcome,
            started_at,actor,workflow,before_checksum,after_checksum)
-          VALUES (?,'serp.software',?,?,?,1,?,'started',?,?,?, ?,?)`,
+          VALUES (?,?,?,?,?,1,?,'started',?,?,?, ?,?)`,
         params: [
           runId,
+          siteId,
           manifestId,
           row.version,
           afterChecksum,
@@ -163,10 +168,10 @@ export async function approveRemoteSubmission(
         sql: `INSERT INTO listings
           (id,site_id,slug,name,description,website,content,is_unofficial,is_featured,is_active,status,
            source_kind,source_identity,checksum,display_order)
-          SELECT ?,'serp.software',slug,name,description,website,content,0,0,1,'draft',
-            'verified-submission',id,?,COALESCE((SELECT MAX(display_order)+1 FROM listings WHERE site_id='serp.software'),0)
+          SELECT ?,?,slug,name,description,website,content,0,0,1,'draft',
+            'verified-submission',id,?,COALESCE((SELECT MAX(display_order)+1 FROM listings WHERE site_id=?),0)
           FROM listing_submissions WHERE id=? AND status='verified' AND listing_id IS NULL`,
-        params: [listingId, afterChecksum, submissionId]
+        params: [listingId, siteId, afterChecksum, siteId, submissionId]
       },
       {
         sql: `INSERT INTO listing_categories (listing_id,category_id,sort_order,is_primary)
@@ -212,8 +217,8 @@ export async function approveRemoteSubmission(
       },
       {
         sql: `UPDATE publication_state SET version=version+1,manifest_id=?,checksum=?,published_at=?
-          WHERE site_id='serp.software' AND version=? AND checksum=?`,
-        params: [manifestId, afterChecksum, now, row.version, row.checksum]
+          WHERE site_id=? AND version=? AND checksum=?`,
+        params: [manifestId, afterChecksum, now, siteId, row.version, row.checksum]
       },
       {
         sql: `UPDATE publication_runs SET outcome='succeeded',published_version=?,completed_at=?

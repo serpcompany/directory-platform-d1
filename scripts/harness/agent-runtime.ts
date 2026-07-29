@@ -2,6 +2,7 @@ import { execFileSync, spawn } from 'node:child_process'
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { basename, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { resolveSiteTarget, type SiteTarget } from '../site-targets'
 import {
   buildRuntimeManifest,
   initializeRuntime,
@@ -25,14 +26,19 @@ function currentManifest(root: string, create = false): RuntimeManifest {
     : buildRuntimeManifest(root, fallbackName, branch)
 }
 
-function manifestWithBindings(root: string, manifest: RuntimeManifest): Record<string, unknown> {
-  const config = JSON.parse(readFileSync(resolve(root, 'wrangler.jsonc'), 'utf8')) as {
+function manifestWithBindings(
+  root: string,
+  manifest: RuntimeManifest,
+  target: SiteTarget
+): Record<string, unknown> {
+  const config = JSON.parse(readFileSync(resolve(root, target.local.configPath), 'utf8')) as {
     d1_databases?: Array<{ binding?: string; database_id?: string; database_name?: string }>
     name?: string
     vars?: Record<string, string>
   }
   return {
     ...manifest,
+    siteId: target.siteId,
     processId: null,
     worker: config.name,
     bindings: {
@@ -44,13 +50,14 @@ function manifestWithBindings(root: string, manifest: RuntimeManifest): Record<s
   }
 }
 
-function doctor(root: string): void {
+function doctor(root: string, target: SiteTarget): void {
   const violations: string[] = []
   const major = Number(process.versions.node.split('.')[0])
   if (major < 24) violations.push(`Node 24+ is required; found ${process.versions.node}.`)
   const manifest = readRuntimeManifest(root)
   if (manifest) violations.push(...runtimeViolations(root, manifest))
-  if (!existsSync(resolve(root, 'wrangler.jsonc'))) violations.push('wrangler.jsonc is missing.')
+  if (!existsSync(resolve(root, target.local.configPath)))
+    violations.push(`${target.local.configPath} is missing.`)
   if (!existsSync(resolve(root, 'd1/migrations'))) violations.push('d1/migrations is missing.')
   if (violations.length > 0) {
     throw new Error(`${violations.join('\n')}\nSee docs/HARNESS.md#runtime-legibility.`)
@@ -62,22 +69,26 @@ function doctor(root: string): void {
   )
 }
 
-async function dev(root: string): Promise<void> {
+async function dev(root: string, target: SiteTarget): Promise<void> {
   const manifest = currentManifest(root, true)
   mkdirSync(manifest.logDirectory, { recursive: true })
   const logPath = resolve(manifest.logDirectory, 'runtime.log')
   writeFileSync(logPath, '')
   console.log(`Runtime: ${manifest.webUrl}`)
   console.log(`Log: ${logPath}`)
-  const child = spawn('pnpm', ['worker:preview'], {
-    cwd: root,
-    env: {
-      ...process.env,
-      PORT: String(manifest.webPort),
-      HARNESS_D1_STATE_DIRECTORY: manifest.d1StateDirectory
-    },
-    stdio: ['inherit', 'pipe', 'pipe']
-  })
+  const child = spawn(
+    'pnpm',
+    ['tsx', 'scripts/d1-local-guard.ts', 'preview', '--site', target.siteId],
+    {
+      cwd: root,
+      env: {
+        ...process.env,
+        PORT: String(manifest.webPort),
+        HARNESS_D1_STATE_DIRECTORY: manifest.d1StateDirectory
+      },
+      stdio: ['inherit', 'pipe', 'pipe']
+    }
+  )
   child.stdout.on('data', chunk => {
     process.stdout.write(chunk)
     appendFileSync(logPath, chunk)
@@ -100,7 +111,7 @@ function logs(root: string): void {
   console.log(lines.join('\n'))
 }
 
-function evidence(root: string): void {
+function evidence(root: string, target: SiteTarget): void {
   const manifest = currentManifest(root, true)
   mkdirSync(manifest.artifactDirectory, { recursive: true })
   const timestamp = new Date().toISOString()
@@ -115,7 +126,7 @@ function evidence(root: string): void {
       .trim()
       .split('\n')
       .filter(Boolean),
-    runtime: manifestWithBindings(root, manifest),
+    runtime: manifestWithBindings(root, manifest, target),
     commands: {
       fast: 'pnpm harness:fast',
       full: 'pnpm harness:check',
@@ -128,16 +139,19 @@ function evidence(root: string): void {
 
 async function main(): Promise<void> {
   const root = repositoryRoot()
-  const command = process.argv[2]
+  const [command, siteFlag, siteValue] = process.argv.slice(2)
+  if (siteFlag !== '--site')
+    throw new Error('Agent runtime commands require an explicit --site argument.')
+  const target = resolveSiteTarget(siteValue)
   if (command === 'manifest') {
-    console.log(JSON.stringify(manifestWithBindings(root, currentManifest(root)), null, 2))
+    console.log(JSON.stringify(manifestWithBindings(root, currentManifest(root), target), null, 2))
     return
   }
-  if (command === 'doctor') return doctor(root)
-  if (command === 'dev') return dev(root)
+  if (command === 'doctor') return doctor(root, target)
+  if (command === 'dev') return dev(root, target)
   if (command === 'logs') return logs(root)
-  if (command === 'evidence') return evidence(root)
-  throw new Error('Usage: agent-runtime.ts <manifest|doctor|dev|logs|evidence>')
+  if (command === 'evidence') return evidence(root, target)
+  throw new Error('Usage: agent-runtime.ts <manifest|doctor|dev|logs|evidence> --site <site-id>')
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {

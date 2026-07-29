@@ -13,11 +13,13 @@ function trackedFiles(): string[] {
 
 const forbiddenExactCatalogPaths = [
   ['data', 'listings.json'].join('/'),
-  ['apps', 'serp.software', 'public', 'search', 'search-index.json'].join('/')
+  ['apps', 'serp.software', 'public', 'search', 'search-index.json'].join('/'),
+  ['apps', 'pornvideodownloaders.com', 'public', 'search', 'search-index.json'].join('/')
 ]
 
 const guardedSourceRoots = [
   'apps/serp.software/',
+  'apps/pornvideodownloaders.com/',
   'packages/site-contract/',
   'packages/web-core/',
   'sites/',
@@ -67,14 +69,16 @@ describe('D1-only repository architecture', () => {
   })
 
   it('keeps catalog access server-only and bound to D1', () => {
-    const repository = readFileSync(resolve('apps/serp.software/lib/catalog/repository.ts'), 'utf8')
-    const config = readFileSync(resolve('sites/serp.software/site-config.ts'), 'utf8')
+    for (const siteId of ['pornvideodownloaders.com', 'serp.software']) {
+      const repository = readFileSync(resolve(`apps/${siteId}/lib/catalog/repository.ts`), 'utf8')
+      const config = readFileSync(resolve(`sites/${siteId}/site-config.ts`), 'utf8')
 
-    expect(repository).toContain("import 'server-only'")
-    expect(repository).toContain('getCloudflareContext')
-    expect(repository).toContain('env.DB')
-    expect(repository).not.toMatch(/node:fs|readFile|writeFile/u)
-    expect(config).toContain("kind: 'd1-listings'")
-    expect(config).toContain("binding: 'DB'")
+      expect(repository).toContain("import 'server-only'")
+      expect(repository).toContain('getCloudflareContext')
+      expect(repository).toContain('env.DB')
+      expect(repository).not.toMatch(/node:fs|readFile|writeFile/u)
+      expect(config).toContain("kind: 'd1-listings'")
+      expect(config).toContain("binding: 'DB'")
+    }
   })
 })

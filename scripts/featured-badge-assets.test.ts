@@ -7,7 +7,7 @@ import { describe, expect, it } from 'vitest'
 
 const siteIds = activeCheckedInSiteIds
 const badgeVariants = ['light', 'dark'] as const
-const manuallySelectedBadgeSites = ['serp.software'] as const
+const manuallySelectedBadgeSites = ['pornvideodownloaders.com', 'serp.software'] as const
 const PNG_SIGNATURE = '89504e470d0a1a0a'
 const BADGE_TEXT_X = 42
 const BADGE_RIGHT_MARGIN = 10
@@ -22,7 +22,12 @@ const BADGE_NAME_MAX_FONT_SIZE = 13
 const siteConfigLogoBadgeSites = [] as const
 const siteConfigFaviconFallbackBadgeSites = [] as const
 
-const siteTypographyOverrides = {} as const
+const siteTypographyOverrides = {
+  'pornvideodownloaders.com': {
+    labelFontSize: 7,
+    nameMaxFontSize: 13
+  }
+} as const
 
 function isManuallySelectedBadgeSite(siteId: string): boolean {
   return manuallySelectedBadgeSites.includes(siteId as (typeof manuallySelectedBadgeSites)[number])

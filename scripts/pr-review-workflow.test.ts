@@ -128,6 +128,7 @@ describe('pr-review workflow', () => {
 
     expect(filters).toEqual([
       'apps/serp.software/**',
+      'apps/pornvideodownloaders.com/**',
       'apps/e2e/**',
       'd1/**',
       'packages/web-core/**',
@@ -136,6 +137,7 @@ describe('pr-review workflow', () => {
     ])
     expect(isE2eRelevant('apps/e2e/tests/home.spec.ts')).toBe(true)
     expect(isE2eRelevant('apps/serp.software/app/page.tsx')).toBe(true)
+    expect(isE2eRelevant('apps/pornvideodownloaders.com/app/page.tsx')).toBe(true)
     expect(isE2eRelevant('d1/publications/release.yaml')).toBe(true)
     expect(isE2eRelevant('packages/web-core/src/root-shell.tsx')).toBe(true)
     expect(isE2eRelevant('packages/design-system/components/button.tsx')).toBe(true)

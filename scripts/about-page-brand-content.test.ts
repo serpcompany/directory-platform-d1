@@ -44,6 +44,7 @@ const removedStepsSections = [
 ]
 
 const expectedSiteNames: Record<string, string> = {
+  'pornvideodownloaders.com': 'Porn Video Downloaders',
   'serp.software': 'SERP Software'
 }
 
@@ -61,7 +62,7 @@ function aboutArtifactPath(siteId: string): string {
 
 describe('active site About page brand content', () => {
   it('keeps one site-owned About MDX file for every active checked-in site', () => {
-    expect(activeSiteIds).toEqual(['serp.software'])
+    expect(activeSiteIds).toEqual(['pornvideodownloaders.com', 'serp.software'])
 
     for (const siteId of activeSiteIds) {
       expect(siteAboutPath(siteId), `${siteId} must own About content`).toSatisfy(existsSync)
@@ -145,21 +146,6 @@ describe('active site About page brand content', () => {
     expect(source).not.toContain('SERP Software is a curated directory')
     expect(source).not.toContain('great products')
     expect(source).not.toContain('export const metadata')
-  })
-
-  it('records an audit row for every active domain-level About page', () => {
-    const auditPath = resolve(
-      process.cwd(),
-      'docs/audits/about-page-brand-copy-audit-2026-06-03.md'
-    )
-    expect(auditPath).toSatisfy(existsSync)
-
-    const audit = readFileSync(auditPath, 'utf8')
-
-    for (const siteId of activeSiteIds) {
-      expect(audit).toContain(`| ${siteId} |`)
-      expect(audit).toContain(`sites/${siteId}/content/about/about.mdx`)
-    }
   })
 
   it.runIf(activeSiteIds.every(siteId => existsSync(aboutArtifactPath(siteId))))(

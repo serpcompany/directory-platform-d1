@@ -1,10 +1,12 @@
-import { DatabaseSync } from 'node:sqlite'
 import { createHash } from 'node:crypto'
+import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { buildPublicationPlan, manifestSchema, type PublicationPlan } from './d1-publisher.ts'
 
 const beforeChecksum = 'a'.repeat(64)
-const afterChecksum = createHash('sha256').update(`${beforeChecksum}\0${createHash('sha256').update('sqlite manifest').digest('hex')}`).digest('hex')
+const afterChecksum = createHash('sha256')
+  .update(`${beforeChecksum}\0${createHash('sha256').update('sqlite manifest').digest('hex')}`)
+  .digest('hex')
 const now = '2026-07-13T01:00:00.000Z'
 
 function database(): DatabaseSync {
@@ -29,9 +31,21 @@ function database(): DatabaseSync {
 
 function plan(overrides: Record<string, unknown> = {}): PublicationPlan {
   const value = manifestSchema.parse({
-    version: 1, id: 'sqlite-release', siteId: 'serp.software', basePublicationVersion: 4,
+    version: 1,
+    id: 'sqlite-release',
+    siteId: 'serp.software',
+    basePublicationVersion: 4,
     provenance: { actor: 'test@example.com', workflow: 'test/sqlite', beforeChecksum },
-    operations: [{ action: 'listing-slug-change', id: 'lst_sqlite_test', from: 'old-slug', to: 'new-slug', categories: ['seo'], reason: 'Rename' }],
+    operations: [
+      {
+        action: 'listing-slug-change',
+        id: 'lst_sqlite_test',
+        from: 'old-slug',
+        to: 'new-slug',
+        categories: ['seo'],
+        reason: 'Rename'
+      }
+    ],
     ...overrides
   })
   return buildPublicationPlan(value, 'sqlite manifest', now)
@@ -40,7 +54,8 @@ function plan(overrides: Record<string, unknown> = {}): PublicationPlan {
 function executeInTestTransaction(db: DatabaseSync, publication: PublicationPlan): void {
   db.exec('DROP TABLE IF EXISTS publication_guard; BEGIN IMMEDIATE;')
   try {
-    for (const item of publication.statements) db.prepare(item.query).run(...item.bindings as Array<string | number | bigint | null>)
+    for (const item of publication.statements)
+      db.prepare(item.query).run(...(item.bindings as Array<string | number | bigint | null>))
     db.exec('COMMIT')
   } catch (error) {
     db.exec('ROLLBACK')
@@ -49,46 +64,88 @@ function executeInTestTransaction(db: DatabaseSync, publication: PublicationPlan
 }
 
 function expectUnchanged(db: DatabaseSync): void {
-  expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({ slug: 'old-slug' })
-  expect(db.prepare("SELECT version,checksum FROM publication_state WHERE site_id='serp.software'").get()).toEqual({ version: 4, checksum: beforeChecksum })
+  expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({
+    slug: 'old-slug'
+  })
+  expect(
+    db.prepare("SELECT version,checksum FROM publication_state WHERE site_id='serp.software'").get()
+  ).toEqual({ version: 4, checksum: beforeChecksum })
   expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({ count: 0 })
 }
 
 describe('publisher plan in SQLite transaction (D1 batch emulator)', () => {
   it('commits a verified checksum transition and audited redirect', () => {
-    const db = database(); executeInTestTransaction(db, plan())
-    expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({ slug: 'new-slug' })
-    expect(db.prepare("SELECT version,checksum FROM publication_state WHERE site_id='serp.software'").get()).toEqual({ version: 5, checksum: afterChecksum })
-    expect(db.prepare('SELECT before_checksum,after_checksum,outcome FROM publication_runs').get()).toEqual({ before_checksum: beforeChecksum, after_checksum: afterChecksum, outcome: 'succeeded' })
+    const db = database()
+    executeInTestTransaction(db, plan())
+    expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({
+      slug: 'new-slug'
+    })
+    expect(
+      db
+        .prepare("SELECT version,checksum FROM publication_state WHERE site_id='serp.software'")
+        .get()
+    ).toEqual({ version: 5, checksum: afterChecksum })
+    expect(
+      db.prepare('SELECT before_checksum,after_checksum,outcome FROM publication_runs').get()
+    ).toEqual({
+      before_checksum: beforeChecksum,
+      after_checksum: afterChecksum,
+      outcome: 'succeeded'
+    })
   })
 
   it.each([
     ['stale version', () => plan({ basePublicationVersion: 3 })],
-    ['before-checksum mismatch', () => plan({ provenance: { actor: 'test@example.com', workflow: 'test/sqlite', beforeChecksum: 'c'.repeat(64) } })]
-  ])('rolls back for %s', (_name, makePlan) => { const db = database(); expect(() => executeInTestTransaction(db, makePlan())).toThrow(); expectUnchanged(db) })
+    [
+      'before-checksum mismatch',
+      () =>
+        plan({
+          provenance: {
+            actor: 'test@example.com',
+            workflow: 'test/sqlite',
+            beforeChecksum: 'c'.repeat(64)
+          }
+        })
+    ]
+  ])('rolls back for %s', (_name, makePlan) => {
+    const db = database()
+    expect(() => executeInTestTransaction(db, makePlan())).toThrow()
+    expectUnchanged(db)
+  })
 
   it('rolls back when the listing is not an eligible tenant row', () => {
-    const db = database(); db.exec("UPDATE listings SET site_id='other',status='draft'")
+    const db = database()
+    db.exec("UPDATE listings SET site_id='other',status='draft'")
     expect(() => executeInTestTransaction(db, plan())).toThrow()
     expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({ count: 0 })
   })
 
   it('rolls back duplicate/idempotent publication', () => {
-    const db = database(); executeInTestTransaction(db, plan())
+    const db = database()
+    executeInTestTransaction(db, plan())
     expect(() => executeInTestTransaction(db, plan())).toThrow()
     expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({ count: 1 })
-    expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({ slug: 'new-slug' })
+    expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({
+      slug: 'new-slug'
+    })
   })
 
   it('rolls back category membership mismatch', () => {
-    const db = database(); db.exec('DELETE FROM listing_categories')
-    expect(() => executeInTestTransaction(db, plan())).toThrow(); expectUnchanged(db)
+    const db = database()
+    db.exec('DELETE FROM listing_categories')
+    expect(() => executeInTestTransaction(db, plan())).toThrow()
+    expectUnchanged(db)
   })
 
   it('rolls back redirect collision', () => {
-    const db = database(); db.exec("INSERT INTO listing_slug_redirects VALUES (1,'serp.software','lst_sqlite_test','old-slug','elsewhere','prior','Prior', '${now}')")
+    const db = database()
+    db.exec(
+      "INSERT INTO listing_slug_redirects VALUES (1,'serp.software','lst_sqlite_test','old-slug','elsewhere','prior','Prior', '${now}')"
+    )
     expect(() => executeInTestTransaction(db, plan())).toThrow()
-    expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({ slug: 'old-slug' })
+    expect(db.prepare("SELECT slug FROM listings WHERE id='lst_sqlite_test'").get()).toEqual({
+      slug: 'old-slug'
+    })
     expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({ count: 0 })
   })
 })

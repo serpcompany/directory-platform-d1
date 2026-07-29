@@ -45,7 +45,7 @@ jobs:
         run: pnpm typecheck
 
       - name: Build OpenNext Worker
-        run: pnpm worker:build
+        run: pnpm worker:build:serpsoftware
 
       - name: Plan production migration without remote execution
         env:
@@ -74,7 +74,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: serp-software-d1-${{ github.sha }}
-          path: .wrangler/backups/${{ github.sha }}.sql
+          path: .wrangler/backups/serp-software/production/${{ github.sha }}.sql
           if-no-files-found: error
           retention-days: 30
 

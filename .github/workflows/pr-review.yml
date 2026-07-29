@@ -111,6 +111,7 @@ jobs:
           filters: |
             e2e_relevant:
               - 'apps/serp.software/**'
+              - 'apps/pornvideodownloaders.com/**'
               - 'apps/e2e/**'
               - 'd1/**'
               - 'packages/web-core/**'

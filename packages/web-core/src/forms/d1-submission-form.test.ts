@@ -50,6 +50,30 @@ describe('buildBadgeSubmissionInstructions', () => {
     expect(new URL(`https://serp.software/submit/${resumeHash}`).search).toBe('')
   })
 
+  it('builds pornvideodownloaders.com badge snippets without selecting serp.software', async () => {
+    process.env.SITE_ID = 'pornvideodownloaders.com'
+    process.env.NEXT_PUBLIC_SITE_ID = 'pornvideodownloaders.com'
+    vi.resetModules()
+
+    const { buildBadgeSubmissionInstructions } = await import('./d1-submission-form')
+    const instructions = buildBadgeSubmissionInstructions({
+      submissionId: 'submission-id',
+      token: 'capability-token',
+      name: 'Example Downloader',
+      website: 'https://example.com/'
+    })
+
+    expect(instructions.listingUrl).toBe('https://pornvideodownloaders.com/products/example.com/')
+    expect(instructions.badgePreviewPaths.light).toBe(
+      '/badge/featured-on-pornvideodownloaders.com-light.svg'
+    )
+    expect(instructions.badgeEmbeds.dark).toContain(
+      'https://pornvideodownloaders.com/badge/featured-on-pornvideodownloaders.com-dark.svg'
+    )
+    expect(instructions.badgeEmbeds.light).toContain('Featured on PV Downloaders')
+    expect(instructions.badgeEmbeds.light).not.toContain('serp.software')
+  })
+
   it('makes the saved submission and resumable verification lifecycle explicit', () => {
     const source = readFileSync('packages/web-core/src/forms/d1-submission-form.tsx', 'utf8')
     expect(source).toContain('Submission saved')

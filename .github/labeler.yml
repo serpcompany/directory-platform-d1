@@ -3,4 +3,5 @@ area:content:
       - any-glob-to-any-file:
           - 'd1/migrations/**'
           - 'apps/serp.software/lib/submissions/**'
+          - 'apps/pornvideodownloaders.com/lib/submissions/**'
           - 'd1/publications/**'
