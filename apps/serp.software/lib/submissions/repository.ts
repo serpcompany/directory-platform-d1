@@ -4,12 +4,14 @@ import { getCloudflareContext } from '@opennextjs/cloudflare'
 import type { SubmissionRequest } from '@thedaviddias/web-core/forms/submission-contract'
 import { submissionSlug } from '@thedaviddias/web-core/forms/submission-contract'
 import { validatePublicHttpUrl } from '../url-safety'
+import type { BadgeVerificationResult } from './badge-verifier'
 
 const SITE_ID = 'serp.software'
 const MAX_ATTEMPTS = 10
 const COOLDOWN_SECONDS = 30
 const SUBMISSION_WINDOW_SECONDS = 60 * 60
 const SUBMISSION_WINDOW_LIMIT = 10
+const CONTENT_VERIFICATION_FAILURES = new Set(['badge_missing', 'nofollow', 'wrong_destination'])
 
 export class SubmissionError extends Error {
   constructor(
@@ -226,7 +228,9 @@ export async function getSubmission(id: string, token: string): Promise<Submissi
 export async function beginVerification(id: string, token: string): Promise<SubmissionState> {
   const row = await authorizedRow(id, token)
   if (row.status !== 'pending_badge') return toState(row)
-  if (row.verification_attempts >= MAX_ATTEMPTS) {
+  const lastFailureWasConclusive =
+    !row.last_verification_error || CONTENT_VERIFICATION_FAILURES.has(row.last_verification_error)
+  if (row.verification_attempts >= MAX_ATTEMPTS && lastFailureWasConclusive) {
     throw new SubmissionError('attempt_limit', 'Badge verification attempt limit reached.', 429)
   }
   if (
@@ -242,21 +246,22 @@ export async function beginVerification(id: string, token: string): Promise<Subm
 export async function finishVerification(
   id: string,
   token: string,
-  result: { ok: true } | { ok: false; code: string }
+  result: BadgeVerificationResult
 ): Promise<SubmissionState> {
   await authorizedRow(id, token)
   const db = await database()
   const tokenHash = await sha256(token)
   const status = result.ok ? 'verified' : 'pending_badge'
   const error = result.ok ? null : result.code
+  const attemptIncrement = result.ok || CONTENT_VERIFICATION_FAILURES.has(result.code) ? 1 : 0
   const statements = [
     db
-      .prepare(`UPDATE listing_submissions SET status = ?, verification_attempts = verification_attempts + 1,
+      .prepare(`UPDATE listing_submissions SET status = ?, verification_attempts = verification_attempts + ?,
       last_verification_at = CURRENT_TIMESTAMP, last_verification_error = ?,
       badge_verified_at = CASE WHEN ? = 'verified' THEN CURRENT_TIMESTAMP ELSE badge_verified_at END,
       updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND site_id = ? AND access_token_hash = ? AND status = 'pending_badge'`)
-      .bind(status, error, status, id, SITE_ID, tokenHash),
+      .bind(status, attemptIncrement, error, status, id, SITE_ID, tokenHash),
     db
       .prepare(`INSERT INTO listing_submission_events (submission_id, event_type, detail, actor)
       VALUES (?, ?, ?, 'badge-verifier')`)

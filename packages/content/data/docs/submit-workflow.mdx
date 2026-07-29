@@ -14,7 +14,11 @@ link. The submitter can close the badge instructions and finish verification lat
 the same browser also remembers the unfinished verification automatically.
 
 The submitter installs the supplied badge and asks the server to verify the live
-website. Only a successful dofollow badge check enters the maintainer review queue.
+website. The verifier names and loads the exact submitted URL. The UI distinguishes a
+page that loaded without the badge from an unreachable site, timeout, HTTP error,
+redirect problem, or malformed response and gives a specific next step. Temporary
+fetch failures do not consume the limited badge-content attempts. Only a successful
+dofollow badge check enters the maintainer review queue.
 A scheduled workflow assigns the maintainer one private GitHub review issue within a
 few minutes and records that notification in D1. That issue includes a private,
 uncached draft link so the maintainer can see the staged submission in the real

@@ -21,6 +21,10 @@ import {
   getFeaturedOnBadgePreviewPathFromKey,
   getFeaturedOnBadgePublicUrlFromKey
 } from '../website/featured-on-badge-url'
+import {
+  type BadgeVerificationDiagnostic,
+  getBadgeVerificationDiagnostic
+} from './badge-verification-diagnostic'
 
 export interface CategoryOption {
   label: string
@@ -41,6 +45,7 @@ type BadgeSubmissionInstructions = {
   listingUrl: string
   name: string
   siteName: string
+  website: string
 }
 
 const submissionResumeCapabilitySchema = z.object({
@@ -176,7 +181,8 @@ export function buildBadgeSubmissionInstructions({
     token,
     listingUrl,
     name,
-    siteName
+    siteName,
+    website
   }
 }
 
@@ -323,6 +329,18 @@ function FieldLabel({
   )
 }
 
+function VerificationDiagnosticAlert({ diagnostic }: { diagnostic: BadgeVerificationDiagnostic }) {
+  return (
+    <div
+      className="rounded-md border border-amber-300 bg-amber-50 p-4 text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-50"
+      role="alert"
+    >
+      <p className="text-sm font-bold">{diagnostic.title}</p>
+      <p className="mt-1 text-sm">{diagnostic.message}</p>
+    </div>
+  )
+}
+
 export function D1SubmissionForm({
   categoryOptions
 }: {
@@ -336,6 +354,7 @@ export function D1SubmissionForm({
   )
   const [isRestoringSubmission, setIsRestoringSubmission] = useState(false)
   const [verificationDialogOpen, setVerificationDialogOpen] = useState(false)
+  const [verificationFailureCode, setVerificationFailureCode] = useState<string | null>(null)
   const [verificationState, setVerificationState] = useState<'pending' | 'checking' | 'verified'>(
     'pending'
   )
@@ -379,6 +398,10 @@ export function D1SubmissionForm({
 
   const isSubmitDisabled =
     !isValid || isSubmitting || hasPartiallyFilledFaq || hasPartiallyFilledResourceLink
+  const verificationDiagnostic =
+    badgeInstructions && verificationFailureCode
+      ? getBadgeVerificationDiagnostic(verificationFailureCode, badgeInstructions.website)
+      : null
 
   useEffect(() => {
     const capability =
@@ -397,6 +420,7 @@ export function D1SubmissionForm({
         )
         const result = (await response.json()) as {
           error?: string
+          lastVerificationError?: string | null
           name?: string
           status?: 'pending_badge' | 'verified' | 'approved' | 'rejected'
           website?: string
@@ -423,6 +447,9 @@ export function D1SubmissionForm({
           })
         )
         setVerificationState(result.status === 'verified' ? 'verified' : 'pending')
+        setVerificationFailureCode(
+          result.status === 'pending_badge' ? result.lastVerificationError || null : null
+        )
         setVerificationDialogOpen(result.status !== 'verified')
         if (result.status === 'verified') clearResumeCapability()
       } catch (error) {
@@ -466,6 +493,7 @@ export function D1SubmissionForm({
       storeResumeCapability(capability)
       setBadgeInstructions(instructions)
       setVerificationState('pending')
+      setVerificationFailureCode(null)
       setVerificationDialogOpen(true)
     } catch (error) {
       setSubmitError(error instanceof Error ? error.message : 'Unable to save your submission.')
@@ -479,6 +507,7 @@ export function D1SubmissionForm({
     setBadgeInstructions(null)
     setCopiedTheme(null)
     setCopiedResumeLink(false)
+    setVerificationFailureCode(null)
     setVerificationState('pending')
     setVerificationDialogOpen(false)
   }
@@ -496,21 +525,24 @@ export function D1SubmissionForm({
         body: JSON.stringify({ token: badgeInstructions.token })
       })
       const result = (await response.json()) as {
+        code?: string
         error?: string
-        lastVerificationError?: string
+        lastVerificationError?: string | null
         status?: string
       }
       if (!response.ok || result.status !== 'verified') {
-        throw new Error(
-          result.error ||
-            `Badge not verified (${result.lastVerificationError || 'badge missing'}). Install it and try again.`
+        setVerificationFailureCode(
+          result.lastVerificationError || result.code || 'verification_service_error'
         )
+        setVerificationState('pending')
+        return
       }
       setVerificationState('verified')
+      setVerificationFailureCode(null)
       clearResumeCapability()
-    } catch (error) {
+    } catch {
       setVerificationState('pending')
-      setSubmitError(error instanceof Error ? error.message : 'Unable to verify the badge.')
+      setVerificationFailureCode('verification_service_error')
     }
   }
 
@@ -580,6 +612,9 @@ export function D1SubmissionForm({
               ? `${badgeInstructions.name} is in the maintainer review queue. The administrator will be notified within a few minutes.`
               : `${badgeInstructions.name} is safely stored in D1. You can close this page and finish badge verification later; this browser will remember your submission.`}
           </p>
+          {verificationDiagnostic && !verificationDialogOpen ? (
+            <VerificationDiagnosticAlert diagnostic={verificationDiagnostic} />
+          ) : null}
           <div className="flex flex-wrap gap-3">
             {verificationState !== 'verified' ? (
               <>
@@ -881,13 +916,30 @@ export function D1SubmissionForm({
 
           {badgeInstructions ? (
             <div className="space-y-5">
+              {verificationDiagnostic ? (
+                <VerificationDiagnosticAlert diagnostic={verificationDiagnostic} />
+              ) : null}
               <div className="rounded-md border border-border bg-muted/40 p-4">
                 <ol className="list-decimal space-y-2 pl-5 text-sm text-muted-foreground">
                   <li>Copy either badge snippet below.</li>
-                  <li>Paste it into a public page on your submitted website.</li>
-                  <li>Make sure the badge link is not marked `nofollow`.</li>
-                  <li>Use the verification button below to check the live page.</li>
+                  <li>
+                    Add the exact snippet to the HTML returned by your submitted URL. A badge added
+                    only after JavaScript runs cannot be detected.
+                  </li>
+                  <li>Publish the change and make sure the badge link is not marked `nofollow`.</li>
+                  <li>Use the verification button below to check that exact URL.</li>
                 </ol>
+                <p className="mt-3 break-all border-t border-border pt-3 text-sm font-medium">
+                  URL checked:{' '}
+                  <a
+                    href={badgeInstructions.website}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="underline underline-offset-2"
+                  >
+                    {badgeInstructions.website}
+                  </a>
+                </p>
               </div>
 
               <div className="grid gap-4 sm:grid-cols-2">

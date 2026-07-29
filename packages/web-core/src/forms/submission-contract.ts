@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+export const BADGE_VERIFIER_USER_AGENT = 'SERPSoftwareBadgeVerifier/1.0'
+
 const publicUrl = z
   .string()
   .trim()
