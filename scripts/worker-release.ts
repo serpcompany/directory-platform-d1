@@ -111,7 +111,7 @@ function materializeConfig(environment: WorkerEnvironment, env: NodeJS.ProcessEn
     source = source.replaceAll(placeholder, value)
   }
   if (source.includes('${CLOUDFLARE_')) throw new Error('Unresolved Cloudflare placeholder.')
-  const configPath = resolve('.wrangler/generated', `wrangler.${environment}.jsonc`)
+  const configPath = resolve(`.wrangler.${environment}.generated.jsonc`)
   mkdirSync(dirname(configPath), { recursive: true })
   writeFileSync(configPath, source)
   return { configPath, databaseName: env[`CLOUDFLARE_D1_${environment.toUpperCase()}_DATABASE_NAME`] as string }

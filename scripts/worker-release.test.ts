@@ -1,4 +1,5 @@
 import { readFileSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 import { runWorkerRelease, validateWorkerConfig, type WorkerReleaseDependencies } from './worker-release.ts'
@@ -63,6 +64,7 @@ describe('Worker release guard', () => {
       expect(() => runWorkerRelease([command, 'production'], productionEnv, process)).not.toThrow()
       const invocation = process.run.mock.calls[2]
       expect(invocation?.[0]).toBe('pnpm')
+      expect(invocation?.[1]).toContain(resolve('.wrangler.production.generated.jsonc'))
       if (command === 'deploy') expect(invocation?.[1]).toContain('opennextjs-cloudflare')
       else {
         expect(invocation?.[1]).toContain('wrangler')
