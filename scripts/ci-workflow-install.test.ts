@@ -49,14 +49,14 @@ describe('ci workflow install isolation', () => {
     expect(actionUses).not.toContain('pnpm/action-setup@v4')
   })
 
-  it('serializes release and build-deploy workflows on main instead of canceling either run', () => {
+  it('keeps release and production Worker runs non-canceling in their own concurrency groups', () => {
     const releaseWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/release.yml')
     const buildWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/build-and-deploy.yml')
 
     expect(releaseWorkflow.concurrency?.group).toBe(
       `main-ci-${githubExpression('{{ github.ref }}')}`
     )
-    expect(buildWorkflow.concurrency?.group).toBe(releaseWorkflow.concurrency?.group)
+    expect(buildWorkflow.concurrency?.group).toBe('serp-software-production-worker')
     expect(releaseWorkflow.concurrency?.['cancel-in-progress']).toBe(false)
     expect(buildWorkflow.concurrency?.['cancel-in-progress']).toBe(false)
   })

@@ -1,94 +1,95 @@
-name: Build & Deploy
+name: Build & Deploy Worker
 
 on:
   workflow_dispatch:
     inputs:
       site_id:
-        description: 'Checked-in site config id (serp.software only)'
+        description: 'Production Worker target'
         required: true
         type: choice
         options:
           - serp.software
+      confirmation:
+        description: 'Type deploy-serp.software-production to authorize production changes'
+        required: true
+        type: string
 
 concurrency:
-  group: main-ci-${{ github.ref }}
+  group: serp-software-production-worker
   cancel-in-progress: false
 
 permissions:
   contents: read
-  pull-requests: read
 
 jobs:
-  resolve:
-    name: Resolve Deploy Targets
-    runs-on: self-hosted
-    outputs:
-      deploy_targets: ${{ steps.resolve.outputs.deploy_targets }}
-      should_deploy: ${{ steps.resolve.outputs.should_deploy }}
-    steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/install
-
-      - name: Resolve build input
-        id: resolve
-        env:
-          GITHUB_TOKEN: ${{ github.token }}
-          SITE_ID: ${{ github.event_name == 'workflow_dispatch' && github.event.inputs.site_id || '' }}
-          NEXT_PUBLIC_SITE_ID: ''
-        run: ./node_modules/.bin/tsx scripts/resolve-build-run.ts >> "$GITHUB_OUTPUT"
-
   deploy:
-    name: Validate, Build & Deploy (${{ matrix.target.siteId }})
-    needs: resolve
-    if: needs.resolve.outputs.should_deploy == 'true'
-    runs-on: self-hosted
-    strategy:
-      fail-fast: false
-      matrix:
-        target: ${{ fromJson(needs.resolve.outputs.deploy_targets) }}
+    name: Validate, Build & Deploy serp.software Worker
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'deploy-serp.software-production'
+    environment:
+      name: production
     steps:
-      - uses: actions/checkout@v6
-      - uses: ./.github/actions/install
+      - name: Checkout reviewed source
+        uses: actions/checkout@v6
 
-      - name: Prepare local D1 listing source
-        env:
-          SITE_ID: ${{ matrix.target.siteId }}
-        run: pnpm d1:local:prepare -- --site "$SITE_ID"
+      - name: Install dependencies
+        uses: ./.github/actions/install
 
-      - name: Validate site data
-        env:
-          SITE_ID: ${{ matrix.target.siteId }}
-        run: pnpm validate:site
+      - name: Validate Worker configuration contracts
+        run: pnpm worker:config:validate
 
-      - name: Build static site
-        env:
-          SITE_ID: ${{ matrix.target.siteId }}
-        run: pnpm build:site
+      - name: Run D1 contract tests
+        run: pnpm test:d1
 
-      - name: Audit XML sitemaps
-        env:
-          SITE_ID: ${{ matrix.target.siteId }}
-        run: pnpm audit:sitemaps -- --site "$SITE_ID"
+      - name: Type check
+        run: pnpm typecheck
 
-      - name: Audit forbidden listing links
-        env:
-          SITE_ID: ${{ matrix.target.siteId }}
-        run: pnpm audit:forbidden-links -- --site "$SITE_ID"
+      - name: Build OpenNext Worker
+        run: pnpm worker:build
 
-      - name: Verify deploy auth
+      - name: Plan production migration without remote execution
         env:
-          DEPLOY_TOKEN: ${{ secrets.GH_PAT }}
-        run: |
-          if [ -z "$DEPLOY_TOKEN" ]; then
-            echo "Missing GH_PAT secret required for cross-repo deploy."
-            exit 1
-          fi
+          D1_REMOTE_CONFIRM: plan-serp.software-production
+        run: pnpm d1:remote:migration:plan:production
 
-      - name: Deploy
+      - name: Plan production verification without remote execution
         env:
-          ALLOW_DEPLOY_TARGET_OVERRIDE: ''
-          DEPLOY_TOKEN: ${{ secrets.GH_PAT }}
-          DEPLOY_BRANCH: ''
-          DEPLOY_REPO_URL: ''
-          SITE_ID: ${{ matrix.target.siteId }}
-        run: pnpm deploy:site
+          D1_REMOTE_CONFIRM: plan-serp.software-production
+        run: pnpm d1:remote:verify:plan:production
+
+      - name: Back up production D1
+        env: &production_env
+          CI: 'true'
+          GITHUB_REF: ${{ github.ref }}
+          GITHUB_SHA: ${{ github.sha }}
+          WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME }}
+          CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
+        run: pnpm worker:d1:backup:production
+
+      - name: Retain production D1 backup
+        uses: actions/upload-artifact@v6
+        with:
+          name: serp-software-d1-${{ github.sha }}
+          path: .wrangler/backups/${{ github.sha }}.sql
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Apply production D1 migrations
+        env: *production_env
+        run: pnpm worker:d1:migrate:production
+
+      - name: Import deterministic production catalog
+        env: *production_env
+        run: pnpm worker:d1:import:production
+
+      - name: Verify production D1
+        env: *production_env
+        run: pnpm worker:d1:verify:production
+
+      - name: Deploy production Worker
+        env: *production_env
+        run: pnpm worker:deploy:production

@@ -1,5 +1,6 @@
 area:content:
   - changed-files:
       - any-glob-to-any-file:
-          - 'data/listings.json'
-          - 'sites/**/products.json'
+          - 'd1/migrations/**'
+          - 'd1/proposals/**'
+          - 'd1/publications/**'

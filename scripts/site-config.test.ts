@@ -20,12 +20,14 @@ describe('loadCheckedInSite', () => {
 
     expect(config.id).toBe('serp.software')
     expect(config.content.listingSource).toEqual({
-      category: 'video-downloaders',
-      featuredCount: 6,
-      kind: 'trial-products-json',
+      approvedOnly: true,
+      binding: 'DB',
+      databaseName: 'serp-software-local',
+      kind: 'd1-listings',
+      mode: 'local-d1',
       outputPath: 'data/listings.json',
-      path: 'sites/serp.software/products.json',
-      publishedAt: '2026-05-07'
+      siteId: 'serp.software',
+      wranglerConfigPath: 'wrangler.jsonc'
     })
     expect(config.site).toMatchObject({
       domain: 'serp.software',
@@ -52,10 +54,9 @@ describe('loadCheckedInSite', () => {
       'https://github.com/serpcompany/serp.software/issues'
     )
     expect(config.deploy).toEqual({
-      branch: 'main',
-      preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-      repoUrl: 'https://github.com/serpcompany/serp.software.git',
-      strategy: 'github-pages-repo-sync'
+      previewConfigPath: 'wrangler.preview.jsonc',
+      productionConfigPath: 'wrangler.production.jsonc',
+      strategy: 'opennext-cloudflare-worker'
     })
   })
 

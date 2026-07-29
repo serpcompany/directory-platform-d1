@@ -101,7 +101,7 @@ export function SearchAutocomplete({
       }
       if (!cancelled) setLoading(true)
       try {
-        const response = await fetch(SEARCH_INDEX_PUBLIC_PATH)
+        const response = await fetch(`${SEARCH_INDEX_PUBLIC_PATH}?q=${encodeURIComponent(searchQuery)}&limit=5`)
         if (!response.ok) throw new Error('Failed to fetch search index')
 
         const searchIndex = searchIndexSchema.parse(await response.json())

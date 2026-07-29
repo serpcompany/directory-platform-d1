@@ -1,18 +1,18 @@
 import type { ReactElement, ReactNode } from 'react'
 import './globals.css'
 import { fonts } from '@thedaviddias/design-system/lib/fonts'
-import { SignOutButton } from '@/components/auth/sign-out-button'
-import { getHeaderAuthState } from '@/lib/auth'
-import { getActiveCategories, getFeaturedListingCount } from '@thedaviddias/web-core/category-navigation'
-import { getWebsites } from '@/lib/content-loader'
 import { resolveGoogleTagManagerId } from '@thedaviddias/web-core/google-tag-manager'
 import { Footer } from '@thedaviddias/web-core/layout/footer'
 import { Header } from '@thedaviddias/web-core/layout/header'
 import { RootAppShell, rootLayoutMetadata } from '@thedaviddias/web-core/root-shell'
-import { siteCopy } from '@thedaviddias/web-core/site-copy'
 import { resolveSiteConfig } from '@thedaviddias/web-core/site-config'
+import { siteCopy } from '@thedaviddias/web-core/site-copy'
+import { SignOutButton } from '@/components/auth/sign-out-button'
+import { getHeaderAuthState } from '@/lib/auth'
+import { getActiveCategories, getFeaturedListingCount } from '@/lib/catalog/repository'
 
 export const metadata = rootLayoutMetadata
+export const dynamic = 'force-dynamic'
 
 type RootLayoutProps = {
   children: ReactNode
@@ -21,11 +21,12 @@ type RootLayoutProps = {
 export default async function RootLayout({ children }: RootLayoutProps): Promise<ReactElement> {
   const activeSiteConfig = resolveSiteConfig()
   const gtmId = resolveGoogleTagManagerId(activeSiteConfig)
-  const authState = await getHeaderAuthState()
-  const allListings = getWebsites()
-  const activeCategories = getActiveCategories(allListings)
+  const [authState, activeCategories, featuredCount] = await Promise.all([
+    getHeaderAuthState(),
+    getActiveCategories(),
+    getFeaturedListingCount()
+  ])
   const activeCategorySlugs = activeCategories.map(category => category.slug)
-  const featuredCount = getFeaturedListingCount(allListings)
 
   return (
     <RootAppShell

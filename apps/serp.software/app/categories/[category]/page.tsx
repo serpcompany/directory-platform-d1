@@ -1,72 +1,77 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb';
-import type { Metadata } from 'next';
-import { notFound } from 'next/navigation';
-import { getHomePageData } from '@/actions/get-home-page-data';
+import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
+import { getCategoryIcon } from '@thedaviddias/web-core/categories'
+import { getCategoryDisplayName } from '@thedaviddias/web-core/category-display'
 import {
   CategoryRoutePage,
-  generateCategoryRouteMetadata,
-  generateCategoryRouteStaticParams,
-} from '@thedaviddias/web-core/category-routes/category-page';
-import { CategoryWebsitesListRoute as CategoryWebsitesList } from '@thedaviddias/web-core/category-websites-list-route';
-import { getCategoryDisplayName } from '@thedaviddias/web-core/category-display';
-import { getCategoryBySlug } from '@thedaviddias/web-core/categories';
-import { getGuides, getWebsites } from '@/lib/content-loader';
+  generateCategoryRouteMetadata
+} from '@thedaviddias/web-core/category-routes/category-page'
+import { CategoryWebsitesListRoute as CategoryWebsitesList } from '@thedaviddias/web-core/category-websites-list-route'
+import { JsonLd } from '@thedaviddias/web-core/json-ld'
+import { getRoute } from '@thedaviddias/web-core/routes'
+import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@thedaviddias/web-core/sections/external-resources-section-route'
+import { FeaturedGuidesSectionRoute as FeaturedGuidesSection } from '@thedaviddias/web-core/sections/featured-guides-section-route'
+import { SITE_PUBLIC_URL } from '@thedaviddias/web-core/seo-config'
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
 import {
   getActiveCategories,
-  getFeaturedListingCount,
-} from '@thedaviddias/web-core/category-navigation';
-import { JsonLd } from '@thedaviddias/web-core/json-ld';
-import { getRoute } from '@thedaviddias/web-core/routes';
-import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@thedaviddias/web-core/sections/external-resources-section-route';
-import { FeaturedGuidesSectionRoute as FeaturedGuidesSection } from '@thedaviddias/web-core/sections/featured-guides-section-route';
-import { SITE_PUBLIC_URL } from '@thedaviddias/web-core/seo-config';
+  getCategoryBySlug,
+  getFeaturedListings,
+  getListingsByCategory
+} from '@/lib/catalog/repository'
+import { getGuides } from '@/lib/content-loader'
 
 interface CategoryPageProps {
-  params: Promise<{ category: string }>;
+  params: Promise<{ category: string }>
 }
 
 /**
  * Generates static params for all category pages
  */
-export async function generateStaticParams() {
-  return generateCategoryRouteStaticParams(getActiveCategories(getWebsites()));
-}
-
 /**
  * Generates metadata for category pages with SEO-optimized descriptions
  */
-export async function generateMetadata({
-  params,
-}: CategoryPageProps): Promise<Metadata> {
-  const resolvedParams = await params;
-  const category = getCategoryBySlug(resolvedParams.category);
+export async function generateMetadata({ params }: CategoryPageProps): Promise<Metadata> {
+  const resolvedParams = await params
+  const storedCategory = await getCategoryBySlug(resolvedParams.category)
 
-  if (!category) {
+  if (!storedCategory) {
     return {
       title: 'Category Not Found',
-      description: 'The requested category could not be found.',
-    };
+      description: 'The requested category could not be found.'
+    }
   }
 
-  const { allProjects } = await getHomePageData();
-  return generateCategoryRouteMetadata({ allProjects, category });
+  const allProjects = await getListingsByCategory(storedCategory.slug)
+  const category = {
+    ...storedCategory,
+    icon: getCategoryIcon(storedCategory.slug),
+    priority: 'low' as const
+  }
+  return generateCategoryRouteMetadata({ allProjects, category })
 }
 
 export default async function CategoryPage({ params }: CategoryPageProps) {
-  const resolvedParams = await params;
-  const category = getCategoryBySlug(resolvedParams.category);
+  const resolvedParams = await params
+  const storedCategory = await getCategoryBySlug(resolvedParams.category)
 
-  if (!category) {
-    notFound();
+  if (!storedCategory) {
+    notFound()
   }
 
-  const { allProjects, featuredProjects } = await getHomePageData();
-  const featuredGuides = await getGuides();
-  const categoryPath = getRoute('category.page', { category: category.slug });
-  const activeCategories = getActiveCategories(allProjects);
-  const activeCategorySlugs = activeCategories.map(
-    (activeCategory) => activeCategory.slug
-  );
+  const [allProjects, featuredProjects, featuredGuides, activeCategories] = await Promise.all([
+    getListingsByCategory(storedCategory.slug),
+    getFeaturedListings(100),
+    getGuides(),
+    getActiveCategories()
+  ])
+  const category = {
+    ...storedCategory,
+    icon: getCategoryIcon(storedCategory.slug),
+    priority: 'low' as const
+  }
+  const categoryPath = getRoute('category.page', { category: category.slug })
+  const activeCategorySlugs = activeCategories.map(activeCategory => activeCategory.slug)
   const route = CategoryRoutePage({
     activeCategorySlugs,
     allProjects,
@@ -83,13 +88,13 @@ export default async function CategoryPage({ params }: CategoryPageProps) {
           items={[{ name: getCategoryDisplayName(category.slug), href: categoryPath }]}
           baseUrl={SITE_PUBLIC_URL}
         />
-      ),
-    },
-  });
+      )
+    }
+  })
 
   if (route.categoryProjects.length === 0) {
-    notFound();
+    notFound()
   }
 
-  return route.element;
+  return route.element
 }

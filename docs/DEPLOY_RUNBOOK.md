@@ -1,187 +1,79 @@
 # Deploy Runbook
 
-The active supported deploy path is `github-pages-repo-sync`.
+The active `serp.software` release is an OpenNext Cloudflare Worker backed by
+Cloudflare D1. GitHub Pages repo sync and local production deploys are not supported.
 
-That means this repo builds static artifacts for resolved checked-in site
-targets, then deploys each artifact through the target strategy in
-`sites/<site-id>/site-config.ts`.
+## Local verification
 
-`serp.software` is the only active checked-in deployable site. Automatic push deploys
-are disabled; `.github/workflows/build-and-deploy.yml` requires an explicit manual
-dispatch selecting `serp.software`.
-
-## Prerequisites
-
-Before deploying, confirm:
-
-- the site has checked-in config in `sites/<site-id>/site-config.ts`
-- the site defines a checked-in `deploy.strategy` and its required target fields
-- you are on Node `24`
-- GitHub Pages repo-sync sites have the deploy secret required by the source deploy workflow
-- submit-enabled target repos have a `GH_PAT` secret that can create PRs in `json-directory-template`
-- submit-enabled sites use a public GitHub issue repo with Issues enabled
-- source changes have gone through gitflow: branch, commit, push, review/merge
-- the deploy is running from GitHub Actions or from a clean local source branch synced with its upstream
-
-## Local verification flow
-
-After a brand, content, or listing change:
+These commands do not access a remote database:
 
 ```bash
-pnpm validate:site -- --site <site-id>
-pnpm build:site -- --site <site-id>
-pnpm audit:sitemaps -- --site <site-id>
-pnpm deploy:site -- --site <site-id> --dry-run
+pnpm worker:config:validate
+pnpm test:d1
+pnpm test:repo
+pnpm typecheck
+pnpm worker:build
 ```
 
-What each step does:
+Local D1 migration, import, publication, verification, and preview commands require
+separate database-operation approval. They are guarded by
+`scripts/d1-local-guard.ts` and can target only the checked-in local D1 identity.
 
-- `validate:site` fails early on bad checked-in config or invalid listing inputs
-- `build:site` creates the final static artifact in `dist/sites/<site-id>`
-- `audit:sitemaps` checks generated XML sitemap files against generated route artifacts
-- `deploy:site --dry-run` confirms the target strategy, branch, and artifact directory without pushing anything
+## Initial production release
 
-Do not run a real local deploy while source changes are uncommitted, untracked, unpushed, behind upstream, or diverged from upstream.
+Use `.github/workflows/build-and-deploy.yml` from `main`. The workflow requires:
 
-## Normal deploy flow
+- the protected `production` environment;
+- the exact `deploy-serp.software-production` confirmation;
+- successful configuration, D1 contract, type, and Worker build checks.
 
-The normal production path is:
+The workflow retains a pre-change D1 export, applies migrations, imports the
+deterministic initial catalog only when publication state is empty, verifies exact
+catalog parity, and then deploys the Worker. A failed migration, import, or
+verification stops the release before Worker deployment.
 
-1. make the source change on a branch
-2. run local verification, including `pnpm deploy:site -- --site <site-id> --dry-run`
-3. commit and push the source branch
-4. open and merge the PR
-5. explicitly approve and manually dispatch `.github/workflows/build-and-deploy.yml`
-6. verify the target hosting provider and live site
+Do not run production Wrangler or D1 commands from a local worktree.
 
-`pnpm deploy`, `pnpm deploy:site`, and target GitHub Pages repo syncs are push
-operations. They require explicit user approval and must not be used to push
-artifacts built from unreviewed local source changes.
+## Ongoing catalog publication
 
-## Dry-run before deploy
+Catalog changes follow a two-stage review path:
 
-Use this to confirm the target strategy, branch, and artifact directory without
-pushing anything:
+1. Submission automation creates a proposal under `d1/proposals/`.
+2. A maintainer reviews it and authors a versioned manifest under
+   `d1/publications/`.
+3. From `main`, manually run `.github/workflows/publish-d1.yml`.
+4. Enter `publish-serp.software-production` and approve the protected production
+   environment.
 
-```bash
-pnpm deploy:site -- --site <site-id> --dry-run
-```
+The publication workflow retains a pre-change backup and sends the validated
+manifest as one D1 batch. The publisher checks the tenant, base publication version,
+prior checksum, stable IDs, slugs, categories, URLs, repeatable fields, and manifest
+provenance before execution.
 
-Promotion requirement:
+## Rollback
 
-- a site cannot be promoted without a confirmed deploy repo/branch strategy in checked-in config
-- promotion review must include a successful `pnpm deploy:site -- --site <site-id> --dry-run`
-- docs and runbooks must be updated before the registry change is considered complete
-- use [SITE_PROMOTION_CHECKLIST.md](./SITE_PROMOTION_CHECKLIST.md) as the source-of-truth gate
+Every production mutation workflow retains the D1 export created before the change.
+If rollback is required:
 
-## Local real deploy guard
+1. stop further publication and Worker release workflows;
+2. identify the retained export from the affected workflow run;
+3. review the export and intended recovery point;
+4. obtain explicit production database-operation approval;
+5. restore using the reviewed Cloudflare recovery procedure;
+6. run exact catalog verification before resuming traffic changes or publication.
 
-Local real deploys are blocked unless the source repo is reviewable:
+Never restore a production export merely because an application deploy failed; the
+database may already contain a valid forward migration.
 
-- no uncommitted or untracked changes
-- current branch has an upstream tracking branch
-- current branch has no unpushed commits
-- current branch is not behind or diverged from upstream
+## Post-release checks
 
-GitHub Actions is allowed because it deploys a checked-out commit produced by the repository workflow.
+After an authorized production run:
 
-Normal deploys must use the target strategy and branch from checked-in site
-config. `DEPLOY_REPO_URL` and `DEPLOY_BRANCH` are refused unless
-`ALLOW_DEPLOY_TARGET_OVERRIDE=true` is set for an explicitly approved audited
-emergency bypass.
+- confirm the workflow’s migration, import/publication, parity, and deploy steps;
+- confirm the deployed Worker uses the production `DB` binding and
+  `D1_RUNTIME_ENV=production`;
+- verify the home page, product detail, category, search, RSS, and sitemap routes;
+- verify a legacy root product slug redirects to `/products/<slug>/`;
+- retain the workflow backup for the required recovery window.
 
-## GitHub Actions path
-
-The repo workflow is `.github/workflows/build-and-deploy.yml`.
-
-The workflow:
-
-1. accepts only the manually selected `serp.software` target
-2. runs a matrix over the resolved site targets
-3. runs `pnpm validate:site`
-4. runs `pnpm build:site`
-5. runs `pnpm audit:sitemaps`
-6. runs `pnpm audit:forbidden-links`
-7. verifies the deploy secret required by the checked-in site strategy
-8. runs `pnpm deploy:site` against the checked-in site config deploy target
-
-Workflow dispatch accepts only `site_id=serp.software`. Pushes and merges do not
-automatically deploy. Do not add fallback deploy sites through repository variables.
-
-The generated artifact stays in the same GitHub Actions job workspace between
-build, audit, and deploy. Normal deploys do not upload/download the large
-artifact between jobs.
-
-## Redeploy after a normal content or brand change
-
-For a normal static-site update, the redeploy path is the same as the first deploy:
-
-1. edit checked-in site config, content, assets, or listing data
-2. run `pnpm validate:site -- --site <site-id>`
-3. run `pnpm build:site -- --site <site-id>`
-4. run `pnpm audit:sitemaps -- --site <site-id>`
-5. run `pnpm deploy:site -- --site <site-id> --dry-run`
-6. commit, push, review, and merge the source change
-7. with explicit approval, manually dispatch the workflow or run a local real deploy
-   from a clean synced source branch
-8. verify the target provider and live site
-
-## Submit-intake rollout
-
-The public `/submit` GitHub issue intake is active only for `serp.software`. Its
-public issue repo must keep Issues enabled because the static submit form opens
-GitHub's public issue composer.
-The target repo badge workflow is a thin caller source-managed in
-`scripts/templates/target-verify-badge.yml`; the implementation lives in
-`.github/workflows/reusable-verify-badge.yml` and is called at `@main` so badge logic fixes land in
-one place. For workflow-only maintenance, install that thin caller into the public issue repo as
-`.github/workflows/verify-badge.yml` without rebuilding or deploying static sites. Normal site
-deploys also install `.github/workflows/deploy.yml` and `.github/workflows/verify-badge.yml` from
-`scripts/templates/` as a safety net. Do not hand-edit divergent target workflow logic as the
-long-term fix.
-
-When a verified submission's slug already exists in `sites/<site-id>/products.json` on `main`, the
-central workflow comments on the issue and stops without creating a branch, changing content, or
-opening a duplicate PR.
-
-Required setup:
-
-| Public issue repo | Issues | Workflow | Secret | Badge assets |
-|---|---|---|---|---|
-| `serpcompany/serp.software` | Enabled | Thin `.github/workflows/verify-badge.yml` caller | `GH_PAT` | Light and dark SVGs under `/badge/` |
-
-For each site PR:
-
-1. configure `social.githubIssueOwner`, `social.githubIssueRepo`, and `social.githubIssuesUrl`
-2. make the site's `/submit` route render `GitHubIssueSubmitForm`
-3. configure the target repo `GH_PAT` secret needed for verified-submission PR creation
-4. run local verification with `pnpm deploy:site -- --site <site-id> --dry-run`
-5. merge only after PR checks pass
-6. let GitHub Actions deploy from `main`
-7. verify the target Pages repo run, `submit/index.html`, the live `/submit/` page, and
-   `.github/workflows/verify-badge.yml` in the target repo. The workflow should be the thin caller,
-   not a copy of the full badge verification logic.
-
-Do not run a local real deploy for submit-intake changes from a dirty, unpushed, or unreviewed
-source worktree.
-
-## Verification checklist
-
-After deploy, check:
-
-- `dist/sites/<site-id>` contains the expected static artifact
-- `dist/sites/<site-id>/build-info.json` contains the source `siteId`, `sourceSha`,
-  `sourceBranch`, and `sourceRepository`
-- the target provider contains plain static files, not `.next`
-- GitHub Pages repo-sync targets still contain `.github/workflows/deploy.yml`
-- submit-enabled targets still contain `.github/workflows/verify-badge.yml`
-- the target provider publish completes successfully
-- the live domain returns the updated site from the intended provider
-- `https://<site-id>/build-info.json` returns HTTP `200`, has the expected `siteId`,
-  and has a `sourceSha` matching the deployed source commit
-
-## Related references
-
-- [BUILD_PIPELINE.md](./BUILD_PIPELINE.md)
-- [github-pages-static-export.md](./knowledge/github-pages-static-export.md)
-- [site-config.md](./knowledge/site-config.md)
+See [BUILD_PIPELINE.md](./BUILD_PIPELINE.md) for ownership and release architecture.

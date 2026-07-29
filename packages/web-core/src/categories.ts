@@ -1,6 +1,4 @@
-import { defaultSiteConfig } from '@thedaviddias/site-contract'
-import { resolveCheckedInSiteCategories } from '@thedaviddias/site-contract/categories'
-import type { SiteCategoryInput } from '@thedaviddias/site-contract/types'
+import { assertSiteIdIsNotRemoved } from '@thedaviddias/site-contract/active-site-ids'
 import type { LucideIcon } from 'lucide-react'
 import {
   Brain,
@@ -28,10 +26,15 @@ export interface Category {
 type CategoryPresentation = {
   description?: string
   icon?: LucideIcon
+  name?: string
   priority?: Category['priority']
 }
 
 const categoryPresentationBySlug: Record<string, CategoryPresentation> = {
+  adult: {
+    description: 'Browse adult downloader listings and resources.',
+    name: 'Adult'
+  },
   'agency-services': {
     description: 'Agencies, consultancies, and service providers',
     icon: Briefcase,
@@ -100,6 +103,7 @@ const categoryPresentationBySlug: Record<string, CategoryPresentation> = {
   'product-launch-websites': {
     description: 'Product launch directories, launch platforms, and discovery websites',
     icon: Globe,
+    name: 'Product Launch Websites',
     priority: 'medium'
   },
   'security-identity': {
@@ -110,8 +114,13 @@ const categoryPresentationBySlug: Record<string, CategoryPresentation> = {
   'video-downloaders': {
     description: 'Downloaders, recorders, and browser tools for saving online video',
     icon: Download,
+    name: 'Video Downloaders',
     priority: 'medium'
   }
+}
+
+const siteCategorySlugs: Record<string, string[]> = {
+  'serp.software': ['adult', 'product-launch-websites', 'video-downloaders']
 }
 
 export const categoryAliases: Record<string, string> = {
@@ -126,28 +135,16 @@ export const categoryAliases: Record<string, string> = {
   'social-media': 'social-media-downloaders'
 }
 
-function resolveRuntimeSiteId(): string {
-  return process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID || defaultSiteConfig.id
-}
-
 function buildFallbackDescription(name: string): string {
   return `Browse ${name.toLowerCase()} listings and resources.`
 }
 
-function resolveCategoryDescription(category: SiteCategoryInput): string {
-  return (
-    category.description ||
-    categoryPresentationBySlug[category.slug]?.description ||
-    buildFallbackDescription(category.name)
-  )
-}
-
-function resolveCategoryPriority(category: SiteCategoryInput): Category['priority'] {
-  return category.priority || categoryPresentationBySlug[category.slug]?.priority || 'low'
-}
-
 function resolveCategoryIcon(slug: string): LucideIcon {
   return categoryPresentationBySlug[slug]?.icon || Package
+}
+
+function resolveRuntimeSiteId(): string | undefined {
+  return process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID
 }
 
 export function normalizeCategorySlug(slug: string): string {
@@ -155,13 +152,25 @@ export function normalizeCategorySlug(slug: string): string {
 }
 
 export function resolveCategories(siteId = resolveRuntimeSiteId()): Category[] {
-  return resolveCheckedInSiteCategories(siteId).map(category => ({
-    description: resolveCategoryDescription(category),
-    icon: resolveCategoryIcon(category.slug),
-    name: category.name,
-    priority: resolveCategoryPriority(category),
-    slug: category.slug
-  }))
+  if (siteId) assertSiteIdIsNotRemoved(siteId)
+  const allowedSlugs = siteId ? siteCategorySlugs[siteId] : undefined
+  return Object.entries(categoryPresentationBySlug)
+    .filter(([slug]) => !allowedSlugs || allowedSlugs.includes(slug))
+    .map(([slug, presentation]) => {
+      const name =
+        presentation.name ||
+        slug
+          .split('-')
+          .map(word => `${word[0]?.toUpperCase() || ''}${word.slice(1)}`)
+          .join(' ')
+      return {
+        description: presentation.description || buildFallbackDescription(name),
+        icon: resolveCategoryIcon(slug),
+        name,
+        priority: presentation.priority || 'low',
+        slug
+      }
+    })
 }
 
 export const categories: Category[] = resolveCategories()
@@ -176,6 +185,5 @@ export const getCategoryLabel = (slug: string): string => {
 }
 
 export const getCategoryIcon = (slug: string): LucideIcon => {
-  const category = getCategoryBySlug(slug)
-  return category?.icon || Package
+  return categoryPresentationBySlug[normalizeCategorySlug(slug)]?.icon || Package
 }

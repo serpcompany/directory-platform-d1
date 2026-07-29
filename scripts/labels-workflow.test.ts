@@ -49,8 +49,11 @@ describe('labels workflow', () => {
         ?.flatMap((rule) => rule['changed-files'] || [])
         .flatMap((rule) => rule['any-glob-to-any-file'] || []) || [];
 
-    expect(globs).toContain('data/listings.json');
-    expect(globs).toContain('sites/**/products.json');
+    expect(globs).toContain('d1/migrations/**');
+    expect(globs).toContain('d1/proposals/**');
+    expect(globs).toContain('d1/publications/**');
+    expect(globs).not.toContain('data/listings.json');
+    expect(globs).not.toContain('sites/**/products.json');
     expect(globs).not.toContain('packages/content/data/websites/**');
     expect(labelerRules['generated:listings-json']).toBeUndefined();
   });

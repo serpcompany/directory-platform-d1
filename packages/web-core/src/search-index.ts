@@ -1,11 +1,11 @@
 import { z } from 'zod';
 
-export const SEARCH_INDEX_PUBLIC_PATH = '/search/search-index.json';
+export const SEARCH_INDEX_PUBLIC_PATH = '/api/search';
 
 export const searchIndexEntrySchema = z.object({
   category: z.string(),
   categories: z.array(z.string()).optional(),
-  content: z.string(),
+  content: z.string().optional(),
   description: z.string(),
   name: z.string().min(1),
   slug: z.string().min(1),

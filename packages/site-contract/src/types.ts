@@ -111,7 +111,13 @@ export type GitHubPagesRepoSyncDeployConfig = {
   strategy: 'github-pages-repo-sync'
 }
 
-export type DeployConfig = GitHubPagesRepoSyncDeployConfig
+export type OpenNextCloudflareWorkerDeployConfig = {
+  previewConfigPath: string
+  productionConfigPath: string
+  strategy: 'opennext-cloudflare-worker'
+}
+
+export type DeployConfig = GitHubPagesRepoSyncDeployConfig | OpenNextCloudflareWorkerDeployConfig
 
 export type SiteFeatureFlags = {
   showAuth: boolean

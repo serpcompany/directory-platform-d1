@@ -17,12 +17,13 @@ export const serpSoftwareSiteConfig: CheckedInSiteConfigOverride = {
   },
   content: {
     listingSource: {
-      category: 'video-downloaders',
-      featuredCount: 6,
-      kind: 'trial-products-json',
-      outputPath: 'data/listings.json',
-      path: 'sites/serp.software/products.json',
-      publishedAt: '2026-05-07'
+      approvedOnly: true,
+      binding: 'DB',
+      databaseName: 'serp-software-local',
+      kind: 'd1-listings',
+      mode: 'local-d1',
+      siteId: 'serp.software',
+      wranglerConfigPath: 'wrangler.jsonc'
     }
   },
   copy: {
@@ -33,10 +34,9 @@ export const serpSoftwareSiteConfig: CheckedInSiteConfigOverride = {
     submitLabel: 'Submit Yours'
   },
   deploy: {
-    branch: 'main',
-    preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-    repoUrl: 'https://github.com/serpcompany/serp.software.git',
-    strategy: 'github-pages-repo-sync'
+    previewConfigPath: 'wrangler.preview.jsonc',
+    productionConfigPath: 'wrangler.production.jsonc',
+    strategy: 'opennext-cloudflare-worker'
   },
   id: 'serp.software',
   networkBrandGroup: 'all',

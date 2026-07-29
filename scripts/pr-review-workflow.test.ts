@@ -62,7 +62,7 @@ describe('pr-review workflow', () => {
     })
   })
 
-  it('validates the active checked-in sites through the generic site-validation entrypoint', () => {
+  it('validates the active Worker and D1 contracts without touching a database', () => {
     const workflow = loadWorkflow()
     const validateJob = workflow.jobs.validate
     const stepRuns = validateJob.steps?.map(step => step.run).filter(Boolean)
@@ -70,15 +70,14 @@ describe('pr-review workflow', () => {
 
     expect(validateJob['runs-on']).toBe('ubuntu-latest')
     expect(checkoutStep?.with?.['fetch-depth']).toBe(0)
-    expect(stepRuns).toContain('pnpm d1:local:prepare')
-    expect(stepRuns).toContain('pnpm validate:sites')
+    expect(stepRuns).toContain('pnpm worker:config:validate')
+    expect(stepRuns).toContain('pnpm test:repo')
+    expect(stepRuns).toContain('pnpm lint:forbidden-links')
     expect(stepRuns).toContain(
       'pnpm exec biome check --changed --since=origin/main --no-errors-on-unmatched'
     )
-    expect(stepRuns).not.toContain('pnpm validate:site -- --site default')
-    expect(stepRuns).not.toContain('pnpm validate:site -- --site serpdownloaders.com')
-    expect(stepRuns).not.toContain('pnpm validate:site -- --site serp.software')
-    expect(stepRuns).not.toContain('pnpm check:frontmatter')
+    expect(stepRuns).not.toContain('pnpm d1:local:migrate')
+    expect(stepRuns).not.toContain('pnpm worker:deploy:production')
     expect(stepRuns).not.toContain('pnpm typecheck')
     expect(stepRuns).not.toContain('pnpm test')
   })
@@ -107,16 +106,6 @@ describe('pr-review workflow', () => {
     expect(workflow.jobs.e2e.needs).toEqual(['changes'])
   })
 
-  it('leaves large site-owned product sources to listing validation instead of Biome formatting', () => {
-    const biomeConfig = JSON.parse(readFileSync(resolve(process.cwd(), 'biome.json'), 'utf8')) as {
-      files?: {
-        includes?: string[]
-      }
-    }
-
-    expect(biomeConfig.files?.includes).toContain('!sites/**/products.json')
-  })
-
   it('installs Playwright browsers without sudo-only system dependency escalation', () => {
     const workflow = loadWorkflow()
     const e2eJob = workflow.jobs.e2e
@@ -138,23 +127,19 @@ describe('pr-review workflow', () => {
     const filters = loadE2eRelevantFilters()
 
     expect(filters).toEqual([
-      'apps/starter/app/**',
-      'apps/starter/components/**',
-      'apps/starter/lib/**',
-      'apps/starter/public/**',
+      'apps/serp.software/**',
       'apps/e2e/**',
-      'data/listings.json',
+      'd1/**',
       'packages/web-core/**',
-      'packages/ui/**',
+      'packages/design-system/**',
       'sites/**'
     ])
     expect(isE2eRelevant('apps/e2e/tests/home.spec.ts')).toBe(true)
-    expect(isE2eRelevant('apps/starter/app/page.tsx')).toBe(true)
-    expect(isE2eRelevant('apps/starter/components/site-header.tsx')).toBe(true)
-    expect(isE2eRelevant('data/listings.json')).toBe(true)
+    expect(isE2eRelevant('apps/serp.software/app/page.tsx')).toBe(true)
+    expect(isE2eRelevant('d1/publications/release.yaml')).toBe(true)
     expect(isE2eRelevant('packages/web-core/src/root-shell.tsx')).toBe(true)
-    expect(isE2eRelevant('packages/ui/button.tsx')).toBe(true)
-    expect(isE2eRelevant('sites/serp.co/products.json')).toBe(true)
+    expect(isE2eRelevant('packages/design-system/components/button.tsx')).toBe(true)
+    expect(isE2eRelevant('sites/serp.software/site-config.ts')).toBe(true)
     expect(isE2eRelevant('docs/BUILD_PIPELINE.md')).toBe(false)
     expect(isE2eRelevant('.github/workflows/pr-review.yml')).toBe(false)
   })

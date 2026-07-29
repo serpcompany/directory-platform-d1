@@ -20,7 +20,7 @@ jobs:
               {
                 name: 'area:content',
                 color: '0E8A16',
-                description: 'Touches active listing-entry source files such as data/listings.json or sites/**/products.json.'
+                description: 'Touches D1 catalog migrations, reviewed proposals, or publication manifests.'
               }
             ]
 

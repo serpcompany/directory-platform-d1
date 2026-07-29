@@ -279,6 +279,12 @@ const githubPagesRepoSyncDeploySchema = z.object({
   strategy: z.literal('github-pages-repo-sync')
 })
 
+const openNextCloudflareWorkerDeploySchema = z.object({
+  previewConfigPath: z.string().min(1),
+  productionConfigPath: z.string().min(1),
+  strategy: z.literal('opennext-cloudflare-worker')
+})
+
 const checkedInSiteConfigSchema = z.object({
   analytics: siteAnalyticsSchema,
   badges: siteBadgesSchema,
@@ -301,7 +307,7 @@ const checkedInSiteConfigSchema = z.object({
       trialProductsSourceSchema
     ])
   }),
-  deploy: githubPagesRepoSyncDeploySchema.optional(),
+  deploy: z.union([githubPagesRepoSyncDeploySchema, openNextCloudflareWorkerDeploySchema]).optional(),
   features: featureFlagsSchema.default({}),
   id: z.string().min(1),
   networkBrandGroup: z.string().min(1).nullable().default(null),

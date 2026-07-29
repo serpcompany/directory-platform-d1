@@ -1,6 +1,6 @@
 import { Info } from 'lucide-react';
-import { MDXRemote } from 'next-mdx-remote/rsc';
 import type { MDXComponents } from 'mdx/types';
+import ReactMarkdown, { type Components } from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { getCategoryDisplayName } from '../category-display';
 import type { WebsiteMetadata } from '../content-query';
@@ -60,15 +60,12 @@ export function WebsiteContentSection({
           </div>
         ) : null}
         <div className="prose max-w-none prose-headings:scroll-mt-20 dark:prose-invert">
-          <MDXRemote
-            source={renderedContent}
-            components={mdxComponents}
-            options={{
-              mdxOptions: {
-                remarkPlugins: [remarkGfm],
-              },
-            }}
-          />
+          <ReactMarkdown
+            components={mdxComponents as Components}
+            remarkPlugins={[remarkGfm]}
+          >
+            {renderedContent}
+          </ReactMarkdown>
         </div>
       </section>
     );

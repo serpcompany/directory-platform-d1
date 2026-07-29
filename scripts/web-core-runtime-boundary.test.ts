@@ -26,11 +26,14 @@ describe('web-core runtime boundary', () => {
     expect(offenders).toEqual([])
   })
 
-  it('does not hardcode app API endpoints', () => {
+  it('keeps the public search route contract isolated to the search client', () => {
     const offenders = readWebCoreSources()
       .filter(file => file.source.includes('/api/'))
       .map(file => file.path)
 
-    expect(offenders).toEqual([])
+    expect(offenders).toEqual(['packages/web-core/src/search-index.ts'])
+    expect(
+      readWebCoreSources().find(file => file.path === 'packages/web-core/src/search-index.ts')?.source
+    ).toContain("const SEARCH_INDEX_PUBLIC_PATH = '/api/search'")
   })
 })

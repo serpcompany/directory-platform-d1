@@ -453,7 +453,7 @@ jobs:
 
             const safeBranchSlug = submission.slug.replace(/[^a-z0-9._-]+/gi, '-').replace(/^-+|-+$/g, '');
             const branch = `listing/${siteRepo}/${safeBranchSlug}`;
-            const productsPath = `sites/${siteRepo}/products.json`;
+            const proposalPath = `d1/proposals/${siteRepo}-${issue.number}-${safeBranchSlug}.yaml`;
             const prTitle = `feat(listing): add ${submission.name} to ${siteRepo}`;
             const existingPrs = await sourceRequest(
               'GET',
@@ -470,37 +470,6 @@ jobs:
               'GET',
               `/repos/${sourceOwner}/${sourceRepo}/git/ref/heads/main`
             );
-
-            async function readProductsAt(refSha) {
-              const tree = await sourceRequest(
-                'GET',
-                `/repos/${sourceOwner}/${sourceRepo}/git/trees/${encodeURIComponent(`${refSha}:sites/${siteRepo}`)}`
-              );
-              const productsBlob = tree.tree.find(item => item.path === 'products.json');
-              if (!productsBlob) return null;
-
-              const blob = await sourceRequest(
-                'GET',
-                `/repos/${sourceOwner}/${sourceRepo}/git/blobs/${productsBlob.sha}`
-              );
-              const content = Buffer.from(blob.content, 'base64').toString('utf8');
-              return {
-                blobSha: productsBlob.sha,
-                products: JSON.parse(content)
-              };
-            }
-
-            const mainProducts = await readProductsAt(mainRef.object.sha);
-            if (!mainProducts) {
-              await targetComment(`:warning: **Badge verified, PR not created**\n\nCould not find \`${productsPath}\` in \`${sourceOwner}/${sourceRepo}\`. @${assignee}, please review manually.`);
-              core.setFailed(`${productsPath} not found on main.`);
-              return;
-            }
-
-            if (mainProducts.products[submission.slug]) {
-              await targetComment(`:white_check_mark: **Badge verified**\n\nA listing with slug \`${submission.slug}\` already exists in \`${productsPath}\`. @${assignee}, please review whether this issue should be closed.`);
-              return;
-            }
 
             let branchRef = await sourceRequestOrNull(
               'GET',
@@ -522,55 +491,53 @@ jobs:
               );
             }
 
-            const branchProducts = await readProductsAt(branchRef.object.sha);
-            if (!branchProducts) {
-              await targetComment(`:warning: **Badge verified, PR not created**\n\nCould not find \`${productsPath}\` on branch \`${branch}\`. @${assignee}, please review manually.`);
-              core.setFailed(`${productsPath} not found on branch ${branch}.`);
-              return;
-            }
+            const existingProposal = await sourceRequestOrNull(
+              'GET',
+              `/repos/${sourceOwner}/${sourceRepo}/contents/${proposalPath}?ref=${encodeURIComponent(branch)}`
+            );
 
-            const products = branchProducts.products;
-            const productsBlobSha = branchProducts.blobSha;
+            if (!existingProposal) {
+              const { createHash } = require('node:crypto');
+              const listingId = `lst_${createHash('sha256').update(`${siteRepo}:${submission.slug}`).digest('hex').slice(0, 24)}`;
+              const resources = submission.resourceLinks.length > 0
+                ? submission.resourceLinks
+                : [{ label: submission.name, url: submission.url }];
+              const scalar = value => JSON.stringify(value || '');
+              const proposal = [
+                'version: 1',
+                'kind: listing-create-proposal',
+                `siteId: ${scalar(siteRepo)}`,
+                'source:',
+                `  issue: ${scalar(`${targetOwner}/${siteRepo}#${issue.number}`)}`,
+                `  submitter: ${scalar(issue.user.login)}`,
+                `  badgeVerifiedAt: ${scalar(issue.updated_at)}`,
+                'listing:',
+                `  id: ${scalar(listingId)}`,
+                `  slug: ${scalar(submission.slug)}`,
+                `  name: ${scalar(submission.name)}`,
+                `  description: ${scalar(submission.description || submission.name)}`,
+                `  website: ${scalar(submission.url)}`,
+                `  content: ${scalar(submission.notes || '')}`,
+                '  featured: false',
+                '  categories:',
+                `    - ${scalar(submission.category)}`,
+                ...(submission.logoUrl || submission.videoUrl ? [
+                  '  media:',
+                  ...(submission.logoUrl ? [`    logo: ${scalar(submission.logoUrl)}`] : []),
+                  ...(submission.videoUrl ? [`    video: ${scalar(submission.videoUrl)}`] : [])
+                ] : []),
+                '  resources:',
+                ...resources.flatMap(resource => [
+                  `    - label: ${scalar(resource.label)}`,
+                  `      url: ${scalar(resource.url)}`
+                ]),
+                ''
+              ].join('\n');
 
-            if (!products[submission.slug]) {
-              let contentBody = `## Overview\n\n${submission.description || submission.name}`;
-              if (submission.notes) contentBody += `\n\n${submission.notes}`;
-
-              const entry = {
-                content: { body: contentBody },
-                featured: false,
-                product: {
-                  categories: [submission.category],
-                  productPage: submission.url,
-                  slug: submission.slug,
-                  tagline: (submission.description || submission.name).split('\n')[0].slice(0, 150),
-                  title: submission.name
-                },
-                relatedLinks:
-                  submission.resourceLinks.length > 0
-                    ? submission.resourceLinks
-                    : [{ label: submission.name, url: submission.url }]
-              };
-
-              const media = {};
-              if (submission.logoUrl) {
-                media.logo = submission.logoUrl;
-              }
-              if (submission.videoUrl) {
-                media.video = submission.videoUrl;
-              }
-              if (Object.keys(media).length > 0) {
-                entry.media = media;
-              }
-
-              products[submission.slug] = entry;
-              const updatedContent = `${JSON.stringify(products, null, 2)}\n`;
-
-              await sourceRequest('PUT', `/repos/${sourceOwner}/${sourceRepo}/contents/${productsPath}`, {
+              await sourceRequest('PUT', `/repos/${sourceOwner}/${sourceRepo}/contents/${proposalPath}`, {
                 branch,
-                content: Buffer.from(updatedContent).toString('base64'),
-                message: `feat(listing): add ${submission.name} to ${siteRepo}`,
-                sha: productsBlobSha
+                content: Buffer.from(proposal).toString('base64'),
+                message: `feat(listing): propose ${submission.name} for ${siteRepo}`
               });
             }
 
@@ -586,7 +553,7 @@ jobs:
 
             const pr = await sourceRequest('POST', `/repos/${sourceOwner}/${sourceRepo}/pulls`, {
               base: 'main',
-              body: `## Summary\n- Add **${submission.name}** (\`${submission.slug}\`) to \`${siteRepo}\` listings\n- Source issue: ${targetOwner}/${siteRepo}#${issue.number}\n- Badge status: verified\n\n@${assignee}, this PR was auto-generated after badge verification.`,
+              body: `## Summary\n- Propose **${submission.name}** (\`${submission.slug}\`) for the D1-backed \`${siteRepo}\` catalog\n- Add reviewed proposal: \`${proposalPath}\`\n- Source issue: ${targetOwner}/${siteRepo}#${issue.number}\n- Badge status: verified\n\nAfter review, convert this proposal into a versioned manifest under \`d1/publications/\` and publish it through the protected D1 workflow.\n\n@${assignee}, this PR was auto-generated after badge verification.`,
               head: branch,
               title: prTitle
             });

@@ -1,32 +1,37 @@
 # serp.software
 
-## Source of truth
+`serp.software` is the only active deployable directory in this repository. Its public
+listing and category data is read at request time from the `DB` Cloudflare D1 binding.
+Public product detail pages remain under `/products/[slug]/`.
 
-For `serp.software`, product data starts in:
+## Data ownership
 
-- `sites/serp.software/products.json`
-
-This site uses the `trial-products-json` source adapter, so the app does not read `products.json` directly at runtime.
-Public product detail pages render under `/products/[slug]`.
-
-The catalog starts as a full copy of the 105 live downloader records from `serpdownloaders.com`.
-
-## Regenerate the runtime dataset
-
-After editing `products.json`, run:
-
-```bash
-pnpm prepare:site -- --site serp.software
-```
-
-That regenerates:
-
-- `data/listings.json`
+- Canonical runtime data: Cloudflare D1.
+- Schema changes: `d1/migrations/`.
+- Badge-verified intake: reviewed YAML proposals under `d1/proposals/`.
+- Approved mutations: versioned YAML manifests under `d1/publications/`.
+- `products.json`, `categories.json`, and `data/listings.json`: immutable migration
+  inputs retained only for parity and rollback acceptance; the Worker never reads them.
 
 ## Local development
 
-Safest site-specific local loop:
+Database commands require explicit authorization. Once authorized, the guarded local
+flow is:
 
 ```bash
-pnpm dev:site -- --site serp.software
+pnpm d1:local:migrate
+pnpm d1:local:import
+pnpm d1:local:verify
+pnpm worker:preview
 ```
+
+Non-database validation is always safe:
+
+```bash
+pnpm test:d1
+pnpm worker:config:validate
+pnpm worker:build
+```
+
+Production schema/import/deploy operations and publication manifests run only through
+their protected, manually confirmed GitHub Actions workflows.

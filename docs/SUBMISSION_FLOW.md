@@ -20,10 +20,10 @@ badge-state labels, and verified listing PR creation are handled by a tiny publi
 6. The submitter places the "Featured on [site]" badge on their website.
 7. A maintainer (or the submitter) comments `/check-badge` to re-verify.
 8. On successful verification, the workflow removes `badge-not-verified`, adds `badge-verified`,
-   and creates a PR in the source repo that adds the listing to `sites/<site-id>/products.json`.
+   and creates a PR containing a reviewed YAML proposal under `d1/proposals/`.
 9. The generated PR mentions and assigns `@devinschumacher`.
-10. The maintainer reviews and merges the PR. The existing `build-and-deploy.yml` workflow builds and deploys
-    the site with the new listing.
+10. The maintainer reviews the proposal, creates a versioned manifest under
+    `d1/publications/`, and runs the protected `publish-d1.yml` workflow.
 
 ---
 
@@ -83,17 +83,17 @@ When the badge check succeeds on a new issue or a `/check-badge` rerun:
 1. The central reusable badge workflow parses the issue body for: name, URL, category, description,
    logo URL, resource links, and notes.
 2. It derives the slug from the product URL hostname (e.g. `https://www.example.com` → `example.com`).
-3. It checks `sites/<site-repo>/products.json` on `main`.
-4. If that slug already exists, it comments on the issue that the listing already exists and stops
-   without creating a branch, changing content, or opening a duplicate PR.
-5. If the slug is absent, it creates a branch `listing/<site-repo>/<slug>` in
+3. It creates or reuses a branch `listing/<site-repo>/<slug>` in
    `serpcompany/json-directory-template`.
-6. It adds the listing entry to `sites/<site-repo>/products.json`.
-7. It opens a PR targeting `main`.
-8. It assigns the PR to `@devinschumacher`, mentions `@devinschumacher` in the PR body, and
+4. It writes a deterministic `listing-create-proposal` YAML document under
+   `d1/proposals/`; it never edits catalog JSON or D1 directly.
+5. It opens a PR targeting `main`.
+6. It assigns the PR to `@devinschumacher`, mentions `@devinschumacher` in the PR body, and
    comments on the source issue with the PR link.
 
-The maintainer reviews and merges the PR. The existing deploy pipeline handles the rest.
+The maintainer reviews the proposal, converts it into a versioned publication manifest,
+and authorizes the protected D1 publisher. Stale versions, duplicate identities, and
+checksum mismatches fail closed.
 
 ### Required secret
 
@@ -167,7 +167,8 @@ Active target workflow rollout matrix:
 | `verify-badge.yml` | Each site's public repo | `issues: opened`, `issue_comment: /check-badge` | Thin caller for the central reusable badge workflow |
 | `reusable-verify-badge.yml` | `json-directory-template` | `workflow_call` | Badge/backlink verification, badge labels, verified listing PR creation |
 | `check-badges.yml` | `json-directory-template` | Weekly cron (Monday 9am UTC) | Re-check all published listings for badge presence |
-| `build-and-deploy.yml` | `json-directory-template` | Push to main, workflow_dispatch | Build and deploy sites |
+| `build-and-deploy.yml` | `json-directory-template` | Manual dispatch | Migrate, import, verify, and deploy the production Worker |
+| `publish-d1.yml` | `json-directory-template` | Manual dispatch | Back up D1 and publish one reviewed manifest |
 
 ### Setting up a new site
 
@@ -206,7 +207,8 @@ To enable the submission + badge flow on a new site repo:
 | `scripts/deploy-to-repo.sh` | Target repo sync script that installs target workflows |
 | `apps/starter/app/api/cron/check-badges/route.ts` | Weekly badge presence cron endpoint |
 | `sites/<site-id>/site-config.ts` | Site-specific config including badge paths and listing routes |
-| `sites/<site-id>/products.json` | Canonical accepted listing source |
+| `d1/proposals/*.yaml` | Badge-verified listing proposals awaiting review |
+| `d1/publications/*.yaml` | Reviewed, versioned D1 publication manifests |
 | `data/submissions-pending.json` | Pending submission records (token-based flow) |
 | `data/submissions-verified.json` | Verified submission records (token-based flow) |
 
@@ -214,14 +216,14 @@ To enable the submission + badge flow on a new site repo:
 
 ## Data ownership
 
-Accepted listings are added to the active site's checked-in listing source via PR. For most
-active sites, that is `sites/<site-id>/products.json`. The central reusable badge workflow creates
-these PRs automatically after badge verification.
+Accepted listings are proposed through PRs under `d1/proposals/`. D1 is the canonical
+runtime source. Only a reviewed manifest under `d1/publications/` can mutate it, and
+production writes require protected-environment approval.
 
 Do not write submissions directly into:
 
-- `data/listings.json` (aggregated output, not a source)
-- `sites/<site-id>/products.json` outside the normal PR path
+- retained migration-input JSON
+- D1 outside the protected publication workflow
 
 ---
 
@@ -230,8 +232,8 @@ Do not write submissions directly into:
 For a submit-intake or accepted-listing change:
 
 ```bash
-pnpm validate:site -- --site <site-id>
-pnpm build:site -- --site <site-id>
-pnpm audit:sitemaps -- --site <site-id>
-pnpm deploy:site -- --site <site-id> --dry-run
+pnpm worker:config:validate
+pnpm test:d1
+pnpm typecheck
+pnpm worker:build
 ```

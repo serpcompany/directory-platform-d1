@@ -1,13 +1,13 @@
 # Directory Platform D1
 
-Static-first starter for directory-style sites.
+Cloudflare Worker platform for directory-style sites.
 
 The current model is:
 
 - checked-in site config under `sites/**`
-- checked-in listing data in `data/listings.json`
-- static export builds into `dist/sites/<site-id>`
-- deploys sync that artifact into a target GitHub Pages repo
+- runtime listing and category reads from Cloudflare D1
+- an OpenNext build for the active Next.js Worker
+- protected, approval-gated D1 migration, publication, backup, and Worker release flows
 
 ## Quick start
 
@@ -34,12 +34,12 @@ pnpm generate:site-wrapper -- --site your-site-id
 
 ## Core commands
 
-Active checked-in site:
+Active Worker:
 
 ```bash
-pnpm validate:site -- --site serp.software
-pnpm build:site -- --site serp.software
-pnpm deploy:site -- --site serp.software --dry-run
+pnpm worker:config:validate
+pnpm test:d1
+pnpm worker:build
 ```
 
 `serp.software` is the only active, deployable site in this repository. The starter
@@ -63,8 +63,11 @@ pnpm --dir apps/starter exec jest --runInBand
 
 - site config: `sites/site-config.default.ts` plus `sites/<site-id>/site-config.ts`
 - optional site-owned content: `sites/<site-id>/site-content.ts`
-- active listing source: `sites/serp.software/products.json`
-- generated normalized listing data: `data/listings.json`
+- active listing/category source: the `serp.software` Cloudflare D1 database
+- D1 schema: `d1/migrations/*.sql`
+- reviewed intake proposals: `d1/proposals/*.yaml`
+- approved publication manifests: `d1/publications/*.yaml`
+- deterministic initial migration evidence: `d1/artifacts/`
 - public docs content: `packages/content/data/docs/*.mdx`
 - legal content: `packages/content/data/legal/*.mdx`
 
@@ -82,15 +85,14 @@ pnpm --dir apps/starter exec jest --runInBand
 
 In scope now:
 
-- static directory pages
+- runtime directory pages on Cloudflare Workers
 - optional docs, posts, and network pages
 - GitHub-issue-based submit flow
-- deterministic build and Pages-style deploy
+- deterministic OpenNext build and protected Worker release
 
 Out of scope for the active starter:
 
 - hosted auth
-- database-backed submissions
 - runtime moderation dashboards
 - dynamic user accounts as a core build dependency
 

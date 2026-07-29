@@ -3,10 +3,8 @@ import { withContentCollections } from '@content-collections/next'
 import withMDX from '@next/mdx'
 import { baseConfig, withAnalyzer } from '@thedaviddias/config-next'
 import { defaultSiteConfig, resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
-import { getSiteRootListingAliases } from '@thedaviddias/site-contract/site-root-listing-aliases'
 import { categories } from '@thedaviddias/web-core/categories'
 import type { NextConfig } from 'next'
-import { isStaticExportBuild } from './lib/runtime-mode'
 
 export const INTERNAL_PACKAGES = [
   '@thedaviddias/design-system',
@@ -61,8 +59,6 @@ const listingBasePath = normalizeBasePath(runtimeSiteConfig.routes.listingBasePa
 const docsBasePath = normalizeBasePath(runtimeSiteConfig.routes.docsBasePath)
 const networkBasePath = normalizeBasePath(runtimeSiteConfig.routes.networkBasePath)
 const brandsBasePath = normalizeBasePath(runtimeSiteConfig.routes.brandsBasePath)
-const rootListingAliases = getSiteRootListingAliases(runtimeSiteConfig.id)
-
 let nextConfig: NextConfig = {
   ...baseConfig,
 
@@ -98,7 +94,7 @@ let nextConfig: NextConfig = {
   },
 
   images: {
-    unoptimized: isStaticExportBuild(),
+    unoptimized: false,
     remotePatterns: [
       {
         protocol: 'https',
@@ -107,6 +103,8 @@ let nextConfig: NextConfig = {
       }
     ]
   },
+
+  trailingSlash: true,
 
   rewrites: async () => ({
     beforeFiles: [
@@ -124,11 +122,6 @@ let nextConfig: NextConfig = {
         destination: '/',
         permanent: false
       },
-      ...rootListingAliases.map(slug => ({
-        source: `/${slug}`,
-        destination: `${buildPublicRoute(listingBasePath)}/${slug}/`,
-        permanent: true
-      })),
       {
         source: '/website/:path*',
         destination: `${buildPublicRoute(listingBasePath)}/:path*`,
@@ -156,14 +149,6 @@ let nextConfig: NextConfig = {
       })),
       ...createLegacyCategoryRedirects()
     ]
-  }
-}
-
-if (isStaticExportBuild()) {
-  nextConfig = {
-    ...nextConfig,
-    output: 'export',
-    trailingSlash: true
   }
 }
 

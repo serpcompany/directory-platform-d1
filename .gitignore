@@ -32,6 +32,7 @@ npm-debug.log*
 # vercel
 .vercel
 .wrangler/
+.open-next/
 
 # typescript
 *.tsbuildinfo
@@ -73,3 +74,4 @@ tmp/validate-site/
 .cursor/
 
 **/next-env.d.ts
+!d1/artifacts/*.yaml

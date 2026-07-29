@@ -24,15 +24,10 @@ afterEach(() => {
 })
 
 describe('buildDeployPlan', () => {
-  it('builds a deterministic deploy plan for serp.software', () => {
-    expect(buildDeployPlan({ siteId: 'serp.software' })).toEqual({
-      branch: 'main',
-      buildDir: expect.stringMatching(/dist\/sites\/serp.software$/),
-      preserve: ['.github/workflows/deploy.yml', 'CNAME'],
-      repoUrl: 'https://github.com/serpcompany/serp.software.git',
-      siteId: 'serp.software',
-      strategy: 'github-pages-repo-sync'
-    })
+  it('routes serp.software production releases through the protected Worker workflow', () => {
+    expect(() => buildDeployPlan({ siteId: 'serp.software' })).toThrow(
+      /production Worker releases are authorized only by \.github\/workflows\/build-and-deploy\.yml/
+    )
   })
 
   it('throws when the selected site has no deploy target', () => {
@@ -52,8 +47,8 @@ describe('buildDeployPlan', () => {
     ).toThrow(/Refusing deploy target override/)
   })
 
-  it('requires an explicit audited bypass for deploy target overrides', () => {
-    expect(
+  it('does not let an emergency Pages override bypass the active Worker strategy', () => {
+    expect(() =>
       buildDeployPlan(
         { siteId: 'serp.software' },
         {
@@ -64,10 +59,7 @@ describe('buildDeployPlan', () => {
           }
         }
       )
-    ).toMatchObject({
-      branch: 'emergency',
-      repoUrl: 'https://github.com/example/other.git'
-    })
+    ).toThrow(/production Worker releases are authorized only/)
   })
 
   it('enables GitHub Pages in the target deploy workflow', () => {
@@ -82,12 +74,10 @@ describe('buildDeployPlan', () => {
 })
 
 describe('deploy source guard', () => {
-  it('allows dry-run deploy plan inspection without a built artifact', () => {
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
-
-    expect(() => runDeploySite({ siteId: 'serp.software' }, true)).not.toThrow()
-
-    expect(log).toHaveBeenCalledWith(expect.stringContaining('"siteId": "serp.software"'))
+  it('refuses a local dry-run for the protected Worker release', () => {
+    expect(() => runDeploySite({ siteId: 'serp.software' }, true)).toThrow(
+      /\.github\/workflows\/build-and-deploy\.yml/
+    )
   })
 
   it('allows real deploys from a clean branch synced with upstream', () => {
@@ -146,22 +136,19 @@ describe('deploy source guard', () => {
 })
 
 describe('deploy guardrail docs', () => {
-  it('documents real deploy commands as git push operations in AGENTS.md', () => {
-    const source = readFileSync(resolve(process.cwd(), 'AGENTS.md'), 'utf8')
+  it('documents production releases as protected workflow operations', () => {
+    const source = readFileSync(resolve(process.cwd(), 'docs/BUILD_PIPELINE.md'), 'utf8')
 
-    expect(source).toContain('pnpm deploy:site')
-    expect(source).toContain('git push operations')
-    expect(source).toContain('branch, commit, push, review/merge')
+    expect(source).toContain('.github/workflows/build-and-deploy.yml')
+    expect(source).toContain('manual, main-only')
+    expect(source).toContain('No production command is authorized from a dirty local worktree')
   })
 
-  it('keeps the deploy runbook on the source-first gitflow path', () => {
-    const source = readFileSync(resolve(process.cwd(), 'docs/DEPLOY_RUNBOOK.md'), 'utf8')
+  it('keeps the build pipeline on the D1-backed Worker path', () => {
+    const source = readFileSync(resolve(process.cwd(), 'docs/BUILD_PIPELINE.md'), 'utf8')
 
-    expect(source).toContain('Local verification flow')
-    expect(source).toContain('deploy:site -- --site <site-id> --dry-run')
-    expect(source).toContain('Do not run a real local deploy while source changes are uncommitted')
-    expect(source).toContain(
-      'explicitly approve and manually dispatch `.github/workflows/build-and-deploy.yml`'
-    )
+    expect(source).toMatch(/queried from Cloudflare D1\s+at runtime/)
+    expect(source).toContain('There is no JSON serving fallback')
+    expect(source).toContain('pnpm worker:build')
   })
 })

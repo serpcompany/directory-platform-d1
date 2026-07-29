@@ -1,4 +1,4 @@
-import { getWebsites, type WebsiteMetadata } from '@/lib/content-loader'
+import { getRoute } from '@thedaviddias/web-core/routes'
 import {
   SITE_APPLE_TOUCH_ICON_URL,
   SITE_FAVICON_URL,
@@ -6,11 +6,11 @@ import {
   SITE_PUBLIC_URL
 } from '@thedaviddias/web-core/seo-config'
 import { siteCopy } from '@thedaviddias/web-core/site-copy'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { getWebsites, type WebsiteMetadata } from '@/lib/content-loader'
 
 const baseUrl = SITE_PUBLIC_URL
 
-export const dynamic = 'force-static'
+export const dynamic = 'force-dynamic'
 
 /**
  * Handles GET requests to generate the RSS feed as JSON

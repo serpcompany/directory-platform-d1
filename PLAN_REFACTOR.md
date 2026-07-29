@@ -1,1210 +1,540 @@
-# UI, CMS, and Data Refactor Plan
+# `serp.software` Runtime D1 Cutover Plan
 
-This plan coordinates the project refactor around ShadcnBlocks UI, future Payload CMS
-support, and a possible Cloudflare D1-backed content source.
+This document is the canonical refactor plan for moving the public `serp.software`
+directory from checked-in listing JSON and a GitHub Pages static export to runtime
+Cloudflare D1 reads on Cloudflare Workers.
 
-## USER STORY / WANTS:
-
-_I want to do a few things to this project and i need help planning which ones to do in what order... if they should be done at the same time..etc, and then actually planning them fully a-z so we can delegate items to subagent experts and have others QA their work for maximum success. Overall i want to refactor the project UI to use shadcnblocks.com so we can also use the https://www.shadcnblocks.com/payload-cms to put a CMS on the project. the CMS will make it easier to deal with accepting and adding new things (ie: Submit Yours) businesses. And I think to do this we will also need to refactor from being JSON POWERED content to cloudflare d1 db powered.  look thoroughly through the project and help me coordinate this. _
+It supersedes the build-time D1/static-export direction described by the uncommitted
+draft in `docs/PLAN.md`. That user-owned draft is preserved and reconciled only with a
+prominent supersession notice; its remaining inventory is updated during the
+documentation phase of this initiative.
 
 ## Decision Summary
 
-Do the ShadcnBlocks UI refactor first.
+- `serp.software` is the sole active and deployable site.
+- PR #147 and the ShadcnBlocks public UI refactor are merged.
+- The next initiative is a runtime D1 cutover, not a build-time D1 snapshot pipeline.
+- Deploy the existing Next.js application to Cloudflare Workers with
+  `@opennextjs/cloudflare`, the adapter selected by current Cloudflare guidance.
+- Use one dedicated production D1 database as the canonical source for public listings
+  and categories. Development and preview use separate databases and must never bind
+  production.
+- Keep TypeScript site configuration and MDX-authored pages file-backed.
+- Keep the GitHub issue submission handoff. Approved listing and category changes are
+  published through reviewed, versioned manifests and an approval-gated CI workflow.
+- Remove `products.json`, `categories.json`, and generated `data/listings.json` from the
+  public serving path. They remain only as temporary migration inputs until production
+  parity, rollback acceptance, the agreed rollback window, and a successful D1 restore
+  rehearsal.
+- Payload CMS remains a later control-plane initiative.
 
-Do not combine the UI refactor with Payload CMS, D1, runtime submissions, or deploy
-strategy changes. The current project is intentionally static-first:
+Selected platform references, verified 2026-07-13:
 
-- checked-in site config and listing data
-- per-site source data prepared into `data/listings.json`
-- static export builds
-- GitHub Pages repo-sync deploys
-- GitHub issue based public submissions
+- [Cloudflare Next.js on Workers](https://developers.cloudflare.com/workers/framework-guides/web-apps/nextjs/)
+  documents OpenNext as the Workers adapter and recommends preview testing in the
+  `workerd` runtime.
+- [D1 limits](https://developers.cloudflare.com/d1/platform/limits/) require query and
+  schema design to account for database size, bound-parameter, subrequest, statement,
+  query-duration, and single-database throughput limits.
+- [D1 Time Travel](https://developers.cloudflare.com/d1/reference/time-travel/) provides
+  point-in-time recovery through bookmarks, but a restore overwrites the database in
+  place and therefore does not replace verified exports or an application rollback.
 
-Payload CMS and D1 are architecture changes. They should happen only after the UI
-foundation is stable and the data-source boundary has been made explicit.
+## Reconciled Repository Status
 
-## Current Refactor Status: 2026-07-13
+As of 2026-07-13:
 
-Latest repository and GitHub evidence:
+- Current branch: `main`.
+- PR #147, `Adopt ShadcnBlocks UI and local D1 source`, was merged as commit `42600e8`.
+- Phases 0 and 1 are complete. Their detailed implementation history remains in git and
+  supporting docs rather than in this execution plan.
+- Phases 2 and 3 from the earlier plan are superseded. Public issue intake remains; a
+  hosted operator/admin surface is not required for this cutover.
+- Phase 4's source-boundary work and Phase 6's local D1 experiments are useful inputs,
+  but the build-time snapshot architecture is superseded by the runtime decision.
+- Phase 5's architecture decision is resolved in favor of Workers, OpenNext, and
+  runtime D1.
+- The old broad Phase 7 is replaced by the execution phases below.
+- The old optional hosted-submission phase is deferred until the later Payload control
+  plane decision.
+- `apps/serp.software` is the only real site wrapper. `apps/starter` and
+  `sites/default` remain non-deployable framework infrastructure.
+- Shared route rendering and reusable UI live in `packages/web-core`; checked-in site
+  configuration and source contracts live in `packages/site-contract`.
+- The active public data path is still:
 
-- Phase 0 was merged into `main` before the current Phase 1 branch was created.
-- Current branch: `agent/shadcnblocks-source-adoption`, tracking the same remote branch.
-- Active pull request: PR #147, `Adopt ShadcnBlocks UI and local D1 source`:
-  - URL: `https://github.com/serpcompany/json-directory-template/pull/147`
-  - Head/base: `agent/shadcnblocks-source-adoption` into `main`.
-  - State: open draft PR.
-- Phase 1A baseline and parity coverage is present for the pilot public routes and
-  interactive states.
-- Phase 1B is complete. The inspected registry candidates and adopted, adapted, and
-  rejected decisions are recorded in `docs/PHASE_1_REGISTRY_MAPPING.md`.
-- Phase 1C implementation is complete on the branch for the planned shared surfaces:
-  empty states, search/autocomplete, listing cards/grid, sidebar/mobile drawer,
-  header/application shell, and homepage sections.
-- Six reusable ShadcnBlocks-derived components are owned by
-  `packages/design-system/components/shadcnblocks`; shared public composition remains
-  in `packages/web-core`.
-- The public UI is ShadcnBlocks-backed for the Phase 1 surfaces. Route wrappers,
-  filtering, favorites, analytics, metadata, schema, and other application behavior
-  remain project-owned rather than being replaced by generic blocks.
-- PR #147 also contains a local D1 build-time source adapter. That work is separate
-  from the Phase 1 UI goal even though it currently shares the PR.
-- Listing-logo fallback behavior now uses the checked-in local
-  `/listing-logos/favicon-fallback-512x512.png` asset in every app. Public rendering,
-  schema, trial data, and Next.js image configuration no longer depend on Google or
-  gstatic favicon endpoints.
+  ```text
+  sites/serp.software/products.json
+    -> trial-products-json adapter
+    -> generated data/listings.json
+    -> static Next.js export
+    -> GitHub Pages repository sync
+  ```
 
-Observed PR #147 checks before this documentation/fallback closeout commit:
+- Existing D1 migrations, conversion scripts, snapshot tooling, and tests are migration
+  inputs only. Their existence does not make D1 canonical or runtime-backed.
+- Existing uncommitted deletions and documentation edits, including `docs/PLAN.md`, are
+  user-owned and must not be restored, overwritten, staged, or committed implicitly.
 
-- `PR Review / Validate Site & Policy`: success.
-- `PR Review / Type Check`: success.
-- `PR Review / Unit Tests`: success.
-- `PR Review / E2E Tests`: success.
-- CodeQL and CodeRabbit checks: success.
-- `Validate Listing Sources / validate-listing-data`: cancelled and must be rerun or
-  otherwise resolved before merge.
+## Target Architecture and Ownership
 
-Phase status:
-
-- Phase 0: complete and merged.
-- Phase 1A: complete.
-- Phase 1B: complete.
-- Phase 1C: implemented and locally verified; pending final PR review and merge.
-- Phase 1 is not closed until PR #147 has a clean worktree, required checks are
-  successful, the draft is reviewed, and the PR is merged.
-- No deployment is part of this closeout.
-
-Next action:
-
-1. Commit and push the documentation and local favicon fallback closeout to PR #147.
-2. Confirm the new PR checks pass, including `Validate Listing Sources`.
-3. Review the combined Phase 1 and D1 scope explicitly before marking PR #147 ready.
-4. Merge PR #147 only after all task-related files are committed and checks pass.
-5. Make Phase 7, runtime D1-backed public sites, the next main implementation
-   initiative after the current branch is consolidated.
-
-Registry smoke-test status:
-
-```bash
-set -a
-source /Users/devin/dev/repos/shadcnblocks/.env
-set +a
-cd packages/design-system
-pnpm dlx shadcn@latest add @shadcnblocks/hero125 --dry-run
+```text
+GitHub issue submission
+  -> reviewed change manifest
+  -> protected CI environment + explicit approval
+  -> idempotent publisher
+  -> canonical serp.software D1
+  -> server-only async repository
+  -> Next.js routes/components on Cloudflare Workers via OpenNext
 ```
 
-The command reached the configured `https://www.shadcnblocks.com/r/{name}` registry
-without printing or committing the API key and exited successfully. It was a dry-run
-only; no `components/hero125.tsx` file or ShadcnBlocks source was installed.
+Ownership boundaries:
 
-Earlier failed candidates remain recorded for context:
+- `apps/serp.software`: thin Next.js wrapper, OpenNext entry configuration, Worker
+  configuration, and app-specific binding wiring.
+- `packages/web-core`: shared route composition and server readers. It consumes typed
+  repositories and never imports D1 bindings or SQL.
+- A server-only data package or server-only app boundary: Drizzle schema, D1 repository
+  implementation, row mapping, query policy, caching, and observability.
+- `packages/site-contract` and `sites/serp.software`: file-backed TypeScript site
+  configuration, MDX page content, and static assets. Listing/category JSON is not part
+  of the target serving contract.
+- CI publisher tooling: reviewed mutation authority, manifest validation, audit records,
+  checksums, and cache invalidation. The runtime Worker has read-only application
+  authority and no migration or publishing credentials.
+- Cloudflare resources: one production D1 database dedicated to `serp.software`, plus
+  isolated local and preview databases/bindings.
 
-- `@shadcnblocks/empty-standard-1` returned
-  `[Block, component, example, or page not found]`.
-- `@shadcnblocks/hero-1` also returned not found with `shadcn@latest` and
-  `shadcn@4.12.0`.
+The public application must fail closed when a required binding is missing, a D1 query
+fails, or returned data violates the repository contract. It must never silently fall
+back to JSON or serve an unverified stale snapshot.
 
-Use `@shadcnblocks/hero125` or another catalog-verified block-name pattern such as
-`<category><number>` for future smoke tests. Do not use the hyphenated `hero-1`
-example as a registry smoke candidate unless the registry or docs are rechecked and
-prove it exists.
+## Public Repository Interfaces
 
-## Current Facts
+Replace synchronous `getWebsites()` and file-backed category access with server-only,
+typed, asynchronous interfaces. Exact names may follow existing package conventions,
+but the supported operations must include:
 
-- The repo uses a pnpm monorepo with thin site wrappers under `apps/<site>`.
-- Shared route rendering and reusable UI live in `packages/web-core`.
-- Shadcn primitives live in `packages/design-system`.
-- `packages/design-system/components.json` is configured for the authenticated
-  ShadcnBlocks registry on branch `july11`.
-- Official ShadcnBlocks docs checked on 2026-07-11 require:
-  - installing blocks through the shadcn CLI, for example
-    `pnpm dlx shadcn add @shadcnblocks/hero-1`
-  - adding an authenticated `@shadcnblocks` registry to `components.json`
-  - exposing `SHADCNBLOCKS_API_KEY` through the environment, not source code
-- Official shadcn/ui registry docs support authenticated namespaced registries through
-  `components.json` `registries` entries with environment-variable-backed headers.
-- Source docs:
-  - `https://www.shadcnblocks.com/docs/blocks/getting-started`
-  - `https://www.shadcnblocks.com/docs/extension/getting-started`
-  - `https://ui.shadcn.com/docs/registry/authentication`
-  - `https://ui.shadcn.com/docs/registry/namespace`
-- Local ShadcnBlocks secret facts checked on 2026-07-11:
-  - `/Users/devin/dev/repos/shadcnblocks/.env` exists and contains
-    `SHADCNBLOCKS_API_KEY`.
-  - `/Users/devin/repos/dev/shadcnblocks/.env` does not exist on this machine, even
-    though AGENTS.md mentions `~/repos/dev/shadcnblocks/.env`.
-  - VS Code user settings contain `shadcnblocks.apiKey`.
-  - Cursor and Windsurf user settings do not contain `shadcnblocks.apiKey`.
-  - The current shell process does not export `SHADCNBLOCKS_API_KEY`.
-  - The API key value must not be printed, copied into this plan, committed, or added
-    to any tracked file.
-- The original baseline had stale design-system exports that pointed to missing files.
-  Branch `july11` removes the known missing exports and adds exports for real shadcn
-  component files used by the repo.
-- The original baseline had some `packages/web-core` relative imports into
-  design-system internals. Branch `july11` moves the touched runtime imports to
-  package exports, and the latest search did not find remaining relative imports from
-  `packages/web-core` or `apps` into `packages/design-system` internals.
-- Runtime app loaders read normalized `data/listings.json`.
-- Site data preparation currently supports only:
-  - `listing-json`
-  - `trial-products-json`
-- Active public submissions use GitHub issue handoff, badge verification, and generated
-  PRs into `sites/<site-id>/products.json`.
-- The current docs explicitly keep databases, runtime submissions, moderation state,
-  auth, and sessions outside the active static build pipeline.
+```ts
+interface PublishedListingRepository {
+  list(input: PublishedListingPageInput): Promise<PublishedListingPage>;
+  listFeatured(input: PublishedListingPageInput): Promise<PublishedListingPage>;
+  listLatest(input: PublishedListingPageInput): Promise<PublishedListingPage>;
+  findBySlug(siteId: string, slug: string): Promise<PublishedListing | null>;
+  search(input: PublishedListingSearchInput): Promise<PublishedListingPage>;
+  count(input: PublishedListingCountInput): Promise<number>;
+  listByCategory(input: PublishedCategoryListingInput): Promise<PublishedListingPage>;
+  listRelated(input: RelatedListingInput): Promise<PublishedListing[]>;
+  getAdjacent(input: AdjacentListingInput): Promise<AdjacentListings>;
+  iterateForSitemap(siteId: string): AsyncIterable<PublishedListingRoute>;
+  iterateForRss(siteId: string): AsyncIterable<PublishedListingFeedItem>;
+  getPublicationVersion(siteId: string): Promise<string>;
+}
 
-## Non-Negotiable Constraints
-
-- Do not run real deploy commands unless explicitly requested and gitflow is complete.
-- Treat `pnpm deploy`, `pnpm deploy:site`, target GitHub Pages repo syncs, and generated
-  site artifact pushes as git push operations.
-- Do not run direct database commands without explicit permission.
-- Keep `apps/<site>` thin.
-- Put reusable public UI in `packages/web-core`.
-- Put reusable primitives and installed shadcn/shadcnblocks components in
-  `packages/design-system`.
-- Keep the current submission backend unchanged during the UI refactor.
-- Keep published listing output validated against the current normalized listing shape
-  until a separate architecture decision changes that.
-
-## Phase 0: Foundation PR
-
-Goal: make the design system safe for ShadcnBlocks before changing public pages.
-
-Current status on `july11`:
-
-- Implemented in code:
-  - `packages/design-system/components.json` has the authenticated `@shadcnblocks`
-    registry entry.
-  - `packages/design-system/components.json` aliases now resolve `utils` through the
-    design-system package boundary.
-  - `packages/design-system/package.json` no longer exports missing `accordion` or
-    `stats-card` files.
-  - Missing exports for real shadcn component files used by this repo were added,
-    including `alert-dialog`, `aspect-ratio`, `command`, `drawer`, `pagination`, and
-    `sheet`.
-  - `packages/web-core` imports touched in the branch were moved from relative
-    design-system internals to `@thedaviddias/design-system/*` package exports.
-- Verified:
-  - `pnpm --filter @thedaviddias/design-system typecheck` passed.
-  - `pnpm typecheck` passed.
-  - `pnpm test:repo` passed.
-- Closed by the 2026-07-11 closeout pass:
-  - `@shadcnblocks/hero125` dry-run succeeds from `packages/design-system` with
-    `SHADCNBLOCKS_API_KEY` sourced from `/Users/devin/dev/repos/shadcnblocks/.env`.
-  - The successful dry-run proves the authenticated registry is reachable from this
-    repo context without committing or printing the API key.
-  - No ShadcnBlocks source files were installed during Phase 0.
-
-Scope:
-
-- Configure the ShadcnBlocks registry in `packages/design-system/components.json`.
-- Verify `SHADCNBLOCKS_API_KEY` is available to the shadcn CLI without committing or
-  printing the value:
-  - source it from `/Users/devin/dev/repos/shadcnblocks/.env` for local CLI runs, or
-    export it in the shell before running `pnpm shadcn`
-  - keep any repo-local `.env`/`.env.local` files untracked; the current `.gitignore`
-    excludes `**/.env` and `**/.env.*`
-  - do not rely on the VS Code extension key for terminal-based installs unless the
-    CLI command proves it can read the registry from this repo context
-- Fix the missing or wrong Tailwind config path in `components.json`.
-- Clean stale `packages/design-system/package.json` exports that point to missing files.
-- Replace relative imports from `packages/web-core` into design-system internals with
-  package exports.
-- Add missing package exports only when they map to real files.
-
-Registry config to add under `packages/design-system/components.json`:
-
-```json
-{
-  "registries": {
-    "@shadcnblocks": {
-      "url": "https://www.shadcnblocks.com/r/{name}",
-      "headers": {
-        "Authorization": "Bearer ${SHADCNBLOCKS_API_KEY}"
-      }
-    }
-  }
+interface PublishedCategoryRepository {
+  list(siteId: string): Promise<PublishedCategory[]>;
+  findBySlug(siteId: string, slug: string): Promise<PublishedCategory | null>;
+  countListings(siteId: string, slug: string): Promise<number>;
 }
 ```
 
-Local CLI smoke check after registry config:
-
-```bash
-set -a
-source /Users/devin/dev/repos/shadcnblocks/.env
-set +a
-cd packages/design-system
-pnpm dlx shadcn@latest add @shadcnblocks/hero125 --dry-run
-```
-
-Use `--view` instead of `--dry-run` when the implementer needs to inspect the resolved
-registry payload without writing files. Do not use `@shadcnblocks/empty-standard-1`
-or `@shadcnblocks/hero-1` as the smoke-test candidate unless the registry is rechecked
-and proves either name exists. If the CLI needs an actual install smoke test, use a
-catalog-verified low-risk block candidate, confirm generated files land under
-`packages/design-system`, then remove any unused evaluation files before the PR is
-considered ready. Do not commit API key material.
-
-Out of scope:
-
-- Public page redesigns.
-- Submit flow behavior changes.
-- Payload CMS.
-- D1.
-- Deploy changes.
-
-Suggested subagents:
-
-- Implementer: design-system foundation cleanup.
-- Spec reviewer: verify ShadcnBlocks setup follows repo ownership boundaries.
-- Code-quality reviewer: check exports, package boundaries, and no unrelated UI churn.
-- Decision-policing QA: verify no shortcuts or scope creep.
-
-Verification:
-
-```bash
-pnpm --filter @thedaviddias/design-system typecheck
-pnpm typecheck
-pnpm test:repo
-```
-
-## Phase 1: Public Directory UI Refactor
-
-Goal: refactor shared public directory surfaces so their owned source comes from
-ShadcnBlocks/shadcn patterns and primitives while preserving the current UI contract.
-
-Current status on `agent/shadcnblocks-source-adoption`:
-
-- Phase 1A is complete:
-  - `apps/e2e/tests/visual.spec.ts` now includes pilot desktop/tablet/mobile visual
-    coverage for homepage, search, category, listing detail, empty search,
-    autocomplete, favorites-only, sort/result-count, mobile drawer, and mobile search
-    overlay states.
-  - `apps/e2e/tests/public-parity.spec.ts` now covers pilot functional parity for
-    homepage search submit, autocomplete keyboard navigation, mobile search overlay,
-    mobile drawer behavior, favorites-only filtering, sort persistence, empty-state
-    action behavior, and public link href/target/rel semantics.
-  - New pilot snapshots are present under
-    `apps/e2e/tests/visual.spec.ts-snapshots/`.
-- Phase 1B is complete in `docs/PHASE_1_REGISTRY_MAPPING.md` with registry evidence
-  and adopted, adapted, and rejected decisions for every required public surface.
-- Phase 1C is implemented for all eight planned slices. Reusable adapted source is
-  installed under `packages/design-system/components/shadcnblocks`, and shared public
-  composition in `packages/web-core` consumes those package exports.
-- Final Phase 1 acceptance remains pending PR #147 review, successful required checks,
-  and merge. This is a delivery-state requirement, not missing UI implementation.
-
-The intended result is no user-visible redesign. Spacing, layout breakpoints, colors,
-border radii, typography scale, copy, ordering, routes, metadata, analytics attributes,
-and responsive behavior should remain visually equivalent unless an explicit follow-up
-design change is approved.
-
-Phase 1 must not start until Phase 0 has made the design-system package safe for
-registry installs. In particular:
-
-- `packages/design-system/components.json` must include the ShadcnBlocks registry.
-- The local shadcn MCP/CLI must be able to see `@shadcnblocks` from this repo context,
-  not only the default `@shadcn` registry.
-- `SHADCNBLOCKS_API_KEY` must be available from local environment configuration and
-  must not be committed, printed, or copied into docs. On this machine the verified
-  env-file source is `/Users/devin/dev/repos/shadcnblocks/.env`; the current shell
-  does not export the variable by default.
-- The design-system package must expose only real component files.
-- `packages/web-core` must import design-system components through package exports,
-  not relative paths into `packages/design-system`.
-
-Current factual baseline:
-
-- The pilot wrapper should be `apps/serpdownloaders.com` unless changed explicitly.
-- `apps/serpdownloaders.com/app/page.tsx` is a thin route that passes slots into
-  `HomePageRoute`.
-- Shared public rendering lives in `packages/web-core`.
-- Registry installs should be run from `packages/design-system` through the repo's
-  `pnpm shadcn` workflow or an equivalent `pnpm dlx shadcn@latest add ...` command
-  scoped to that package, with `SHADCNBLOCKS_API_KEY` exported from the verified local
-  env file first. Confirm installed files land under `packages/design-system` before
-  any `web-core` import consumes them.
-- The homepage shell currently combines:
-  - `packages/web-core/src/home-page.tsx`
-  - `packages/web-core/src/layout/header.tsx`
-  - `packages/web-core/src/layout/app-sidebar.tsx`
-  - `packages/web-core/src/websites-list-with-search.tsx`
-  - `packages/web-core/src/websites-search-controls.tsx`
-  - `packages/web-core/src/llm/llm-grid.tsx`
-  - section route wrappers under `packages/web-core/src/sections/*`
-- Existing visual coverage includes homepage, listing detail, brands, and search
-  screenshots in `apps/e2e/tests/visual.spec.ts`.
-
-Primary target areas:
-
-- `packages/web-core/src/home-page.tsx`
-- `packages/web-core/src/layout/header.tsx`
-- `packages/web-core/src/layout/header-search.tsx`
-- `packages/web-core/src/layout/mobile-drawer.tsx`
-- `packages/web-core/src/layout/app-sidebar.tsx`
-- `packages/web-core/src/websites-list-with-search.tsx`
-- `packages/web-core/src/websites-search-controls.tsx`
-- `packages/web-core/src/llm/llm-grid.tsx`
-- `packages/web-core/src/empty-state.tsx`
-- `packages/web-core/src/sections/*`
-- search, category, listing-detail, listing-card, sidebar, empty-state, browse-list,
-  favorites, and mobile navigation surfaces
-
-Recommended ShadcnBlocks/component families:
-
-- `application-shell`
-- `sidebar`
-- `product-list`
-- `product-card`
-- `command` or combobox-style search components
-- `pagination`
-- `empty`
-- `tabs`
-- `card`
-- `button`
-- `badge`
-- `input`
-- `toggle-group`
-- `sheet` or `drawer` for mobile navigation only if the current drawer behavior can
-  be preserved exactly
-
-Do not use `data-table` for public directory cards unless the existing surface is already
-tabular. Dense table/admin patterns belong in later admin/operator phases.
-
-Phase 1A: Baseline and Inventory
-
-Before installing or editing UI code:
-
-- Run `git status --short` and account for modified/untracked files.
-- Capture the current dependency/component state:
-  - `packages/design-system/components.json`
-  - `packages/design-system/package.json`
-  - existing files under `packages/design-system/components/shadcn`
-  - existing package exports consumed by `packages/web-core`
-- Produce a public-surface inventory table with:
-  - file path
-  - current visual role
-  - current shadcn/design-system imports
-  - candidate shadcnblocks/shadcn replacement source
-  - whether the replacement is a block, primitive, or extracted pattern
-  - exact behavioral contracts to preserve
-  - owner for the refactor slice
-- Record the current visual baseline for the pilot site:
-  - homepage desktop
-  - homepage tablet
-  - homepage mobile
-  - search desktop, tablet, and mobile
-  - listing detail desktop, tablet, and mobile
-  - category page desktop, tablet, and mobile
-  - empty/no-results state
-  - autocomplete/recent-search state
-  - favorites-only state when favorites exist
-  - sort state and result-count text
-  - mobile drawer and mobile search overlay
-- Save any temporary screenshots only under a repo-local `./tmp/` folder and remove
-  them before finishing the task.
-
-Phase 1B: Registry-Backed Component Mapping
-
-Source-of-truth mapping table: `docs/PHASE_1_REGISTRY_MAPPING.md`.
-
-For each target surface, use the shadcn MCP or CLI against the configured registries
-to inspect candidate source before deciding. The mapping should prefer the smallest
-source change that improves library alignment without visual churn:
-
-- If a ShadcnBlocks block matches the current structure closely, install it into
-  `packages/design-system` and adapt the owned source to the existing UI contract.
-- If a full block would force layout or visual changes, install/use the underlying
-  shadcn primitives and keep the existing composition.
-- If a current component already uses shadcn primitives and only has import-boundary
-  issues, fix the ownership/import problem instead of replacing working markup.
-- Do not copy examples manually when the registry can install the source.
-- Do not add generated ShadcnBlocks source directly to `packages/web-core`.
-- Do not keep unused installed block files after evaluation.
-
-Required mapping decisions:
-
-- Header/nav/search:
-  - Candidate families: `application-shell`, `navbar`, `command`, `input`, `button`,
-    `sheet`/`drawer`.
-  - Preserve sticky header height, backdrop, desktop centered search, mobile search
-    overlay, mobile menu behavior, auth/submit button conditions, analytics tracking,
-    body scroll locking, autocomplete keyboard behavior, recent-search behavior, and
-    route generation.
-- Sidebar/category navigation:
-  - Candidate families: `sidebar`, `scroll-area`, `separator`, `badge`, `button`.
-  - Preserve `240px` desktop width, sticky `top-16` behavior, category filtering,
-    featured count, favorites section, external resources, and active category state.
-- Listing cards/grid:
-  - Candidate families: `product-card`, `product-list`, `card`, `badge`, `button`.
-  - Preserve current grid breakpoints, max-item collapse behavior, favorite button
-    affordance, favicon fallback, unofficial badge, link overlay, analytics data
-    attributes, line clamping, animation classes, and compact variant behavior.
-- Search/filter controls:
-  - Candidate families: `command`, `input`, `toggle-group`, `tabs`, `button`.
-  - Preserve local filtering, sort persistence in `localStorage`, homepage search
-    submit behavior, favorites-only behavior, counts, labels, and keyboard focus
-    behavior.
-- Empty states:
-  - Candidate families: `empty`, `button`, `card` only if the current unframed
-    presentation remains visually equivalent.
-  - Preserve action href/callback semantics and current centered vertical rhythm.
-- Sections:
-  - Candidate families: `card`, `product-list`, `product-card`, `tabs` only where
-    the section already behaves that way.
-  - Preserve section titles, descriptions, anchors, slot contracts, and site-copy
-    behavior.
-
-Phase 1C: Refactor Slices
-
-Use small PR-sized slices. Do not refactor every public page in one change unless the
-diff proves the slices cannot be separated.
-
-Recommended order:
-
-1. Shared primitive/import cleanup needed by Phase 1 only.
-2. Empty state and small controls.
-3. Search controls and command/input primitives.
-4. Listing card/grid.
-5. Sidebar and mobile drawer.
-6. Header/application shell.
-7. Homepage/section composition after the lower-level pieces are stable.
-8. Listing detail/category/search page parity checks and minor alignment fixes.
-
-Each slice must include:
-
-- The exact ShadcnBlocks/shadcn source inspected or installed.
-- The reason a block was adopted, adapted, or rejected.
-- A before/after visual comparison for affected desktop and mobile routes.
-- A check that route URLs, metadata, schema, analytics attributes, and data loading
-  did not change.
-- Removal of unused evaluation files and repo-local tmp files.
-
-Execution notes:
-
-- Refactor shared `web-core` components first, not each wrapper app.
-- Keep site-specific wrappers as route/data adapters.
-- Preserve current routes, metadata behavior, sitemap behavior, and data loading.
-- Use `serpdownloaders.com` as the first visual target unless another site is chosen.
-- Keep public UI in `packages/web-core`; keep installed primitives, blocks, and
-  reusable design-system components in `packages/design-system`.
-- Installed block source is owned source. It may be edited to preserve the existing
-  visual contract.
-- Do not accept default ShadcnBlocks styling when it changes the current UI.
-- Do not introduce new runtime state, API routes, CMS reads, D1 reads, auth/session
-  behavior, or submission behavior.
-- Do not change listing sorting, filtering, slug routing, or normalized listing shape.
-- Do not move public rendering logic into `apps/<site>` wrappers.
-- Do not import design-system internals by relative path from `packages/web-core`.
-- Do not run deploy commands. Dry-run deploy commands are allowed only if explicitly
-  needed and the worktree state is accounted for.
-
-Out of scope:
-
-- Any intentional redesign.
-- Re-theming, color palette changes, font changes, or new animation systems.
-- Changing card density, grid breakpoints, header height, sidebar width, or mobile
-  navigation behavior without explicit approval.
-- Submit backend changes.
-- Submit page UI changes; that is Phase 2.
-- CMS/admin runtime.
-- D1 data reads.
-- Deploy strategy changes.
-- Payload CMS.
-- Operator/admin UI.
-- Database-backed submissions.
-- New public runtime dependencies on auth, sessions, or databases.
-- Generated ShadcnBlocks files committed directly under `packages/web-core`.
-
-Suggested subagents:
-
-- Decision-policing QA: challenge shortcuts, unsupported assumptions, scope creep,
-  unverified registry claims, and any visual change framed as "just refactor".
-- Registry/component mapper: inspect ShadcnBlocks/shadcn candidates and produce the
-  mapping table before implementation.
-- Implementer 1: empty state, small controls, and search controls.
-- Implementer 2: listing cards/grid only, if write scopes are clearly separated from
-  search controls.
-- Implementer 3: sidebar/mobile drawer/header shell only after card/search work is
-  stable.
-- Spec reviewer: compare against current public routes, site-copy behavior, metadata,
-  schema, analytics attributes, and data loading.
-- Code-quality reviewer: package boundaries, accessibility, responsive layout,
-  dependency hygiene, dead installed files, and no relative design-system imports.
-- Visual QA reviewer: desktop/mobile screenshots, mobile drawer/search overlay,
-  no overlapping text, no unexpected responsive breakpoint changes.
-- Accessibility reviewer, or an explicit accessibility checklist inside code-quality
-  review: preserve or improve `aria-label`, `aria-current`, keyboard navigation,
-  Escape handling, focus rings, focus order, button/link semantics, screen-reader-only
-  headings, live-region result count behavior, and color contrast.
-
-Do not dispatch multiple implementers into the same files at the same time.
-
-Verification:
-
-```bash
-git status --short
-pnpm --filter @thedaviddias/design-system typecheck
-pnpm typecheck
-pnpm validate:site -- --site serpdownloaders.com
-pnpm build:site -- --site serpdownloaders.com
-pnpm test:repo
-pnpm test:e2e
-```
-
-Subagent tool/access requirements:
-
-- Registry/component mapper:
-  - Must have access to the shadcn MCP or shadcn CLI from the repo context.
-  - Must verify `@shadcnblocks` appears in configured registries before claiming a
-    ShadcnBlocks candidate is available.
-  - Must inspect candidate source/examples before recommending adoption.
-  - Must install or evaluate candidates only through `packages/design-system`.
-- Visual QA reviewer:
-  - Must have browser automation access through Playwright or an equivalent browser
-    driver that can navigate pages, click controls, type into inputs, press keyboard
-    shortcuts, set viewport sizes, and capture screenshots.
-  - Must drive the actual UI, not only inspect code.
-  - Must test desktop, tablet, and mobile viewports.
-  - Must exercise open/closed interactive states, including mobile drawer, mobile
-    search overlay, autocomplete, favorites-only, sorting, and empty/no-results action.
-  - Must inspect console errors and failed network requests during the exercised flows.
-  - Must keep artifacts in repo-local `./tmp/` or approved Playwright artifact paths
-    and clean up temporary files before finishing.
-- Spec reviewer:
-  - Must verify route/link/section parity from rendered pages, not only static imports.
-  - Must check that all expected public sections, nav links, category links, listing
-    links, submit links, and external-resource links are still present with the same
-    href/target/rel semantics.
-- Decision-policing QA:
-  - Must be read-only unless explicitly assigned an implementation fix.
-  - Must challenge any unverified third-party-tool, registry, or visual-parity claim.
-
-Third-party visual parity tooling:
-
-- Playwright `toHaveScreenshot()` remains the required repo-local baseline because the
-  current e2e suite already uses it. This is the local oracle that every implementer
-  and reviewer can run.
-- The hosted visual tool is not a separate ad-hoc checklist. If used, it must run the
-  same parity states as the local Playwright visual suite and block/flag the same UI
-  regressions in PR review.
-- Phase 1 hosted-tool preflight:
-  1. Inspect repo config and package manifests for an existing integration.
-  2. Inspect checked-in env examples and CI config for a referenced token name. Do not
-     print or commit secret values.
-  3. If an existing provider is found, use that provider.
-  4. If no provider is found, recommend one provider and ask for explicit approval
-     before adding a dependency, CI secret, or paid account dependency.
-  5. Record the result in the Phase 1 PR notes: provider used, token/config source,
-     snapshots covered, and whether hosted visual review is blocking or advisory.
-- Recommended provider choice if there is no existing integration:
-  - First choice: Argos, because it is Playwright-native and can publish PR visual diffs
-    from the same browser journeys as `apps/e2e/tests/visual.spec.ts`.
-  - Use Percy/BrowserStack instead if the org already has BrowserStack/Percy access.
-  - Use Chromatic if the repo adds Storybook/component-story coverage or already has a
-    Chromatic project.
-  - Use Applitools Eyes only if the org explicitly wants AI-assisted visual comparison
-    and has an Eyes account/API key.
-- Hosted visual setup plan after provider approval:
-  1. Add the provider SDK to `apps/e2e` only.
-  2. Add a dedicated script such as `test:e2e:visual:hosted` in `apps/e2e/package.json`.
-  3. Keep the existing `pnpm test:e2e:visual` local Playwright snapshot command.
-  4. Reuse the same route/state list as `visual.spec.ts`; do not create a weaker hosted
-     suite that checks only the homepage.
-  5. Capture desktop, tablet, and mobile snapshots for each changed public route.
-  6. Capture interactive open states: mobile drawer, mobile search overlay,
-     autocomplete/recent-search, favorites-only, sort state, and empty/no-results.
-  7. Mask or stabilize only genuinely dynamic noise. Do not mask the regions being
-     refactored.
-  8. Run hosted visual checks against the pilot site build/dev server used by Playwright,
-     not a different deployment target.
-  9. Treat any hosted diff in changed surfaces as a review item that must be explained,
-     fixed, or explicitly approved as an intentional design change outside Phase 1.
-  10. Do not run a real deploy to satisfy hosted visual testing.
-- Phase 1 cannot claim "third-party visual QA passed" unless the provider has compared
-  before/after screenshots for the same changed routes and interactive states.
-- If no hosted tool is configured, the PR must explicitly say that hosted visual review
-  was not configured and must rely on local Playwright screenshots plus browser-driven
-  Visual QA. Do not imply third-party coverage exists.
-
-Concrete local UI parity suite plan:
-
-- Expand `apps/e2e/tests/visual.spec.ts` or add a sibling parity visual spec that:
-  - sets stable desktop, tablet, and mobile viewports,
-  - disables animations/transitions the same way the current visual helper does,
-  - snapshots homepage, search, category, listing detail, empty/no-results, mobile
-    drawer open, mobile search overlay open, autocomplete/recent-search, favorites-only,
-    and sort/result-count states,
-  - uses stable names for each snapshot so before/after diffs are reviewable.
-- Add or expand a functional parity spec that:
-  - crawls visible header/sidebar/drawer/section links on the pilot pages,
-  - verifies href/target/rel semantics for nav, category, listing, submit, and external
-    resource links,
-  - verifies all expected public sections still render by role/heading/landmark,
-  - verifies search submit, autocomplete selection, sort persistence, favorites-only,
-    mobile drawer close/navigation, mobile search close/search, and empty-state actions.
-- The Visual QA subagent must run both the local visual suite and the functional parity
-  suite after each UI slice. If a hosted tool is configured, the same subagent must also
-  run or inspect the hosted visual job and include its diff URL/status in the review.
-
-Visual verification requirements:
-
-- Keep the existing visual snapshots for homepage, listing detail, brands, and search.
-- Add or update visual coverage for any changed public route or state.
-- Add mobile viewport screenshot coverage for homepage, search, listing detail,
-  category page, mobile drawer, and mobile search overlay if it does not already exist.
-- Add tablet viewport coverage for any surface whose breakpoint behavior changes or
-  whose current layout is not sufficiently covered by desktop/mobile screenshots.
-- If a snapshot changes, classify the change as:
-  - expected no-op rendering noise,
-  - accidental visual regression to fix,
-  - or intentional design change requiring explicit approval outside Phase 1.
-- Check interactive states that screenshots can miss:
-  - desktop header search submit
-  - autocomplete keyboard navigation and recent-search behavior
-  - mobile search open/search/close
-  - mobile drawer open/close/navigation
-  - body scroll lock while overlays are open
-  - favorites-only toggle when favorites exist
-  - sort toggle persistence
-  - empty/no-results action
-
-Responsive parity requirements:
-
-- Desktop sidebar remains sticky, `240px` wide, and hidden on mobile.
-- Mobile drawer remains mobile-only and does not replace desktop sidebar behavior.
-- Desktop search remains hidden at the same mobile breakpoints.
-- Mobile search overlay remains positioned below the sticky header.
-- No horizontal overflow is introduced at mobile, tablet, desktop, or wide desktop
-  widths.
-- Card/grid columns, truncation, line clamps, and wide-screen item visibility remain
-  equivalent.
-
-Acceptance criteria:
-
-- The pilot site builds and validates.
-- E2E visual coverage passes without meaningful visual differences.
-- Public routes, route params, metadata, JSON-LD/schema, sitemap behavior, listing
-  ordering, analytics attributes, and submit links are unchanged.
-- All new installed UI source lives under the design-system ownership boundary or a
-  clearly reusable `web-core` public component boundary.
-- No unused ShadcnBlocks evaluation files, tmp screenshots, generated artifacts, or
-  stale exports are left behind.
-- `git status --short` is inspected and every modified/untracked file is accounted for
-  before any PR/deploy-related action.
-
-## Phase 2: Submit UI Refactor
-
-Goal: improve the `/submit` experience with shadcn/shadcnblocks form components while
-keeping the current GitHub issue handoff.
-
-Primary target:
-
-- `packages/web-core/src/forms/github-issue-submit-form.tsx`
-
-Use:
-
-- form
-- field
-- input
-- input-group
-- select or combobox
-- textarea
-- alert
-- dialog
-- sheet if the badge instructions are better as a side panel
-
-Behavior to preserve:
-
-- Client validation with React Hook Form and Zod.
-- GitHub issue URL generation.
-- Badge embed instructions.
-- No direct database writes.
-- No runtime moderation.
-- No replacement of the public issue flow.
-
-Out of scope:
-
-- Payload forms.
-- D1 submission storage.
-- File uploads, unless explicitly approved later.
-
-Suggested subagents:
-
-- Implementer: submit UI only.
-- Spec reviewer: verify generated issue payload and validation behavior are unchanged.
-- Code-quality reviewer: accessibility, form ergonomics, no duplicated schema logic.
-- Visual QA reviewer: add `/submit` visual coverage.
-
-Verification:
-
-```bash
-pnpm test:repo
-pnpm --dir apps/starter exec jest --runInBand packages/web-core/src/forms/github-issue-submit-form.test.ts
-pnpm validate:site -- --site serpdownloaders.com
-pnpm build:site -- --site serpdownloaders.com
-```
-
-## Phase 3: Operator/Admin UI Refactor
-
-Goal: improve the local operator onboarding/admin-style surfaces after public UI and
-submit UI are stable.
-
-Primary target:
-
-- `packages/web-core/src/operator/site-onboarding-form.tsx`
-
-Recommended families:
-
-- `application-shell`
-- `sidebar`
-- `form`
-- `tabs`
-- `data-table`
-- `dialog`
-- `sheet`
-- `resizable`
-- code or textarea preview components
-
-Important boundary:
-
-- This is local/operator tooling, not the deployed public site.
-- Do not treat this as the Payload CMS implementation.
-
-Suggested subagents:
-
-- Implementer: operator UI shell and reusable form sections.
-- Spec reviewer: verify exported JSON payloads remain identical.
-- Code-quality reviewer: state management, component boundaries, no fragile string
-  manipulation.
-
-Verification:
-
-```bash
-pnpm dev:operator -- --site serpdownloaders.com
-pnpm test:repo
-pnpm typecheck
-```
-
-Add local visual checks for the operator page if practical.
-
-## Phase 4: Data Source Adapter Foundation
-
-Goal: prepare for D1 or Payload without changing behavior.
-
-Current seam:
-
-- `packages/site-contract/src/types.ts` defines `content.listingSource`.
-- `scripts/site-data.ts` prepares site data into `data/listings.json`.
-- `scripts/validate-site.ts` repeats source branching for validation.
-- `scripts/build-site.ts` depends on prepared normalized listings before static export.
-
-Scope:
-
-- Add a source adapter abstraction with no behavior change.
-- Move existing `listing-json` copy behavior into an adapter.
-- Move existing `trial-products-json` transformation behavior into an adapter.
-- Reuse the adapter from site preparation and validation.
-- Keep writing normalized `data/listings.json`.
-- Preserve deterministic ordering and current validation errors.
-
-Out of scope:
-
-- Real D1 reads.
-- Payload setup.
-- Submit write changes.
-- Runtime public page database queries.
-
-Suggested subagents:
-
-- Implementer: adapter abstraction and existing source adapters.
-- Spec reviewer: verify no generated output changes for active sites.
-- Code-quality reviewer: adapter shape, error messages, tests.
-- Decision-policing QA: make sure this stays behavior-preserving.
-
-Verification:
-
-```bash
-pnpm test:repo
-pnpm validate:sites
-pnpm validate:site -- --site serpdownloaders.com
-pnpm build:site -- --site serpdownloaders.com
-```
-
-Tests likely touched:
-
-- `scripts/site-data.test.ts`
-- `scripts/validate-site.test.ts`
-- `scripts/site-config.test.ts`
-- workflow tests that assume checked-in listing paths
-- e2e fixture assumptions around `data/listings.json`
-
-## Phase 5: Payload CMS and Runtime D1 Architecture Decision
-
-Goal: record the architecture for the user-approved runtime D1 initiative before
-implementation. Runtime D1 and database ownership of published listing data are product
-decisions; this ADR must still decide the implementation and operational topology.
-
-Questions to answer:
-
-- Is Payload CMS a separate control plane, a new app inside this monorepo, or a
-  replacement for the current starter?
-- How do reviewed records become canonical D1 records while retaining an auditable
-  publication history?
-- Which supported D1-capable Next.js runtime and adapter will replace static GitHub
-  Pages serving for migrated sites?
-- How do approvals trigger rebuild/deploy?
-- Where do media uploads live?
-- What auth providers are required?
-- What moderation states are required?
-- What is the rollback story?
-- Does the project actually have Payblocks source access, and should it be adapted or
-  used only as a reference?
-
-Required direction:
-
-- Make D1 canonical for approved, published listing records and query it through a
-  server-only repository at public runtime.
-- Keep Payload, submissions, moderation, ownership verification, and reviewer actions
-  as a separate control plane that publishes into the D1 contract.
-- Keep runtime public reads independent from user sessions unless a later feature
-  explicitly requires authentication.
-- Explicitly reconcile or supersede `docs/DEPLOY_STRATEGY_EXIT_PLAN.md`: its current
-  object-storage/CDN recommendation remains valid for static sites, but migrated sites
-  require the hosted runtime justified by the approved runtime-D1 product requirement.
-
-Required output:
-
-- Architecture decision record.
-- Data ownership decision.
-- Deployment decision.
-- Migration and rollback plan.
-- Security/secrets plan.
-- QA plan.
-
-Suggested subagents:
-
-- Architecture explorer: Payload/D1 deployment and source-of-truth options.
-- Security reviewer: auth, roles, secrets, abuse controls.
-- Data reviewer: schema mapping to normalized listings.
-- Decision-policing QA: challenge unsupported assumptions.
-
-## Phase 6: Payload/D1 Build-Time Source Adapter Foundation
-
-Goal: read approved CMS/database records into the existing normalized listing shape at
-build time.
-
-Prerequisite:
-
-- Phase 5 architecture decision is approved.
-- Phase 4 source adapter foundation exists.
-
-Scope:
-
-- Add a new source kind only after the architecture is decided.
-- Validate required environment variables and bindings.
-- Read approved listing records.
-- Normalize into the existing `websiteJsonEntrySchema` shape.
-- Keep deterministic ordering.
-- Keep static export.
-- Keep public runtime independent from D1.
-
-Out of scope:
-
-- Direct public runtime D1 reads.
-- Replacing GitHub issue flow unless a separate submission-control-plane plan is
-  approved.
-- Direct database writes from local scripts without explicit permission.
-
-Suggested subagents:
-
-- Implementer: source adapter and schema mapping.
-- Spec reviewer: parity with normalized listing contract.
-- Code-quality reviewer: failure modes, env validation, deterministic output.
-- Data QA reviewer: fixture parity and duplicate handling.
-
-Verification:
-
-```bash
-pnpm test:repo
-pnpm validate:site -- --site <pilot-site>
-pnpm build:site -- --site <pilot-site>
-pnpm deploy:site -- --site <pilot-site> --dry-run
-```
-
-Only dry-run deploys unless explicitly approved and gitflow is complete.
-
-## Phase 7: Runtime D1-Backed Public Sites
-
-Goal: make D1 the canonical serving source for public listing data and remove
-`data/listings.json` from the request-time public rendering path.
-
-This is the next main initiative after the current Phase 1/D1 foundation branch is
-consolidated. It is a runtime and hosting migration, not an extension of the current
-build-time adapter. Success means a public listing, category, search, homepage, feed,
-schema, and sitemap request obtains listing data through the runtime D1 repository
-without first materializing `data/listings.json`.
-
-Current factual constraint:
-
-- Every active checked-in deployable site currently uses `github-pages-repo-sync` as a
-  static export.
-- GitHub Pages cannot provide a Next.js server runtime or bind Cloudflare D1.
-- The runtime phase therefore requires an approved D1-capable hosting architecture,
-  DNS/certificate migration, runtime bindings, and rollback plan before public
-  cutover.
-
-Prerequisites:
-
-- Phase 5 ADR explicitly selects the D1-capable runtime and deployment model. Evaluate
-  Cloudflare Workers with the supported Next.js adapter against any other candidate;
-  record the decision from current official platform documentation and a repo proof of
-  concept rather than assuming compatibility.
-- Define whether there is one D1 database per site or one database partitioned by
-  `site_id`, including ownership, limits, isolation, backup, and restore consequences.
-- Approve D1 as the canonical source of published listing records.
-- Inventory every reader of `data/listings.json`, including public routes, metadata,
-  schema, sitemap, RSS/feed, search indexes, validation, E2E fixtures, build scripts,
-  and deploy workflows.
-- Define service-level objectives, query budgets, caching policy, observability,
-  incident ownership, and acceptable stale-read behavior.
-
-Implementation slices:
-
-1. Runtime architecture and deployment proof:
-   - Add an ADR for the selected Next.js runtime and D1 binding model.
-   - Prove one non-production site can render a server-side route with a read-only D1
-     binding.
-   - Verify supported Node/runtime APIs, static assets, image behavior, custom domains,
-     environment separation, logs, and rollback mechanics.
-   - Do not change production DNS or deploy a production site in this slice.
-2. Runtime repository boundary:
-   - Add a typed listing repository interface owned outside React components.
-   - Implement a D1 repository through the project's chosen query/ORM layer and
-     checked-in migrations; do not embed SQL in page components.
-   - Support deterministic pagination, category filters, featured/latest ordering,
-     slug lookups, counts, and related/previous/next listing queries.
-   - Keep authorization and moderation filters server-side. Under the current schema,
-     public rows require `status = 'approved'` and an eligible `published_at`; any
-     separate publication-state column requires a versioned migration and backfill.
-3. Schema and data migration:
-   - Map the normalized listing contract to versioned D1 migrations and constraints.
-   - Preserve the existing deterministic identity contract, `(site_id, slug)`, unless a
-     reviewed migration explicitly introduces a different primary key.
-   - Validate record counts, slugs, categories, links, media, timestamps, and content
-     hashes against the accepted source snapshot.
-   - Make migration and import operations idempotent and provide an export/restore
-     path before cutover.
-4. Dual-read parity mode:
-   - Keep the existing JSON path available only as a temporary rollback reader.
-   - Read D1 for the pilot while comparing route-level results against the accepted
-     JSON snapshot outside the user response path.
-   - Block cutover on missing, duplicate, reordered, unpublished, or schema-invalid
-     records and on route/metadata/schema/sitemap parity failures.
-   - Do not silently fall back from D1 to stale JSON in production; failures must be
-     observable and follow the approved incident policy.
-   - Define the final consistency strategy before cutover: an approval write freeze,
-     incremental delta capture, or verified dual-write. Perform a final reconciliation
-     after the last accepted write and before traffic changes so approvals cannot be
-     lost between snapshot and cutover.
-5. Pilot runtime cutover:
-   - Use `serp.software` as the sole pilot site.
-   - Move its build and deploy workflow to the selected runtime with development,
-     preview, and production D1 bindings separated.
-   - Verify homepage, search, category, listing detail, favorites behavior, metadata,
-     schema, sitemap, RSS, analytics attributes, and cache behavior against the
-     pre-cutover baseline.
-   - Rehearse rollback before changing production traffic, then require explicit user
-     approval for the production deploy and DNS cutover.
-6. Network rollout:
-   - Roll out one site at a time with per-site parity evidence, migration report,
-     rollback checkpoint, and post-cutover monitoring.
-   - Keep sites not yet migrated on their existing serving path; do not perform an
-     all-sites atomic cutover.
-7. JSON serving-path retirement:
-   - Remove public runtime imports and preparation steps that require
-     `data/listings.json`.
-   - Remove build/deploy workflow steps that materialize listing JSON for migrated
-     sites.
-   - Retain only explicit D1 export fixtures needed for tests, disaster recovery, or
-     audited snapshots; label them as exports rather than serving sources.
-   - Remove the temporary JSON rollback reader only after every site has completed its
-     rollback window and D1 restore has been rehearsed.
-
-Runtime requirements:
-
-- Use server-only D1 bindings; never expose database credentials or direct database
-  access to browser code.
-- Parameterize every query and enforce `site_id`, approval status, and publication
-  state at the repository boundary.
-- Define indexes from measured query plans for slug, site/status, category, featured,
-  and publication ordering queries.
-- Bound list and search queries with pagination and maximum limits.
-- Verify the selected Cloudflare account plan and current official D1/Workers limits;
-  gate the design on projected database size, query and bound-parameter limits, batch
-  sizes, concurrency/overload behavior, Worker CPU/memory, and bundle size.
-- Preserve canonical URLs, trailing-slash behavior, redirects, metadata, structured
-  data, analytics attributes, and public copy.
-- Define cache keys and invalidation by site, query, and content version. Document how
-  Payload publication invalidates or revalidates affected pages.
-- Emit metrics for query latency, query errors, empty/partial result anomalies, cache
-  hit rate, and D1 binding/configuration failures.
-- Keep local, preview, staging, and production data/bindings isolated.
-- Use least-privilege runtime and migration identities, protected CI environments,
-  auditable migration/publication actions, documented secret rotation and revocation,
-  and tenant-isolation negative tests. Preview environments must never bind production
-  D1, and runtime credentials must not have migration authority.
-- Deploy only reviewed source SHAs. Record billing/quota ownership, environment
-  approval gates, health thresholds, automated rollback triggers, DNS TTL preparation,
-  domain ownership/certificate validation, and coexistence rules for the Pages and
-  runtime origins during cutover.
-
-Rollback requirements:
-
-- Capture and verify a restorable D1 export before each schema migration and site
-  cutover.
-- Record a pre-change D1 Time Travel bookmark when supported by the verified account
-  plan. Document that in-place restore affects the live database, and test the restore
-  procedure outside production before relying on it.
-- Define RPO, RTO, backup retention beyond the platform Time Travel window, encrypted
-  export storage, integrity checks, and access ownership.
-- Make imports and migrations checkpointed and resumable. Define when to forward-repair
-  versus restore, and how writes after a restore point are reconciled.
-- Keep the last accepted static deployment available during the pilot rollback window.
-- Document separate rollback procedures for application code, DNS/traffic, and data
-  migrations.
-- Use backward-compatible expand/migrate/contract schema changes; do not combine a
-  destructive migration with the code release that first stops reading the old shape.
-- Define a point-of-no-return review before removing the JSON rollback reader or old
-  deployment target.
-
-Out of scope until separately approved:
-
-- Browser-to-D1 access.
-- Public writes directly into published tables.
-- Production database commands or production deploys without explicit user approval.
-- Payload CMS installation, submission authentication, and moderation UI; those remain
-  separate control-plane work even when they publish into D1.
-- Removing JSON fixtures used only by deterministic unit/E2E tests.
-
-Required QA evidence per site:
-
-- Record-count, slug, category, status, and content-hash migration report.
-- Query-plan/index review for representative list and detail queries.
-- Functional and visual parity for homepage, search, category, listing detail, empty
-  results, autocomplete, favorites-only, sorting, mobile drawer, and mobile search.
-- Metadata, schema, sitemap, RSS/feed, robots, canonical, redirect, analytics, and link
-  parity.
-- Load, cold-start, cache, D1 failure, empty-result anomaly, and rollback tests.
-- Preview-runtime smoke test using the same bindings and adapter shape as production.
-- Decision-policing, security, data-quality, accessibility, and code-quality reviews.
-
-Suggested subagents:
-
-- Runtime architecture reviewer: hosting adapter, bindings, platform limits, and deploy
-  topology.
-- Database implementer: repository, migrations, indexes, and import/export tooling.
-- Data-quality reviewer: parity reports, constraints, duplicate detection, and restore
-  verification.
-- Route/spec reviewer: routes, metadata, schema, sitemap, RSS, analytics, and copy.
-- Performance reviewer: query plans, caching, cold starts, limits, and load tests.
-- Security reviewer: binding isolation, secrets, parameterization, publication filters,
-  and abuse boundaries.
-- Decision-policing QA: prevent hidden JSON dependencies, silent fallback, unverified
-  platform claims, and premature production cutover.
-
-Completion criteria:
-
-- Every active public site reads canonical listing data from D1 at runtime.
-- No migrated public request or deploy workflow requires `data/listings.json`.
-- D1 publication changes can become visible through the documented cache/revalidation
-  path without rebuilding a complete static listing artifact.
-- All sites have passing parity evidence, monitoring, backups, restore rehearsal, and
-  rollback documentation.
-- The old GitHub Pages/static listing-serving path is retired only after explicit
-  approval and the rollback window closes.
-
-Platform references to re-verify during the ADR and before each production migration:
-
-- `https://developers.cloudflare.com/d1/platform/limits/`
-- `https://developers.cloudflare.com/d1/reference/time-travel/`
-- The current official Next.js-on-Cloudflare adapter and deployment documentation
-  selected by the ADR.
-
-## Phase 8: Optional Hosted Submission and Moderation Flow
-
-Goal: replace or supplement GitHub issue intake with a hosted CMS/control-plane workflow.
-
-Prerequisite:
-
-- Phase 5 architecture decision is approved.
-- Phase 6 source adapter, Phase 7 runtime repository, or an approved write-back path is
-  proven.
-
-Recommended flow:
-
-1. Submitter signs in or passes approved anti-abuse controls.
-2. Submitter creates a listing draft.
-3. Ownership/badge verification runs.
-4. Submission enters moderation.
-5. Reviewer approves, rejects, or requests changes.
-6. Approval creates either:
-   - a repo-owned PR consumed by a reviewed publisher, or
-   - an approved database record written through the control-plane publication path.
-7. For Phase 6 sites, the existing validate/build/deploy pipeline publishes the result.
-   For Phase 7 sites, the publisher updates canonical D1 and triggers the documented
-   cache invalidation or revalidation path.
-
-Required moderation states:
-
-- draft
-- submitted
-- needs-review
-- changes-requested
-- approved
-- rejected
-- published
-
-Out of scope until explicitly approved:
-
-- Direct publish from user input.
-- Bypassing review.
-- Making the public site require auth.
-- Treating unreviewed database rows as public content.
-
-## Preferred First Execution Sequence
-
-1. Phase 0: Foundation PR.
-2. Phase 1: Public directory UI refactor for one pilot site.
-3. Phase 2: Submit UI refactor.
-4. Phase 3: Operator/admin UI refactor.
-5. Phase 4: Source adapter foundation.
-6. Phase 5: Payload/D1 ADR.
-7. Phase 6: Build-time D1 adapter foundation.
-8. Phase 7: Runtime D1-backed public sites as the next main initiative.
-9. Phase 8: Hosted submission and moderation after the runtime/control-plane boundary
-   is approved.
-
-## QA Gates Per PR
-
-Every PR should have:
-
-- Implementer self-review.
-- Spec compliance review.
-- Code quality review.
-- Decision-policing QA when architecture boundaries are involved.
-- `git status --short` inspected before any PR/deploy-related action.
-- Explicit accounting for modified and untracked files.
-
-## Open Decisions
-
-- `serp.software` is the sole visual and runtime-D1 pilot and the default `pnpm dev`
-  site.
-- Should Payblocks be used as source code, design reference, or not at all?
-- D1 is the intended canonical source for published listing data; Phase 5 must still
-  record the ownership, backup, and operational consequences.
-- Public sites should move to runtime D1 reads through Phase 7. The remaining decision
-  is which D1-capable Next.js runtime and deployment topology meets the verified
-  requirements.
-- What auth and moderation requirements are actually needed for "Submit Yours"?
+All public listing queries enforce the full publication predicate inside the repository:
+correct `site_id`, active listing, `status = 'approved'`, and `published_at` not null and
+not in the future. Callers cannot opt out. Admin, migration, and publisher operations use
+separate interfaces and credentials.
+
+Public routes, canonical URLs, trailing slashes, rendered listing shape, metadata,
+structured data, analytics attributes, search behavior, and client-side favorites must
+remain unchanged.
+
+## Target D1 Model
+
+Use versioned SQL migrations managed through Drizzle-compatible repository tooling.
+The initial runtime schema must include at least:
+
+- `listings`
+  - deterministic identity: unique `(site_id, slug)`;
+  - stable internal ID separate from slug so slug changes are auditable;
+  - every currently rendered listing field, including content, links, media, featured
+    state, source timestamps, and publication fields;
+  - `status`, `is_active`, `published_at`, and timestamps;
+  - source provenance and a deterministic content checksum.
+- `categories`
+  - unique `(site_id, slug)`;
+  - name, description, display order, activation state, and timestamps.
+- `listing_categories`
+  - normalized many-to-many relation;
+  - uniqueness per listing/category;
+  - explicit primary-category semantics with at most one primary category per listing.
+- `migration_runs`
+  - migration/input version, source revision, checksum, counts, timestamps, outcome,
+    and error summary.
+- `publication_runs`
+  - manifest identity, actor/workflow provenance, input checksum, before/after
+    publication version, affected records, idempotency key, outcome, and timestamps.
+- `publication_state`
+  - the current monotonic publication version per site for caching and reconciliation.
+
+Add indexes based on measured query plans for:
+
+- `(site_id, slug)` lookup;
+- published ordering and pagination;
+- featured and latest lists;
+- category order and active-category lookup;
+- category filtering through `listing_categories`;
+- search fields or a proven D1-supported search strategy;
+- published counts;
+- related listing lookup;
+- previous/next navigation.
+
+Every migration must have forward verification and a documented rollback or roll-forward
+strategy. Destructive schema cleanup happens only after compatible application code is
+deployed and rollback requirements are satisfied. Bulk mutations must be batched within
+current D1 limits, and query-plan evidence must demonstrate that public queries do not
+degrade single-database throughput.
+
+## Execution Plan
+
+### Phase 7A: Freeze Contracts and Establish Baselines
+
+Status: next. No database or deployment permission required.
+
+1. Inventory every active listing/category reader and writer, including homepage,
+   search, category, detail, metadata, JSON-LD, sitemap, RSS, layout, navigation,
+   autocomplete, favorites, validation, logo maintenance, and workflows.
+2. Capture route, metadata, schema, sitemap, RSS, search-index, count, ordering, and
+   visual baselines from the accepted static release.
+3. Define the repository interfaces, error contract, publication predicate, pagination
+   contract, ordering tie-breakers, cache contract, and tenant isolation rules.
+4. Record the runtime architecture decision and mark the build-time/static direction in
+   `docs/PLAN.md` as superseded without discarding its useful inventory.
+5. Identify every GitHub Pages/static-export assumption in Next config, build scripts,
+   deploy scripts, workflows, tests, and docs.
+6. Convert the current `products.json` and `categories.json` into an immutable,
+   versioned migration input and record source revision and checksums without changing
+   the source files.
+
+Exit criteria:
+
+- Every public reader and JSON writer has an owner and migration disposition.
+- Baseline artifacts and deterministic ordering rules are reviewable.
+- Repository and failure contracts are approved before route changes begin.
+- No active behavior has changed.
+
+### Phase 7B: Workers and OpenNext Foundation
+
+Status: pending Phase 7A. No real deployment.
+
+1. Add the current compatible `@opennextjs/cloudflare` and Wrangler dependencies.
+2. Add OpenNext configuration and Worker configuration for assets, compatibility date,
+   `nodejs_compat`, observability, and D1 bindings.
+3. Define distinct local, preview, and production configurations. Configuration
+   validation must reject production database IDs in local or preview environments.
+4. Replace static-export-only Next behavior while preserving route and trailing-slash
+   contracts.
+5. Add build, preview, type-generation, and dry-run deploy scripts. Production deploy
+   scripts remain approval-gated and are not executed during implementation.
+6. Replace the GitHub Pages deployment contract with a Workers workflow design while
+   retaining the last accepted Pages release for rollback.
+7. Add missing-binding preview-runtime smoke tests that execute in `workerd`, not only
+   `next dev`. Any `wrangler dev` or preview path that creates, migrates, seeds,
+   restores, or queries local D1 remains a database command and requires explicit user
+   permission.
+
+Exit criteria:
+
+- The OpenNext build succeeds.
+- The missing-binding application smoke starts under local Worker preview without a
+  production binding or database query.
+- Static assets, redirects, canonicals, and trailing slashes match the baseline.
+- No GitHub Pages sync or Worker deployment has run.
+
+### Phase 7C: Server-Only Drizzle Repository
+
+Status: pending Phase 7A; may proceed alongside 7B only when file ownership does not
+overlap.
+
+1. Add Drizzle ORM with the D1 driver behind a `server-only` boundary.
+2. Implement the normalized schema, migrations, row mapping, repository interfaces,
+   publication policy, deterministic ordering, and typed errors.
+3. Resolve the D1 binding only inside the server data boundary. React components,
+   route modules, and shared UI receive repository results and never access bindings or
+   contain SQL.
+4. Add query instrumentation for latency, rows read, errors, overloads, empty-result
+   anomalies, and binding failures without logging secrets or sensitive content.
+5. Add cache keys partitioned by site, query shape, category/slug, and publication
+   version. Define invalidation before enabling cache reuse.
+6. Implement tests with a non-database repository double and migration/schema
+   inspection. Do not run a local D1 command without explicit permission.
+
+Exit criteria:
+
+- Unit tests cover mapping, publication filtering, pagination, ordering, search,
+  category relations, malformed data, and tenant isolation.
+- Contract tests prove public code cannot import bindings, Drizzle, or SQL directly.
+- Missing bindings and D1 failures produce explicit fail-closed errors.
+- Query and index design is checked against current D1 limits.
+
+### Phase 7D: Convert Every Public Reader
+
+Status: pending 7C.
+
+1. Change listing and category access to async repository calls.
+2. Update homepage, search, category, detail, metadata, JSON-LD, sitemap, RSS, layout,
+   navigation, autocomplete, related listings, and previous/next readers.
+3. Start independent reads together and await them as late as practical; use request
+   deduplication where the same server query feeds metadata and rendering.
+4. Preserve the server/client boundary. Pass only the listing fields needed by client
+   search, favorites, and interactive components.
+5. Remove active runtime imports of `products.json`, `categories.json`, generated
+   `data/listings.json`, and `trial-products-json`. The migration converter may still
+   read the immutable source input.
+6. Add a temporary, explicit comparison harness outside the user response path. It may
+   compare D1-shaped repository results with the migration source but may never become
+   a runtime fallback.
+
+Exit criteria:
+
+- Contract tests enumerate every public reader and prove repository usage.
+- Missing D1 data cannot silently produce a stale JSON response.
+- Functional, visual, metadata, JSON-LD, sitemap, and RSS tests match the baseline.
+- The build and preview runtime contain no active JSON listing/category serving path.
+
+### Phase 7E: Deterministic Migration and Parity Proof
+
+Status: code and artifact generation may proceed without database access; any local D1
+execution is blocked on explicit permission.
+
+1. Produce a versioned deterministic migration manifest from the current product and
+   category files without modifying them.
+2. Validate constraints, required fields, normalized categories, primary-category
+   selection, publication eligibility, URLs, media, and checksums before emitting SQL
+   or mutation batches.
+3. Produce parity reports for:
+   - total and published counts;
+   - exact slug sets and duplicates;
+   - category definitions, membership, order, and primary category;
+   - every rendered field and media reference;
+   - featured, active, status, and `published_at` state;
+   - deterministic content hashes;
+   - expected route, metadata, schema, sitemap, and RSS output.
+4. Prove manifest generation is deterministic and idempotent.
+5. With explicit permission, apply migrations and import only to local D1 through
+   checked-in repository tooling, then repeat parity and query-plan checks.
+6. Rehearse local restore only with separate explicit permission because restore is a
+   destructive database operation.
+
+Cutover blockers:
+
+- missing or duplicate records;
+- unreviewed normalization differences;
+- invalid rows or publication-state leaks;
+- ordering differences;
+- metadata, structured-data, sitemap, RSS, route, or trailing-slash differences;
+- content-hash mismatches;
+- unresolved functional or visual regressions;
+- query plans that exceed the accepted latency/read budget.
+
+Exit criteria:
+
+- Source-to-manifest parity is complete before any database write.
+- If permission is granted, local D1 parity and restore rehearsal pass.
+- Every accepted difference is explicit, reviewed, and covered by a test.
+
+### Phase 7F: Preview Database and Worker Qualification
+
+Status: blocked on separate explicit permission for non-production D1 writes and a
+preview Worker deployment.
+
+1. Create or select a non-production D1 database that cannot be mistaken for production.
+2. Apply reviewed migrations and the deterministic import through least-privilege
+   tooling; record the migration run and checksums.
+3. Deploy a preview Worker bound only to the preview database.
+4. Run route-level dual-read comparison outside the user response path.
+5. Execute functional and visual parity for homepage, search, category, detail,
+   autocomplete, favorites, sorting, empty states, mobile navigation, and mobile search.
+6. Execute SEO parity for metadata, JSON-LD, sitemap index and children, RSS, robots,
+   canonicals, redirects, and trailing slashes.
+7. Test missing bindings, D1 errors, overloads, empty anomalies, malformed rows, cache
+   invalidation, and stale-publication-version behavior.
+8. Measure cold starts, query latency, rows read, cache hits/misses, concurrent load,
+   and query plans against explicit acceptance budgets.
+9. Rehearse application rollback and preview data restore; verify the old Pages release
+   remains independently available.
+
+Exit criteria:
+
+- Preview parity has no unresolved blocker.
+- Failure injection proves fail-closed behavior and useful telemetry.
+- Load and query-plan results fit current D1 and Worker limits.
+- Application, data, and traffic rollback runbooks have been executed in preview.
+
+### Phase 7G: Production Cutover
+
+Status: blocked on explicit user approval for each production database write, Worker
+deployment, DNS change, and traffic cutover.
+
+1. Provision the dedicated production D1 database and production binding through the
+   approved Cloudflare account workflow.
+2. Capture a verified source export, migration input checksum, and pre-write evidence.
+3. Apply migrations and import through the reviewed, idempotent publisher tooling.
+4. Verify counts, hashes, publication predicates, query plans, and a production Time
+   Travel bookmark before serving traffic.
+5. Deploy the production Worker without changing traffic; run origin-level smoke and
+   parity checks where the platform permits.
+6. Confirm telemetry, cache invalidation, on-call ownership, rollback authority, and
+   the retained Pages release.
+7. Obtain a final explicit cutover approval, then make the authorized DNS/traffic change.
+8. Monitor D1 latency/errors, overloads, binding failures, result counts, cache behavior,
+   route errors, SEO endpoints, and user-critical journeys throughout the rollback
+   window.
+9. Roll back immediately on an accepted error-budget, parity, data-integrity, or SEO
+   breach. Do not use JSON fallback inside the Worker.
+
+Exit criteria:
+
+- Production serves runtime repository reads from the dedicated production D1 database.
+- All cutover checks and approvals are recorded.
+- The last accepted Pages release remains available for the agreed rollback window.
+- Restore and traffic rollback remain possible and owned.
+
+### Phase 7H: Approval-Gated Publisher and Writer Cutover
+
+Status: may be developed before production cutover; enabling production mutation is
+blocked on protected-environment approval.
+
+1. Define typed, versioned change manifests for listing/category create, update,
+   unpublish, and slug-change operations.
+2. Validate manifest schema, base publication version, authorization, invariants,
+   affected routes, and deterministic checksum before mutation.
+3. Add an approval-gated CI publisher that:
+   - uses a protected production environment and least-privilege credentials;
+   - applies mutations transactionally or with a documented compensating strategy;
+   - is idempotent across retries and duplicate workflow delivery;
+   - records publication-run audit and before/after checksums;
+   - advances the publication version only after all mutations succeed;
+   - invalidates affected query, category, slug, sitemap, RSS, and version caches;
+   - emits a typed, auditable result artifact.
+4. Keep runtime Worker credentials read-only and unable to migrate or publish.
+5. Keep the public submission form's GitHub issue handoff. Document how an approved
+   issue becomes a reviewed manifest and who authorizes production publication.
+6. Add unauthorized-publish, duplicate-manifest, stale-base-version, retry, partial
+   failure, slug-conflict, and cache-invalidation tests.
+
+Exit criteria:
+
+- No human or workflow edits canonical listing/category JSON.
+- Production writes require review and protected-environment approval.
+- Every mutation is attributable, idempotent, reconciled, and recoverable.
+
+### Phase 7I: Retire JSON Serving and GitHub Pages
+
+Status: only after production parity, publisher acceptance, restore rehearsal, and the
+agreed rollback window.
+
+1. Remove `products.json`, `categories.json`, generated `data/listings.json`, the
+   `trial-products-json` adapter, temporary D1 seed source, and JSON-backed runtime
+   loaders from active serving and writing contracts.
+2. Retain JSON only when explicitly classified as a versioned migration artifact,
+   export, test fixture, disaster-recovery artifact, or protocol serialization.
+3. Update build, validation, search, logo/media maintenance, workflows, submission docs,
+   deployment docs, onboarding, and implementation tracking for D1-backed contracts.
+4. Remove GitHub Pages repository-sync workflows and static-export-only checks only
+   after the Worker deployment and rollback window are accepted.
+5. Archive the accepted Pages release and its source/export evidence according to the
+   retention decision.
+6. Delete temporary comparison and migration-source code only after a successful D1
+   restore rehearsal proves JSON is unnecessary for operational recovery.
+
+Exit criteria:
+
+- D1 is the sole canonical listing and category source and the sole public serving path.
+- No active runtime, build, validation, or writer dependency references retired JSON.
+- Workers is the documented deployment contract.
+- Disaster recovery relies on verified exports, Time Travel, migrations, manifests, and
+  tested application/traffic rollback rather than an application JSON fallback.
+
+## Verification Matrix
+
+### Unit and Schema
+
+- Drizzle row mapping, null/malformed handling, and rendered-shape compatibility.
+- Publication predicate enforcement in every public query.
+- Pagination, deterministic ordering, featured/latest lists, search, counts, related,
+  previous/next, category relations, and tenant isolation.
+- Migration constraints, indexes, idempotency, checksums, and forward/rollback behavior.
+- Manifest validation, slug changes, duplicate delivery, retries, and audit results.
+
+### Contract and Integration
+
+- Every public reader uses the async repository.
+- No React component or route accesses SQL or Cloudflare bindings directly.
+- No active runtime import references retired JSON.
+- Missing bindings, D1 errors, overloads, empty anomalies, malformed data, cache
+  invalidation, and stale publication versions fail closed.
+- Unauthorized production publication is rejected before any mutation.
+
+### Functional and Visual
+
+- Homepage, search, category pages, listing details, autocomplete, favorites,
+  sorting/result counts, empty states, mobile navigation, and mobile search.
+- Existing routes, copy, analytics attributes, link semantics, layouts, and responsive
+  behavior remain equivalent.
+
+### SEO and Feeds
+
+- Metadata, canonical URLs, redirects, trailing slashes, JSON-LD, robots, sitemap index
+  and children, and RSS.
+- Exact published slug coverage and deterministic update timestamps/order.
+
+### Runtime and Operations
+
+- Repository tests, typecheck, site validation, OpenNext build, and `workerd` preview
+  smoke tests.
+- Cold starts, query-plan and rows-read budgets, cache hit rate, concurrent load, D1
+  overload behavior, and structured telemetry.
+- Verified export, Time Travel bookmark, restore rehearsal, application rollback, and
+  traffic rollback.
+
+## Approval Gates and Guardrails
+
+- Do not run any local, preview, staging, or production database command without explicit
+  user permission. Generating SQL, manifests, schemas, and parity reports without
+  connecting to a database is allowed.
+- Local database permission does not authorize preview or production work. Preview
+  permission does not authorize production work.
+- Require separate explicit approval before production database creation/write,
+  production Worker deployment, DNS change, or traffic cutover.
+- Do not run a real deploy or GitHub Pages sync without explicit permission and completed
+  gitflow. Dry-run build/package validation is allowed.
+- Do not run `git add`, `git commit`, or `git push` without explicit permission.
+- Preserve every existing uncommitted deletion and documentation edit. Do not restore or
+  reformat user-owned files as collateral work.
+- Development and preview must never bind the production D1 database. Enforce this in
+  configuration validation and CI tests, not only documentation.
+- Runtime bindings must not have schema migration or publishing authority.
+- Never silently fall back to JSON, cached unverified data, or an empty success response.
+- Keep the last accepted GitHub Pages release available throughout the agreed rollback
+  window.
+- Do not remove migration inputs or the temporary comparison reader until production
+  parity, rollback acceptance, and a successful D1 restore rehearsal.
+
+## Deferred Decisions
+
+Resolve these before their corresponding phase, not by assumption:
+
+- Workers paid/free plan and the resulting D1 size, subrequest, and Time Travel window.
+- Exact database, binding, Worker, preview-environment, and custom-domain names.
+- Server data package location and ownership if existing package boundaries are
+  insufficient.
+- Search implementation and ranking contract after representative query-plan tests.
+- Cache provider, TTLs, purge mechanism, and accepted staleness/error budgets.
+- Pagination shape and maximum page size within D1 parameter/subrequest limits.
+- Production import/publisher authentication method and protected-environment reviewers.
+- Monitoring destination, alert thresholds, rollback decision owner, and rollback window.
+- Retention location and duration for verified exports and audit artifacts beyond the
+  Time Travel window.
+- When Payload CMS replaces reviewed manifests as the control plane.
+
+None of these decisions changes the selected runtime architecture: public listing and
+category reads come from D1 through a server-only repository on a Cloudflare Worker.

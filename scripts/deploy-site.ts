@@ -85,6 +85,12 @@ export function buildDeployPlan(
     throw new Error(`Site ${definition.id} does not define a deploy target`)
   }
 
+  if (definition.deploy.strategy !== 'github-pages-repo-sync') {
+    throw new Error(
+      `Site ${definition.id} uses ${definition.deploy.strategy}; production Worker releases are authorized only by .github/workflows/build-and-deploy.yml`
+    )
+  }
+
   const branch = env.DEPLOY_BRANCH || definition.deploy.branch
   const buildDir = resolveSiteArtifactDir(definition)
 

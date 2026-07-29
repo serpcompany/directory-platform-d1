@@ -4,10 +4,10 @@ import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 const activeListingSourcePaths = [
-  'data/listings.json',
+  'apps/serp.software/**',
   'd1/**',
-  'sites/serp.software/products.json',
-  'wrangler.jsonc'
+  'scripts/d1-**',
+  'wrangler*.jsonc'
 ]
 
 interface WorkflowTrigger {
@@ -63,28 +63,13 @@ describe('update-listings-json workflow', () => {
   it('runs the listing-source validation steps for the current active surfaces', () => {
     const workflow = loadWorkflow()
     const validateJob = workflow.jobs['validate-listing-data']
-    const checkoutStep = validateJob.steps?.find(step => step.name === 'Checkout')
-    const detectDataListingsStep = validateJob.steps?.find(
-      step => step.name === 'Detect data/listings.json changes'
-    )
-    const jsonValidateStep = validateJob.steps?.find(
-      step => step.name === 'Validate data/listings.json'
-    )
-    const activeSiteValidateStep = validateJob.steps?.find(
-      step => step.name === 'Validate active checked-in site data'
-    )
-    const localD1PrepareStep = validateJob.steps?.find(
-      step => step.name === 'Prepare local D1 listing sources'
-    )
+    const configStep = validateJob.steps?.find(step => step.name === 'Validate Worker configuration contracts')
+    const contractStep = validateJob.steps?.find(step => step.name === 'Run D1 contract tests')
+    const buildStep = validateJob.steps?.find(step => step.name === 'Build OpenNext Worker')
 
-    expect(checkoutStep?.with?.['fetch-depth']).toBe(0)
-    expect(detectDataListingsStep?.id).toBe('detect-data-listings')
-    expect(detectDataListingsStep?.run).toContain('origin/$' + '{{ github.base_ref }}...HEAD')
-    expect(detectDataListingsStep?.run).toContain('github.event.before')
-    expect(jsonValidateStep?.if).toBe("steps.detect-data-listings.outputs.changed == 'true'")
-    expect(jsonValidateStep?.run).toBe('pnpm tsx scripts/validate-data.ts data/listings.json')
-    expect(localD1PrepareStep?.run).toBe('pnpm d1:local:prepare')
-    expect(activeSiteValidateStep?.run).toBe('pnpm validate:sites')
+    expect(configStep?.run).toBe('pnpm worker:config:validate')
+    expect(contractStep?.run).toBe('pnpm test:d1')
+    expect(buildStep?.run).toBe('pnpm worker:build')
   })
 
   it('uses a concurrency key that separates pull requests from branch refs', () => {

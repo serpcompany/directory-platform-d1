@@ -3,21 +3,19 @@ name: Validate Listing Sources
 on:
   workflow_dispatch:
   pull_request:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - 'data/listings.json'
+      - 'apps/serp.software/**'
       - 'd1/**'
-      - 'sites/serp.software/products.json'
-      - 'wrangler.jsonc'
+      - 'scripts/d1-**'
+      - 'wrangler*.jsonc'
   push:
-    branches:
-      - main
+    branches: [main]
     paths:
-      - 'data/listings.json'
+      - 'apps/serp.software/**'
       - 'd1/**'
-      - 'sites/serp.software/products.json'
-      - 'wrangler.jsonc'
+      - 'scripts/d1-**'
+      - 'wrangler*.jsonc'
 
 concurrency:
   group: validate-listing-data-${{ github.event.pull_request.number || github.ref }}
@@ -25,42 +23,21 @@ concurrency:
 
 jobs:
   validate-listing-data:
-    runs-on: self-hosted
+    runs-on: ubuntu-latest
     permissions:
       contents: read
-
     steps:
       - name: Checkout
         uses: actions/checkout@v6
-        with:
-          fetch-depth: 0
 
       - name: Install dependencies
         uses: ./.github/actions/install
 
-      - name: Detect data/listings.json changes
-        id: detect-data-listings
-        run: |
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            if git diff --quiet "origin/${{ github.base_ref }}...HEAD" -- data/listings.json; then
-              echo "changed=false" >> "$GITHUB_OUTPUT"
-            else
-              echo "changed=true" >> "$GITHUB_OUTPUT"
-            fi
-          elif git diff --quiet "${{ github.event.before }}" "${{ github.sha }}" -- data/listings.json; then
-            echo "changed=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "changed=true" >> "$GITHUB_OUTPUT"
-          fi
+      - name: Validate Worker configuration contracts
+        run: pnpm worker:config:validate
 
-      - name: Validate data/listings.json
-        if: steps.detect-data-listings.outputs.changed == 'true'
-        run: pnpm tsx scripts/validate-data.ts data/listings.json
+      - name: Run D1 contract tests
+        run: pnpm test:d1
 
-      - name: Prepare local D1 listing sources
-        run: pnpm d1:local:prepare
-
-      - name: Validate active checked-in site data
-        run: pnpm validate:sites
+      - name: Build OpenNext Worker
+        run: pnpm worker:build

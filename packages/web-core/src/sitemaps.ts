@@ -30,7 +30,7 @@ type SitemapEntry = {
 type SitemapContentLoaders = {
   getDocs?: () => DocSitemapEntry[]
   getGuides?: () => GuideSitemapEntry[]
-  getWebsites: () => WebsiteSitemapEntry[]
+  getWebsites: () => Promise<WebsiteSitemapEntry[]> | WebsiteSitemapEntry[]
 }
 
 const CANONICAL_SITEMAP_INDEX_PATH = '/sitemap-index.xml'
@@ -245,8 +245,8 @@ function getPostsPaths(getGuides: (() => GuideSitemapEntry[]) | undefined): stri
   ]
 }
 
-function getListingPaths(getWebsites: () => WebsiteSitemapEntry[]): SitemapEntry[] {
-  return getWebsites()
+async function getListingPaths(getWebsites: SitemapContentLoaders['getWebsites']): Promise<SitemapEntry[]> {
+  return (await getWebsites())
     .map(website => ({
       lastmod: new Date(website.publishedAt).toISOString(),
       loc: toAbsoluteUrl(
@@ -266,8 +266,8 @@ function getListingPaths(getWebsites: () => WebsiteSitemapEntry[]): SitemapEntry
     })
 }
 
-function getTaxonomyPaths(getWebsites: () => WebsiteSitemapEntry[]): string[] {
-  const websites = getWebsites()
+async function getTaxonomyPaths(getWebsites: SitemapContentLoaders['getWebsites']): Promise<string[]> {
+  const websites = await getWebsites()
   const paths = siteConfig.sitemap.categoryBasePath ? [] : [getRoute('listing.list')]
   const activeCategories = getActiveCategories(websites)
 
@@ -349,12 +349,12 @@ export function createPagesSitemapResponse(): Response {
   return toXmlResponse(renderSitemap(buildUrlEntries(getStaticPagePaths())))
 }
 
-export function createListingsSitemapResponse(loaders: SitemapContentLoaders): Response {
-  return toXmlResponse(renderSitemap(getListingPaths(loaders.getWebsites)))
+export async function createListingsSitemapResponse(loaders: SitemapContentLoaders): Promise<Response> {
+  return toXmlResponse(renderSitemap(await getListingPaths(loaders.getWebsites)))
 }
 
-export function createTaxonomiesSitemapResponse(loaders: SitemapContentLoaders): Response {
-  return toXmlResponse(renderSitemap(buildUrlEntries(getTaxonomyPaths(loaders.getWebsites))))
+export async function createTaxonomiesSitemapResponse(loaders: SitemapContentLoaders): Promise<Response> {
+  return toXmlResponse(renderSitemap(buildUrlEntries(await getTaxonomyPaths(loaders.getWebsites))))
 }
 
 export function createDocsSitemapResponse(loaders: SitemapContentLoaders): Response {

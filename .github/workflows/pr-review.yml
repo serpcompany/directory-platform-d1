@@ -25,11 +25,8 @@ jobs:
       - name: Install
         uses: ./.github/actions/install
 
-      - name: Prepare local D1 listing sources
-        run: pnpm d1:local:prepare
-
-      - name: Validate active checked-in sites
-        run: pnpm validate:sites
+      - name: Validate Worker configuration contracts
+        run: pnpm worker:config:validate
 
       - name: Run Biome Check
         run: pnpm exec biome check --changed --since=origin/main --no-errors-on-unmatched
@@ -66,6 +63,19 @@ jobs:
       - name: Run tests
         run: pnpm test
 
+  worker-build:
+    name: OpenNext Worker Build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install
+        uses: ./.github/actions/install
+
+      - name: Build OpenNext Worker
+        run: pnpm worker:build
+
   # links:
   #   name: Check Links
   #   runs-on: self-hosted
@@ -94,14 +104,11 @@ jobs:
         with:
           filters: |
             e2e_relevant:
-              - 'apps/starter/app/**'
-              - 'apps/starter/components/**'
-              - 'apps/starter/lib/**'
-              - 'apps/starter/public/**'
+              - 'apps/serp.software/**'
               - 'apps/e2e/**'
-              - 'data/listings.json'
+              - 'd1/**'
               - 'packages/web-core/**'
-              - 'packages/ui/**'
+              - 'packages/design-system/**'
               - 'sites/**'
 
   e2e:
