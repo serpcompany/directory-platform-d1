@@ -620,6 +620,14 @@ export function D1SubmissionForm({
           ) : null}
         </div>
 
+        <div className="border border-border bg-muted/30 p-4">
+          <p className="text-sm font-semibold">Badge verification is required</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            After saving, you will receive badge embed code. Your submission enters admin review
+            only after the live badge is verified on your website.
+          </p>
+        </div>
+
         <div className="flex flex-col gap-3 sm:flex-row">
           <button
             type="submit"
@@ -723,7 +731,7 @@ export function D1SubmissionForm({
             {verificationState === 'verified' ? (
               <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
                 <Check className="size-4" />
-                Badge verified — awaiting maintainer review
+                Badge verified — admin notified within a few minutes
               </span>
             ) : (
               <button

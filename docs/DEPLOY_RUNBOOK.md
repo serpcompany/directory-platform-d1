@@ -37,12 +37,22 @@ Do not run production Wrangler or D1 commands from a local worktree.
 ## Verified public submissions
 
 Public submissions are staged in normalized D1 tables and require a successful badge
-verification. Review the verified row, then manually run
+verification. `.github/workflows/notify-d1-submissions.yml` checks the production
+review queue every five minutes and on manual dispatch. It creates or recovers one
+private GitHub Issue, assigns the login configured in the
+`SUBMISSION_REVIEWER_GITHUB_LOGIN` repository variable, and records the issue in D1.
+The administrator sees pending work under the repository's assigned open Issues.
+
+Review the submitted fields, website, and badge in that issue, then manually run
 `.github/workflows/approve-d1-submission.yml` from `main` with the submission UUID and
 the exact `approve-serp.software-submission-production` confirmation. The protected
 workflow backs up D1, applies migrations, and promotes only a verified row while
 recording publication provenance. Select `reject` to close a pending or verified
-submission without publishing it.
+submission without publishing it. After the D1 decision succeeds, the workflow
+comments on and closes the matching admin issue.
+
+GitHub Issues are notifications only. Never edit an issue as a substitute for the D1
+decision workflow, and never reconstruct a submission from issue text.
 
 ## Maintainer-authored catalog publication
 

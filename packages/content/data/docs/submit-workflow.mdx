@@ -12,8 +12,11 @@ a server route that writes normalized private submission rows to D1.
 
 The submitter installs the supplied badge and asks the server to verify the live
 website. Only a successful dofollow badge check enters the maintainer review queue.
-A protected approval workflow creates a backup and atomically promotes the verified
-submission into the public D1 catalog.
+A scheduled workflow assigns the maintainer one private GitHub review issue within a
+few minutes and records that notification in D1. The protected production review
+workflow can then approve and promote that normalized submission into the public D1
+catalog, or decline it without publishing. The issue is an inbox entry; D1 remains
+the submission source of truth.
 
 The application form lives in
 `packages/web-core/src/forms/d1-submission-form.tsx`. The server-only write boundary

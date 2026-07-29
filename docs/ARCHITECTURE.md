@@ -39,8 +39,9 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 - `d1/migrations/` owns forward schema history.
 - `d1/publications/` owns reviewed ongoing catalog mutations.
 - `d1/artifacts/` preserves the immutable initial bootstrap and parity evidence.
-- `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`, and protected
-  workflows own remote release planning and execution.
+- `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`,
+  `scripts/d1-submission-notifier.ts`, and protected workflows own remote release,
+  review, and private admin-notification execution.
 - `scripts/harness/` owns local feedback, runtime evidence, and worktree isolation.
 - `scripts/migration/` may inspect an explicit external source but is not imported by
   runtime or build code.

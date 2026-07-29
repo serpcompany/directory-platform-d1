@@ -53,6 +53,12 @@ makes a submission reviewable but not public. A maintainer runs the protected
 `approve-d1-submission.yml` workflow, which retains a backup and atomically promotes
 only a verified row.
 
+`notify-d1-submissions.yml` polls badge-verified rows every five minutes and creates
+an assigned issue in the private repository. The D1 notification ledger prevents
+duplicates and lets an interrupted issue-create/write sequence recover by marker.
+The issue is closed only after the protected approval workflow has successfully
+approved or declined the authoritative D1 row.
+
 Maintainer-authored catalog changes still use a versioned manifest under
 `d1/publications/` and `.github/workflows/publish-d1.yml`.
 

@@ -1,0 +1,298 @@
+import { readFileSync } from 'node:fs'
+import { DatabaseSync } from 'node:sqlite'
+import yaml from 'js-yaml'
+import { describe, expect, it } from 'vitest'
+import {
+  buildReviewIssue,
+  notifyVerifiedSubmissions,
+  validateNotificationContext
+} from './d1-submission-notifier'
+
+const env = {
+  CI: 'true',
+  GITHUB_ACTIONS: 'true',
+  GITHUB_REF: 'refs/heads/main',
+  GITHUB_SHA: 'a'.repeat(40),
+  GITHUB_WORKFLOW_REF:
+    'serpcompany/directory-platform-d1/.github/workflows/notify-d1-submissions.yml@refs/heads/main',
+  GITHUB_REPOSITORY: 'serpcompany/directory-platform-d1',
+  GITHUB_TOKEN: 'github-token',
+  SUBMISSION_REVIEWER_GITHUB_LOGIN: 'reviewer',
+  CLOUDFLARE_ACCOUNT_ID: 'account',
+  CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: 'database',
+  CLOUDFLARE_API_TOKEN: 'cloudflare-token'
+}
+
+const submission = {
+  id: '11111111-1111-4111-8111-111111111111',
+  slug: 'example.com',
+  name: 'Example @ Product',
+  description: 'A useful <listing>.',
+  website: 'https://example.com/',
+  content: 'Longer product content.',
+  category_slug: 'seo',
+  logo_url: 'https://example.com/logo.png',
+  video_url: null,
+  verification_attempts: 1,
+  badge_verified_at: '2026-07-30 06:00:00',
+  created_at: '2026-07-30 05:55:00'
+}
+
+function githubExpression(expression: string): string {
+  return `$${`{{ ${expression} }}`}`
+}
+
+function d1Response(results: Array<{ results: Array<Record<string, unknown>> }>): Response {
+  return new Response(
+    JSON.stringify({
+      success: true,
+      result: results.map(result => ({ success: true, ...result }))
+    }),
+    { headers: { 'Content-Type': 'application/json' } }
+  )
+}
+
+describe('D1 submission notifier', () => {
+  it('stores one notification per submission and channel with cascade cleanup', () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec(`
+      PRAGMA foreign_keys = ON;
+      CREATE TABLE listing_submissions (id TEXT PRIMARY KEY) STRICT;
+      ${readFileSync('d1/migrations/0007_submission_notifications.sql', 'utf8')}
+      INSERT INTO listing_submissions (id) VALUES ('${submission.id}');
+      INSERT INTO listing_submission_notifications
+        (submission_id,channel,external_id,external_url,recipient)
+      VALUES
+        ('${submission.id}','github_issue','42','https://github.com/example/issues/42','reviewer');
+    `)
+    expect(
+      db
+        .prepare(
+          'SELECT channel,external_id,recipient FROM listing_submission_notifications WHERE submission_id=?'
+        )
+        .get(submission.id)
+    ).toEqual({ channel: 'github_issue', external_id: '42', recipient: 'reviewer' })
+    expect(() =>
+      db
+        .prepare(
+          `INSERT INTO listing_submission_notifications
+            (submission_id,channel,external_id,external_url,recipient)
+          VALUES (?,?,?,?,?)`
+        )
+        .run(
+          submission.id,
+          'github_issue',
+          '43',
+          'https://github.com/example/issues/43',
+          'reviewer'
+        )
+    ).toThrow(/UNIQUE/)
+    db.prepare('DELETE FROM listing_submissions WHERE id=?').run(submission.id)
+    expect(
+      db.prepare('SELECT COUNT(*) AS count FROM listing_submission_notifications').get()
+    ).toEqual({ count: 0 })
+  })
+
+  it('requires the dedicated main-branch GitHub workflow', () => {
+    expect(() => validateNotificationContext(env)).not.toThrow()
+    expect(() =>
+      validateNotificationContext({
+        ...env,
+        GITHUB_WORKFLOW_REF: 'serpcompany/directory-platform-d1/.github/workflows/release.yml@main'
+      })
+    ).toThrow(/notify-d1-submissions/)
+    expect(() =>
+      validateNotificationContext({ ...env, GITHUB_REPOSITORY: 'other/repository' })
+    ).toThrow(/serpcompany\/directory-platform-d1/)
+  })
+
+  it('formats private review details without turning submitted mentions into notifications', () => {
+    const issue = buildReviewIssue({
+      submission,
+      resources: [
+        {
+          submission_id: submission.id,
+          label: 'Docs',
+          url: 'https://example.com/docs',
+          sort_order: 0
+        }
+      ],
+      faqs: [
+        {
+          submission_id: submission.id,
+          question: 'Works?',
+          answer: 'Yes.',
+          sort_order: 0
+        }
+      ]
+    })
+    expect(issue.title).toBe('[Submission review] Example @ Product (example.com)')
+    expect(issue.body).toContain(`<!-- serp-submission-id: ${submission.id} -->`)
+    expect(issue.body).toContain('Example &#64; Product')
+    expect(issue.body).toContain('A useful &lt;listing&gt;.')
+    expect(issue.body).toContain('approve-serp.software-submission-production')
+    expect(issue.body).toContain('https://example.com/docs')
+  })
+
+  it('bounds issue titles even when submitted names and domains are long', () => {
+    const issue = buildReviewIssue({
+      submission: {
+        ...submission,
+        name: `${'N'.repeat(60)}\n${'N'.repeat(59)}`,
+        slug: `${'s'.repeat(240)}.example`
+      },
+      resources: [],
+      faqs: []
+    })
+    expect(issue.title).toHaveLength(240)
+    expect(issue.title.endsWith('…')).toBe(true)
+    expect(issue.title).not.toContain('\n')
+    expect(issue.body).toContain(submission.id)
+  })
+
+  it('creates one assigned issue and records its identity in D1', async () => {
+    const requests: Array<{ body: string; url: string }> = []
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input)
+      requests.push({ body: String(init?.body ?? ''), url })
+      if (url.includes('api.cloudflare.com') && requests.length === 1) {
+        return d1Response([
+          { results: [submission] },
+          {
+            results: [
+              {
+                submission_id: submission.id,
+                label: 'Docs',
+                url: 'https://example.com/docs',
+                sort_order: 0
+              }
+            ]
+          },
+          { results: [] }
+        ])
+      }
+      if (url.includes('/issues?state=all')) return Response.json([])
+      if (url.endsWith('/issues')) {
+        return Response.json({
+          assignees: [{ login: 'reviewer' }],
+          body: 'created',
+          html_url: 'https://github.com/serpcompany/directory-platform-d1/issues/42',
+          number: 42
+        })
+      }
+      if (url.includes('api.cloudflare.com')) return d1Response([{ results: [] }])
+      throw new Error(`Unexpected request ${url}`)
+    }
+
+    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+      created: 1,
+      notified: 1,
+      recovered: 0,
+      skippedForMigration: false
+    })
+    const createRequest = requests.find(request => request.url.endsWith('/issues') && request.body)
+    expect(JSON.parse(createRequest?.body ?? '{}')).toEqual(
+      expect.objectContaining({
+        assignees: ['reviewer'],
+        title: '[Submission review] Example @ Product (example.com)'
+      })
+    )
+    const d1Insert = requests.at(-1)?.body ?? ''
+    expect(d1Insert).toContain('listing_submission_notifications')
+    expect(d1Insert).toContain('"42"')
+    expect(d1Insert).toContain('"reviewer"')
+  })
+
+  it('recovers an already-created issue after an interrupted D1 write', async () => {
+    const requests: string[] = []
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = String(input)
+      requests.push(url)
+      if (url.includes('api.cloudflare.com') && requests.length === 1) {
+        return d1Response([{ results: [submission] }, { results: [] }, { results: [] }])
+      }
+      if (url.includes('/issues?state=all')) {
+        return Response.json([
+          {
+            assignees: [],
+            body: `<!-- serp-submission-id: ${submission.id} -->`,
+            html_url: 'https://github.com/serpcompany/directory-platform-d1/issues/41',
+            number: 41
+          }
+        ])
+      }
+      if (url.endsWith('/issues/41/assignees')) return Response.json({})
+      if (url.includes('api.cloudflare.com')) return d1Response([{ results: [] }])
+      throw new Error(`Unexpected request ${url}`)
+    }
+
+    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+      created: 0,
+      notified: 1,
+      recovered: 1,
+      skippedForMigration: false
+    })
+    expect(requests.filter(url => url.endsWith('/issues'))).toHaveLength(0)
+    expect(requests).toContain(
+      'https://api.github.com/repos/serpcompany/directory-platform-d1/issues/41/assignees'
+    )
+  })
+
+  it('safely waits for the release that applies its migration', async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          errors: [{ message: 'no such table: listing_submission_notifications' }]
+        }),
+        { status: 400 }
+      )
+    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+      created: 0,
+      notified: 0,
+      recovered: 0,
+      skippedForMigration: true
+    })
+  })
+
+  it('runs on a five-minute schedule with least-privilege issue access', () => {
+    const source = readFileSync('.github/workflows/notify-d1-submissions.yml', 'utf8')
+    const workflow = yaml.load(source) as {
+      jobs: {
+        notify: { environment: { name: string }; steps: Array<{ env?: object; run?: string }> }
+      }
+      on: { schedule: Array<{ cron: string }>; workflow_dispatch: unknown }
+      permissions: Record<string, string>
+    }
+    expect(workflow.on.schedule).toEqual([{ cron: '*/5 * * * *' }])
+    expect(workflow.on.workflow_dispatch).toBeDefined()
+    expect(workflow.permissions).toEqual({ contents: 'read', issues: 'write' })
+    expect(workflow.jobs.notify.environment.name).toBe('production')
+    expect(workflow.jobs.notify.steps.at(-1)?.run).toBe('pnpm d1:notify:production')
+    expect(workflow.jobs.notify.steps.at(-1)?.env).toEqual(
+      expect.objectContaining({
+        SUBMISSION_REVIEWER_GITHUB_LOGIN: githubExpression('vars.SUBMISSION_REVIEWER_GITHUB_LOGIN')
+      })
+    )
+  })
+
+  it('closes the matching issue only after the protected D1 decision', () => {
+    const source = readFileSync('.github/workflows/approve-d1-submission.yml', 'utf8')
+    const workflow = yaml.load(source) as {
+      jobs: { approve: { steps: Array<{ name: string; run?: string; uses?: string }> } }
+      permissions: Record<string, string>
+    }
+    expect(workflow.permissions).toEqual({ contents: 'read', issues: 'write' })
+    const reviewIndex = workflow.jobs.approve.steps.findIndex(
+      step => step.name === 'Review D1 submission'
+    )
+    const closeIndex = workflow.jobs.approve.steps.findIndex(
+      step => step.name === 'Close the admin review issue'
+    )
+    expect(reviewIndex).toBeGreaterThan(-1)
+    expect(closeIndex).toBeGreaterThan(reviewIndex)
+    expect(workflow.jobs.approve.steps[closeIndex]?.uses).toBe('actions/github-script@v8')
+    expect(source).toContain("state_reason: 'completed'")
+    expect(source).toContain("process.env.SUBMISSION_DECISION === 'approve'")
+  })
+})
