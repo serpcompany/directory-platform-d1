@@ -73,6 +73,17 @@ description unless a reviewed source change supplies text.
 - [x] 2026-07-30 07:46 JST Rebased the migration commit onto current
   `origin/main` (`208759a`); the branch is now exactly one migration commit ahead
   with no unrelated ancestor.
+- [x] 2026-07-30 08:00 JST Provisioned isolated Cloudflare D1 databases:
+  preview `pornvideo-downloaders-preview`
+  (`f92694b0-af7d-4c13-91f2-ee0393af9bdd`) and production
+  `pornvideo-downloaders-production`
+  (`d934a6c2-b382-4c50-a220-1e9dc0e5f8e5`).
+- [x] 2026-07-30 08:05 JST Provisioned `main`-only protected GitHub environments
+  `pornvideodownloaders-preview` and `pornvideodownloaders-production`, and stored
+  their account, D1, and Worker resource identities as environment secrets.
+- [x] 2026-07-30 08:10 JST Opened reviewed release PR
+  `https://github.com/serpcompany/directory-platform-d1/pull/12`; build, type,
+  unit, and explicit second-site browser checks passed on the initial run.
 - [ ] Rehearse the protected preview backup/migrate/import/verify/deploy/recovery flow.
 - [ ] Merge the reviewed release, run the protected production workflow, verify the
   public domain, and monitor the observation window.

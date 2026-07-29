@@ -9,8 +9,7 @@ const defaultWebServerCommand =
   selectedSiteId === 'pornvideodownloaders.com'
     ? `cd ../.. && pnpm d1:pornvideodownloaders:local:migrate && pnpm d1:pornvideodownloaders:local:import && pnpm d1:pornvideodownloaders:local:verify && PORT=${playwrightPort} pnpm preview:pornvideodownloaders`
     : `cd ../.. && pnpm d1:local:migrate && pnpm d1:local:import && pnpm d1:local:verify && PORT=${playwrightPort} pnpm worker:preview`
-const webServerCommand =
-  process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ?? defaultWebServerCommand
+const webServerCommand = process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ?? defaultWebServerCommand
 const workerCount = Number(process.env.E2E_WORKERS ?? 2)
 const ignoredTests = [
   ...(process.env.E2E_VISUAL === '1' ? [] : ['**/visual.spec.ts']),
