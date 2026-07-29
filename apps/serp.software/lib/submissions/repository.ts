@@ -109,8 +109,8 @@ export async function createSubmission(
       .bind(SITE_ID, input.category)
       .first<{ id: number }>(),
     db
-      .prepare('SELECT id FROM listings WHERE site_id = ? AND slug = ? LIMIT 1')
-      .bind(SITE_ID, slug)
+      .prepare('SELECT id FROM listings WHERE site_id = ? AND (slug = ? OR website = ?) LIMIT 1')
+      .bind(SITE_ID, slug, input.website)
       .first<{ id: string }>()
   ])
   if (!category) throw new SubmissionError('invalid_category', 'Choose an active category.')

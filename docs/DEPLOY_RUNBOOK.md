@@ -41,7 +41,8 @@ verification. Review the verified row, then manually run
 `.github/workflows/approve-d1-submission.yml` from `main` with the submission UUID and
 the exact `approve-serp.software-submission-production` confirmation. The protected
 workflow backs up D1, applies migrations, and promotes only a verified row while
-recording publication provenance.
+recording publication provenance. Select `reject` to close a pending or verified
+submission without publishing it.
 
 ## Maintainer-authored catalog publication
 

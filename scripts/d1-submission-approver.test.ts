@@ -53,10 +53,55 @@ describe('D1 submission approval guard', () => {
       approveRemoteSubmission(
         '11111111-1111-4111-8111-111111111111',
         'reviewer',
+        'approve',
         env,
         fetcher as typeof fetch
       )
     ).rejects.toThrow(/badge-verified/)
+  })
+
+  it('closes a pending submission without publishing it', async () => {
+    const requests: string[] = []
+    const fetcher = async (_input: RequestInfo | URL, init?: RequestInit) => {
+      requests.push(String(init?.body))
+      return new Response(
+        JSON.stringify({
+          success: true,
+          result:
+            requests.length === 1
+              ? [
+                  {
+                    success: true,
+                    results: [
+                      {
+                        id: '11111111-1111-4111-8111-111111111111',
+                        slug: 'example.com',
+                        status: 'pending_badge',
+                        listing_id: null,
+                        version: 1,
+                        checksum: 'before'
+                      }
+                    ]
+                  }
+                ]
+              : [
+                  { success: true, results: [] },
+                  { success: true, results: [] }
+                ]
+        })
+      )
+    }
+    await expect(
+      approveRemoteSubmission(
+        '11111111-1111-4111-8111-111111111111',
+        'reviewer',
+        'reject',
+        env,
+        fetcher as typeof fetch
+      )
+    ).resolves.toEqual({ idempotent: false, listingId: null })
+    expect(requests[1]).toContain("status='rejected'")
+    expect(requests[1]).not.toContain('INSERT INTO listings')
   })
 
   it('atomically promotes a verified normalized submission', async () => {
@@ -107,6 +152,7 @@ describe('D1 submission approval guard', () => {
     const result = await approveRemoteSubmission(
       '11111111-1111-4111-8111-111111111111',
       'reviewer',
+      'approve',
       env,
       fetcher as typeof fetch
     )

@@ -77,9 +77,10 @@ async function query(
 export async function approveRemoteSubmission(
   submissionId: string,
   reviewer: string,
+  decision: 'approve' | 'reject' = 'approve',
   env: NodeJS.ProcessEnv = process.env,
   fetcher: typeof fetch = fetch
-): Promise<{ idempotent: boolean; listingId: string }> {
+): Promise<{ idempotent: boolean; listingId: string | null }> {
   validateApprovalContext(env)
   if (!/^[0-9a-f-]{36}$/i.test(submissionId)) throw new Error('Submission ID must be a UUID.')
   if (!reviewer.trim()) throw new Error('Reviewer identity is required.')
@@ -98,6 +99,29 @@ export async function approveRemoteSubmission(
   )
   const row = selected[0]?.results?.[0]
   if (!row) throw new Error('Submission does not exist.')
+  if (decision === 'reject') {
+    if (row.status === 'rejected') return { idempotent: true, listingId: null }
+    if (row.status !== 'pending_badge' && row.status !== 'verified') {
+      throw new Error('Only a pending or verified submission can be rejected.')
+    }
+    await query(
+      [
+        {
+          sql: `UPDATE listing_submissions SET status='rejected',reviewed_at=?,reviewed_by=?,updated_at=?
+            WHERE id=? AND status IN ('pending_badge','verified')`,
+          params: [new Date().toISOString(), reviewer, new Date().toISOString(), submissionId]
+        },
+        {
+          sql: `INSERT INTO listing_submission_events (submission_id,event_type,actor)
+            VALUES (?,'rejected',?)`,
+          params: [submissionId, reviewer]
+        }
+      ],
+      env,
+      fetcher
+    )
+    return { idempotent: false, listingId: null }
+  }
   const listingId =
     typeof row.listing_id === 'string' ? row.listing_id : `submission_${submissionId}`
   if (row.status === 'approved' && row.listing_id === listingId) {
@@ -205,10 +229,13 @@ export async function approveRemoteSubmission(
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
   const submissionId = process.argv[2]
-  if (!submissionId) throw new Error('Usage: pnpm d1:approve:production -- <submission-id>')
+  const decision = process.argv[3] || 'approve'
+  if (!submissionId || (decision !== 'approve' && decision !== 'reject')) {
+    throw new Error('Usage: pnpm d1:approve:production -- <submission-id> [approve|reject]')
+  }
   console.log(
     JSON.stringify(
-      await approveRemoteSubmission(submissionId, process.env.GITHUB_ACTOR || 'unknown')
+      await approveRemoteSubmission(submissionId, process.env.GITHUB_ACTOR || 'unknown', decision)
     )
   )
 }

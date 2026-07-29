@@ -18,6 +18,8 @@ A maintainer reviews verified rows and manually runs
 environment approval. It retains a pre-change D1 export, applies migrations, verifies
 the row is badge-verified, atomically promotes its normalized data into the catalog,
 and records publication and submission audit events.
+The same protected workflow can reject a pending or verified row without creating a
+listing.
 
 The public form is implemented in
 `packages/web-core/src/forms/d1-submission-form.tsx`; the server-only write boundary is
