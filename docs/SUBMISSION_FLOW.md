@@ -18,8 +18,20 @@ A scheduled and manually dispatchable
 notification ledger entry. It creates or recovers one issue in the private
 `serpcompany/directory-platform-d1` repository, assigns the reviewer configured in
 `SUBMISSION_REVIEWER_GITHUB_LOGIN`, and stores the issue number and URL in
-`listing_submission_notifications`. The issue contains the normalized submission,
-badge timestamp, and review instructions, but D1 remains authoritative.
+`listing_submission_notifications`. The notifier also generates a single 256-bit
+draft-preview capability. Its SHA-256 digest is stored in the notification row; the
+raw capability appears only in the assigned issue's private preview link. The issue
+contains the normalized submission, badge timestamp, and review instructions, but D1
+remains authoritative.
+
+The reviewer opens that link to render the staged row through the same listing-detail
+view used by public products. The server-only preview repository requires the
+`serp.software` tenant, a matching capability digest, the GitHub notification
+channel, and `verified` status. Invalid or expired links return the generic not-found
+page. The route is dynamic, uncached, excluded from indexing, emits no listing
+structured data, and is absent from navigation and sitemaps. Approving or rejecting
+the submission changes its status and therefore revokes the link without publishing
+the staging route.
 
 The assigned maintainer reviews the issue and manually runs
 `.github/workflows/approve-d1-submission.yml` from `main`. The workflow requires the
@@ -29,7 +41,7 @@ is badge-verified, atomically promotes its normalized data into the catalog, and
 records publication and submission audit events.
 The same protected workflow can reject a pending or verified row without creating a
 listing. After either successful decision, it comments on and closes the matching
-review issue.
+review issue. The draft link then stops working.
 
 The public form is implemented in
 `packages/web-core/src/forms/d1-submission-form.tsx`; the server-only write boundary is

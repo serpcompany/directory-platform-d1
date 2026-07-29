@@ -1,3 +1,4 @@
+import { createHash, randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -7,8 +8,10 @@ const EXPECTED_REPOSITORY = 'serpcompany/directory-platform-d1'
 const WORKFLOW_PATH = '/.github/workflows/notify-d1-submissions.yml@'
 const REVIEW_WORKFLOW_URL =
   'https://github.com/serpcompany/directory-platform-d1/actions/workflows/approve-d1-submission.yml'
+const REVIEW_PREVIEW_BASE_URL = 'https://serp.software/admin/submissions'
 const MAX_SUBMISSIONS_PER_RUN = 20
 const MAX_ISSUE_TITLE_LENGTH = 240
+const PREVIEW_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/
 
 interface D1Result {
   results?: Array<Record<string, unknown>>
@@ -68,6 +71,22 @@ export interface NotificationResult {
   notified: number
   recovered: number
   skippedForMigration: boolean
+}
+
+export function generateReviewPreviewToken(): string {
+  return randomBytes(32).toString('base64url')
+}
+
+export function hashReviewPreviewToken(token: string): string {
+  if (!PREVIEW_TOKEN_PATTERN.test(token)) {
+    throw new Error('Review preview capability must be a 256-bit base64url token.')
+  }
+  return createHash('sha256').update(token).digest('hex')
+}
+
+export function buildReviewPreviewUrl(submissionId: string, token: string): string {
+  hashReviewPreviewToken(token)
+  return `${REVIEW_PREVIEW_BASE_URL}/${encodeURIComponent(submissionId)}/preview/${encodeURIComponent(token)}/`
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -162,6 +181,7 @@ function issueTitle(submission: SubmissionRow): string {
 
 export function buildReviewIssue(input: {
   faqs: FaqRow[]
+  previewUrl: string
   resources: ResourceRow[]
   submission: SubmissionRow
 }): { body: string; title: string } {
@@ -220,6 +240,13 @@ ${resources}
 ### FAQs
 
 ${faqs}
+
+### Private draft preview
+
+[Open the rendered draft listing preview](${input.previewUrl})
+
+This bearer link is private to repository reviewers. Do not share it. It stops
+working after the submission is approved or rejected.
 
 ### Admin decision
 
@@ -301,7 +328,19 @@ async function createOrRecoverIssue(
   const existing = await findExistingIssue(submissionId, env, fetcher)
   if (existing) {
     await assignIssue(existing, reviewer, env, fetcher)
-    return { created: false, issue: existing }
+    const issue = await githubRequest<GitHubIssue>(
+      `/repos/${EXPECTED_REPOSITORY}/issues/${existing.number}`,
+      env,
+      fetcher,
+      {
+        method: 'PATCH',
+        body: JSON.stringify({
+          body: details.body,
+          title: details.title
+        })
+      }
+    )
+    return { created: false, issue }
   }
   const issue = await githubRequest<GitHubIssue>(
     `/repos/${EXPECTED_REPOSITORY}/issues`,
@@ -322,14 +361,16 @@ async function createOrRecoverIssue(
 function missingNotificationMigration(error: unknown): boolean {
   return (
     error instanceof Error &&
-    error.message.includes('no such table') &&
-    error.message.includes('listing_submission_notifications')
+    ((error.message.includes('no such table') &&
+      error.message.includes('listing_submission_notifications')) ||
+      (error.message.includes('no such column') && error.message.includes('preview_token_hash')))
   )
 }
 
 export async function notifyVerifiedSubmissions(
   env: NodeJS.ProcessEnv = process.env,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  tokenFactory: () => string = generateReviewPreviewToken
 ): Promise<NotificationResult> {
   validateNotificationContext(env)
   const reviewer = required(env, 'SUBMISSION_REVIEWER_GITHUB_LOGIN')
@@ -345,7 +386,8 @@ export async function notifyVerifiedSubmissions(
             FROM listing_submissions s
             LEFT JOIN listing_submission_notifications n
               ON n.submission_id=s.id AND n.channel=?
-            WHERE s.site_id=? AND s.status='verified' AND n.submission_id IS NULL
+            WHERE s.site_id=? AND s.status='verified'
+              AND (n.submission_id IS NULL OR n.preview_token_hash IS NULL)
             ORDER BY s.badge_verified_at,s.created_at LIMIT ?`,
           params: [CHANNEL, SITE_ID, MAX_SUBMISSIONS_PER_RUN]
         },
@@ -355,7 +397,8 @@ export async function notifyVerifiedSubmissions(
               LEFT JOIN listing_submission_notifications notification
                 ON notification.submission_id=candidate.id AND notification.channel=?
               WHERE candidate.site_id=? AND candidate.status='verified'
-                AND notification.submission_id IS NULL
+                AND (notification.submission_id IS NULL
+                  OR notification.preview_token_hash IS NULL)
               ORDER BY candidate.badge_verified_at,candidate.created_at LIMIT ?
             )
             SELECT r.submission_id,r.label,r.url,r.sort_order
@@ -370,7 +413,8 @@ export async function notifyVerifiedSubmissions(
               LEFT JOIN listing_submission_notifications notification
                 ON notification.submission_id=candidate.id AND notification.channel=?
               WHERE candidate.site_id=? AND candidate.status='verified'
-                AND notification.submission_id IS NULL
+                AND (notification.submission_id IS NULL
+                  OR notification.preview_token_hash IS NULL)
               ORDER BY candidate.badge_verified_at,candidate.created_at LIMIT ?
             )
             SELECT f.submission_id,f.question,f.answer,f.sort_order
@@ -397,9 +441,12 @@ export async function notifyVerifiedSubmissions(
   let recovered = 0
 
   for (const submission of submissions) {
+    const previewToken = tokenFactory()
+    const previewTokenHash = hashReviewPreviewToken(previewToken)
     const issueResult = await createOrRecoverIssue(
       buildReviewIssue({
         submission,
+        previewUrl: buildReviewPreviewUrl(submission.id, previewToken),
         resources: resources.filter(row => row.submission_id === submission.id),
         faqs: faqs.filter(row => row.submission_id === submission.id)
       }),
@@ -414,14 +461,21 @@ export async function notifyVerifiedSubmissions(
       [
         {
           sql: `INSERT INTO listing_submission_notifications
-              (submission_id,channel,external_id,external_url,recipient)
-            VALUES (?,?,?,?,?)`,
+              (submission_id,channel,external_id,external_url,recipient,preview_token_hash)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(submission_id,channel) DO UPDATE SET
+              external_id=excluded.external_id,
+              external_url=excluded.external_url,
+              recipient=excluded.recipient,
+              preview_token_hash=excluded.preview_token_hash,
+              updated_at=CURRENT_TIMESTAMP`,
           params: [
             submission.id,
             CHANNEL,
             String(issueResult.issue.number),
             issueResult.issue.html_url,
-            reviewer
+            reviewer,
+            previewTokenHash
           ]
         }
       ],

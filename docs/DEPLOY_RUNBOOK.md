@@ -42,6 +42,11 @@ review queue every five minutes and on manual dispatch. It creates or recovers o
 private GitHub Issue, assigns the login configured in the
 `SUBMISSION_REVIEWER_GITHUB_LOGIN` repository variable, and records the issue in D1.
 The administrator sees pending work under the repository's assigned open Issues.
+Each issue contains a private draft-preview link that renders the staged D1 row using
+the production listing-detail UI. Treat it as a bearer secret: do not copy it outside
+the private repository. The application stores only its SHA-256 digest, sends
+`no-store` and `noindex` headers, and accepts it only while the row remains
+`verified`.
 
 Review the submitted fields, website, and badge in that issue, then manually run
 `.github/workflows/approve-d1-submission.yml` from `main` with the submission UUID and
@@ -50,6 +55,8 @@ workflow backs up D1, applies migrations, and promotes only a verified row while
 recording publication provenance. Select `reject` to close a pending or verified
 submission without publishing it. After the D1 decision succeeds, the workflow
 comments on and closes the matching admin issue.
+The successful D1 status transition also makes the draft-preview link return the
+generic not-found page.
 
 GitHub Issues are notifications only. Never edit an issue as a substitute for the D1
 decision workflow, and never reconstruct a submission from issue text.

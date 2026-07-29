@@ -30,8 +30,9 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   behavior.
 - `apps/serp.software/lib/catalog/` owns D1 access, public eligibility, relational
   hydration, and server-only enforcement.
-- `apps/serp.software/lib/submissions/` owns private intake, capability access,
-  rate limits, and badge verification state.
+- `apps/serp.software/lib/submissions/` owns private intake, submitter and reviewer
+  capability access, rate limits, badge verification state, and the D1-backed draft
+  preview mapping.
 - `sites/serp.software/` owns checked-in presentation, route, feature, and public site
   settings.
 - `packages/web-core/` owns reusable page/view behavior but never obtains a database
@@ -60,6 +61,12 @@ Client code never imports the catalog repository. Shared view packages never acq
 Cloudflare bindings. Migration code never becomes a runtime adapter. Local tools
 cannot select preview or production identities, and a local passing harness does not
 authorize a remote operation.
+
+The private admin preview route reuses the public listing-detail renderer but not its
+public catalog lookup or structured-data slot. Its server-only repository reads the
+normalized staging tables through `DB`, requires `verified` status and a hashed
+review capability, and fails closed with the same runtime-environment checks as the
+other D1 boundaries.
 
 The repository is currently single-site outside the relational schema. Adding another
 site requires the tenancy and isolation work in [the migration SOP](./MIGRATION_SOP.md),

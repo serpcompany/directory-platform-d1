@@ -14,8 +14,9 @@ The schema is versioned in `d1/migrations/`.
 - submission resource, FAQ, event, and rate-limit tables normalize repeatable data,
   state transitions, and abuse controls.
 - `listing_submission_notifications` records the private GitHub review issue assigned
-  for a badge-verified submission. It is an operational delivery ledger, not the
-  submission source of truth.
+  for a badge-verified submission and the SHA-256 digest of its private draft-preview
+  capability. The raw capability is never stored in D1. This table is an operational
+  delivery ledger, not the submission source of truth.
 
 Public queries require the `serp.software` site ID, approved status, active rows, and
 a publication time that is not in the future.
@@ -27,7 +28,9 @@ public tables, and that operation records publication provenance.
 The scheduled notification workflow reads verified rows without a notification
 ledger entry, creates or recovers one assigned issue in the private repository, and
 records its number and URL in D1. Approving or declining still operates on the D1 row;
-the issue is only the reviewer inbox.
+the issue is only the reviewer inbox. Private draft reads join the notification
+ledger to the staged submission and require both a matching capability digest and
+`verified` status, so either approval or rejection revokes access automatically.
 
 Ongoing data changes use reviewed YAML manifests under `d1/publications/`. The D1
 publisher validates the base version, prior checksum, IDs, slugs, URLs, categories,

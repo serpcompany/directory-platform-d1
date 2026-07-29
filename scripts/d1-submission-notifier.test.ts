@@ -4,6 +4,8 @@ import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import {
   buildReviewIssue,
+  buildReviewPreviewUrl,
+  hashReviewPreviewToken,
   notifyVerifiedSubmissions,
   validateNotificationContext
 } from './d1-submission-notifier'
@@ -37,6 +39,8 @@ const submission = {
   badge_verified_at: '2026-07-30 06:00:00',
   created_at: '2026-07-30 05:55:00'
 }
+const previewToken = 'a'.repeat(43)
+const previewUrl = buildReviewPreviewUrl(submission.id, previewToken)
 
 function githubExpression(expression: string): string {
   return `$${`{{ ${expression} }}`}`
@@ -59,19 +63,26 @@ describe('D1 submission notifier', () => {
       PRAGMA foreign_keys = ON;
       CREATE TABLE listing_submissions (id TEXT PRIMARY KEY) STRICT;
       ${readFileSync('d1/migrations/0007_submission_notifications.sql', 'utf8')}
+      ${readFileSync('d1/migrations/0008_submission_review_preview.sql', 'utf8')}
       INSERT INTO listing_submissions (id) VALUES ('${submission.id}');
       INSERT INTO listing_submission_notifications
-        (submission_id,channel,external_id,external_url,recipient)
+        (submission_id,channel,external_id,external_url,recipient,preview_token_hash)
       VALUES
-        ('${submission.id}','github_issue','42','https://github.com/example/issues/42','reviewer');
+        ('${submission.id}','github_issue','42','https://github.com/example/issues/42','reviewer',
+         '${hashReviewPreviewToken(previewToken)}');
     `)
     expect(
       db
         .prepare(
-          'SELECT channel,external_id,recipient FROM listing_submission_notifications WHERE submission_id=?'
+          'SELECT channel,external_id,recipient,preview_token_hash FROM listing_submission_notifications WHERE submission_id=?'
         )
         .get(submission.id)
-    ).toEqual({ channel: 'github_issue', external_id: '42', recipient: 'reviewer' })
+    ).toEqual({
+      channel: 'github_issue',
+      external_id: '42',
+      recipient: 'reviewer',
+      preview_token_hash: hashReviewPreviewToken(previewToken)
+    })
     expect(() =>
       db
         .prepare(
@@ -109,6 +120,7 @@ describe('D1 submission notifier', () => {
   it('formats private review details without turning submitted mentions into notifications', () => {
     const issue = buildReviewIssue({
       submission,
+      previewUrl,
       resources: [
         {
           submission_id: submission.id,
@@ -132,6 +144,16 @@ describe('D1 submission notifier', () => {
     expect(issue.body).toContain('A useful &lt;listing&gt;.')
     expect(issue.body).toContain('approve-serp.software-submission-production')
     expect(issue.body).toContain('https://example.com/docs')
+    expect(issue.body).toContain(`[Open the rendered draft listing preview](${previewUrl})`)
+    expect(issue.body).toContain('working after the submission is approved or rejected')
+  })
+
+  it('builds and hashes a bounded private review capability', () => {
+    expect(previewUrl).toBe(
+      `https://serp.software/admin/submissions/${submission.id}/preview/${previewToken}/`
+    )
+    expect(hashReviewPreviewToken(previewToken)).toMatch(/^[a-f0-9]{64}$/)
+    expect(() => hashReviewPreviewToken('too-short')).toThrow(/256-bit base64url/)
   })
 
   it('bounds issue titles even when submitted names and domains are long', () => {
@@ -141,6 +163,7 @@ describe('D1 submission notifier', () => {
         name: `${'N'.repeat(60)}\n${'N'.repeat(59)}`,
         slug: `${'s'.repeat(240)}.example`
       },
+      previewUrl,
       resources: [],
       faqs: []
     })
@@ -184,7 +207,9 @@ describe('D1 submission notifier', () => {
       throw new Error(`Unexpected request ${url}`)
     }
 
-    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+    await expect(
+      notifyVerifiedSubmissions(env, fetcher as typeof fetch, () => previewToken)
+    ).resolves.toEqual({
       created: 1,
       notified: 1,
       recovered: 0,
@@ -194,18 +219,21 @@ describe('D1 submission notifier', () => {
     expect(JSON.parse(createRequest?.body ?? '{}')).toEqual(
       expect.objectContaining({
         assignees: ['reviewer'],
+        body: expect.stringContaining(previewUrl),
         title: '[Submission review] Example @ Product (example.com)'
       })
     )
     const d1Insert = requests.at(-1)?.body ?? ''
     expect(d1Insert).toContain('listing_submission_notifications')
+    expect(d1Insert).toContain('preview_token_hash')
+    expect(d1Insert).toContain(hashReviewPreviewToken(previewToken))
     expect(d1Insert).toContain('"42"')
     expect(d1Insert).toContain('"reviewer"')
   })
 
   it('recovers an already-created issue after an interrupted D1 write', async () => {
     const requests: string[] = []
-    const fetcher = async (input: RequestInfo | URL) => {
+    const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       requests.push(url)
       if (url.includes('api.cloudflare.com') && requests.length === 1) {
@@ -222,11 +250,22 @@ describe('D1 submission notifier', () => {
         ])
       }
       if (url.endsWith('/issues/41/assignees')) return Response.json({})
+      if (url.endsWith('/issues/41') && init?.method === 'PATCH') {
+        expect(String(init.body)).toContain(previewUrl)
+        return Response.json({
+          assignees: [{ login: 'reviewer' }],
+          body: String(init.body),
+          html_url: 'https://github.com/serpcompany/directory-platform-d1/issues/41',
+          number: 41
+        })
+      }
       if (url.includes('api.cloudflare.com')) return d1Response([{ results: [] }])
       throw new Error(`Unexpected request ${url}`)
     }
 
-    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+    await expect(
+      notifyVerifiedSubmissions(env, fetcher as typeof fetch, () => previewToken)
+    ).resolves.toEqual({
       created: 0,
       notified: 1,
       recovered: 1,
@@ -236,6 +275,9 @@ describe('D1 submission notifier', () => {
     expect(requests).toContain(
       'https://api.github.com/repos/serpcompany/directory-platform-d1/issues/41/assignees'
     )
+    expect(requests).toContain(
+      'https://api.github.com/repos/serpcompany/directory-platform-d1/issues/41'
+    )
   })
 
   it('safely waits for the release that applies its migration', async () => {
@@ -244,6 +286,23 @@ describe('D1 submission notifier', () => {
         JSON.stringify({
           success: false,
           errors: [{ message: 'no such table: listing_submission_notifications' }]
+        }),
+        { status: 400 }
+      )
+    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+      created: 0,
+      notified: 0,
+      recovered: 0,
+      skippedForMigration: true
+    })
+  })
+
+  it('safely waits when reviewed main precedes the preview-capability migration', async () => {
+    const fetcher = async () =>
+      new Response(
+        JSON.stringify({
+          success: false,
+          errors: [{ message: 'no such column: notification.preview_token_hash' }]
         }),
         { status: 400 }
       )
