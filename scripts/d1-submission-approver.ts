@@ -227,7 +227,7 @@ export async function approveRemoteSubmission(
   return { idempotent: false, listingId }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+async function main(): Promise<void> {
   const submissionId = process.argv[2]
   const decision = process.argv[3] || 'approve'
   if (!submissionId || (decision !== 'approve' && decision !== 'reject')) {
@@ -238,4 +238,11 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1
       await approveRemoteSubmission(submissionId, process.env.GITHUB_ACTOR || 'unknown', decision)
     )
   )
+}
+
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+  main().catch(error => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
 }

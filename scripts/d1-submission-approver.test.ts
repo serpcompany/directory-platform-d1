@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import { describe, expect, it } from 'vitest'
 import { approveRemoteSubmission, validateApprovalContext } from './d1-submission-approver'
@@ -16,6 +17,12 @@ const env = {
 }
 
 describe('D1 submission approval guard', () => {
+  it('uses an async CLI entrypoint without unsupported top-level await', () => {
+    const source = readFileSync('scripts/d1-submission-approver.ts', 'utf8')
+    expect(source).toContain('async function main(): Promise<void>')
+    expect(source).toContain('main().catch(error =>')
+  })
+
   it('requires the dedicated protected workflow and exact confirmation', () => {
     expect(() => validateApprovalContext(env)).not.toThrow()
     expect(() =>
