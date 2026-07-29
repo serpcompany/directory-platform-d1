@@ -68,6 +68,12 @@ preview, so the response must not send a referrer, be cached, or be indexed.
   delivery boundary for the raw capability.
   Evidence: `gh repo view serpcompany/directory-platform-d1 --json visibility,isPrivate`
   returned `PRIVATE` and `true` on 2026-07-30.
+- Observation: the shared visual breadcrumb emits its own JSON-LD independently of
+  the detail page's `JsonLd` slot.
+  Evidence: the first live preview had one `BreadcrumbList` script containing the
+  private draft name even though the listing schema slot was suppressed.
+  Resolution: add an opt-out to the shared breadcrumb/hero route and use it only for
+  the private preview; public pages retain structured data by default.
 
 ## Decision log
 
@@ -205,8 +211,18 @@ changing production still requires fresh authority under `docs/DEPLOY_RUNBOOK.md
   changed the formerly valid preview from 200 to 404.
 - Screenshot:
   `.runtime/directory-platform-d1-main/artifacts/private-submission-draft-preview.png`.
-- Add PR/CI URLs, deployment run, live private issue, and post-decision revocation
-  evidence after release.
+- PR #4 merged as `9089757`; every GitHub policy, build, unit, type, E2E, triage,
+  and automated review check passed.
+- Production run `30483708895` retained the D1 backup, applied migration `0008`,
+  verified production D1, and deployed the Worker.
+- Private issue #5 was assigned to `devinschumacher` for disposable submission
+  `15dc7c0f-c6f5-411d-95f7-2cc597c7edbf` and contained the one-click preview.
+- First live preview returned 200, rendered the actual submitted data and draft
+  banner, and sent the required privacy headers. It exposed no listing schema, but
+  did expose the shared visual breadcrumb's JSON-LD; the follow-up opt-out fixes
+  that finding before final acceptance.
+- Follow-up full harness and 14 browser E2E tests passed locally.
+- Add the follow-up PR/run and post-decision revocation evidence after release.
 
 ## Outcomes and retrospective
 

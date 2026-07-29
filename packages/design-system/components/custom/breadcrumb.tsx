@@ -21,6 +21,7 @@ export interface BreadcrumbProps {
   items: BreadcrumbItemData[]
   homeHref?: string
   baseUrl?: string
+  structuredData?: boolean
 }
 
 /**
@@ -30,9 +31,15 @@ export interface BreadcrumbProps {
  * @param props.items - Array of breadcrumb items to display
  * @param props.homeHref - Optional custom home link (defaults to '/')
  * @param props.baseUrl - Optional base URL for JSON-LD (defaults to window.location.origin)
- * @returns React component with breadcrumb navigation and structured data
+ * @param props.structuredData - Set false for private routes that must not emit JSON-LD
+ * @returns React component with breadcrumb navigation and optional structured data
  */
-export function Breadcrumb({ items, homeHref = '/', baseUrl }: BreadcrumbProps) {
+export function Breadcrumb({
+  items,
+  homeHref = '/',
+  baseUrl,
+  structuredData = true
+}: BreadcrumbProps) {
   return (
     <div className="mb-4">
       <ShadcnBreadcrumb>
@@ -58,30 +65,32 @@ export function Breadcrumb({ items, homeHref = '/', baseUrl }: BreadcrumbProps) 
           ))}
         </BreadcrumbList>
       </ShadcnBreadcrumb>
-      <script
-        type="application/ld+json"
-        // biome-ignore lint/security/noDangerouslySetInnerHtml: Required for JSON-LD
-        dangerouslySetInnerHTML={{
-          __html: JSON.stringify({
-            '@context': 'https://schema.org',
-            '@type': 'BreadcrumbList',
-            itemListElement: [
-              {
-                '@type': 'ListItem',
-                position: 1,
-                name: 'Home',
-                item: `${baseUrl || ''}${homeHref}`
-              },
-              ...items.map((item, index) => ({
-                '@type': 'ListItem',
-                position: index + 2,
-                name: item.name,
-                item: `${baseUrl || ''}${item.href}`
-              }))
-            ]
-          })
-        }}
-      />
+      {structuredData && (
+        <script
+          type="application/ld+json"
+          // biome-ignore lint/security/noDangerouslySetInnerHtml: Required for JSON-LD
+          dangerouslySetInnerHTML={{
+            __html: JSON.stringify({
+              '@context': 'https://schema.org',
+              '@type': 'BreadcrumbList',
+              itemListElement: [
+                {
+                  '@type': 'ListItem',
+                  position: 1,
+                  name: 'Home',
+                  item: `${baseUrl || ''}${homeHref}`
+                },
+                ...items.map((item, index) => ({
+                  '@type': 'ListItem',
+                  position: index + 2,
+                  name: item.name,
+                  item: `${baseUrl || ''}${item.href}`
+                }))
+              ]
+            })
+          }}
+        />
+      )}
     </div>
   )
 }
