@@ -35,6 +35,11 @@ describe('badge verification diagnostics', () => {
     expect(getBadgeVerificationDiagnostic('http_503', WEBSITE).title).toBe(
       'Website returned a server error'
     )
+    expect(getBadgeVerificationDiagnostic('http_530', WEBSITE)).toEqual({
+      message:
+        'The verifier received HTTP 530 before it could load a page from https://example.com/. Check the domain DNS, origin server, and firewall or bot-protection settings, then try again.',
+      title: 'Website could not be reached'
+    })
   })
 
   it('maps every stable verifier code without displaying raw snake-case values', () => {
