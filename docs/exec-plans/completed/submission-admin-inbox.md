@@ -1,6 +1,6 @@
 # Notify and review badge-verified submissions
 
-Status: active
+Status: completed
 Owner: submission intake and production operations
 Created: 2026-07-30
 Last updated: 2026-07-30
@@ -52,9 +52,17 @@ will record the external issue identity so the process is idempotent and auditab
 - [x] 2026-07-30 03:10 JST Repaired the stale Playwright server/expectation
       configuration exposed by PR CI; all 14 functional E2E tests pass against the
       local OpenNext Worker and D1.
-- [ ] Configure the production reviewer, deploy the migration/application, exercise
-      a live badge-verified submission, and prove its assigned issue can be declined
-      without publishing.
+- [x] 2026-07-30 03:35 JST Merged PR #1 at release commit `6cb6669`, configured
+      reviewer `devinschumacher`, and passed protected production backup, migration,
+      D1 verification, and Worker deployment run `30480595160`.
+- [x] 2026-07-30 03:44 JST Stored and badge-verified disposable production
+      submission `9fba4b35-43e7-46ef-880a-90e0d998ad33`, delivered assigned private
+      issue #2 through notifier run `30481105930`, and declined it through protected
+      review run `30481237457`; D1 returned no listing ID and the issue closed.
+- [x] 2026-07-30 03:48 JST Proved post-decision idempotence with notifier run
+      `30481496954` (`created: 0`, `notified: 0`) and verified the live submit copy,
+      home, product, category, search, JSON feed, sitemap index, legacy redirect,
+      and declined-item 404 presentation.
 
 ## Surprises and discoveries
 
@@ -216,11 +224,39 @@ production authority under `docs/DEPLOY_RUNBOOK.md`.
 - Local D1 evidence submission:
   `f457bf03-764b-4a86-875c-9a563da501cc`, status `pending_badge`, with one resource
   link and one FAQ in isolated runtime state.
-- Populate this section with production workflow run URLs, the live review issue, and
-  the declined submission status during release validation.
+- Green PR and D1-backed E2E run:
+  `https://github.com/serpcompany/directory-platform-d1/pull/1` and
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30480077679`.
+- Protected production backup/migrate/verify/deploy:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30480595160`.
+- Live notification delivery:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30481105930`
+  created assigned private issue
+  `https://github.com/serpcompany/directory-platform-d1/issues/2`.
+- Protected production decline:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30481237457`
+  returned `{"idempotent":false,"listingId":null}`, commented on issue #2, and
+  closed it as completed.
+- Post-decision notifier:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30481496954`
+  returned `{"created":0,"notified":0,"recovered":0,"skippedForMigration":false}`.
 
 ## Outcomes and retrospective
 
-Complete this after the requirement-by-requirement audit. Record notification
-latency, live workflow behavior, the disposable test cleanup/decline result, and any
-residual operational risks.
+The production flow now satisfies the original user-visible purpose. A public intake
+is written only to normalized D1 submission tables, remains non-public, and presents
+the required badge embed and verification step. The live acceptance submission
+verified at `18:41:50Z`; its assigned GitHub review issue was created at `18:42:30Z`,
+40 seconds later under manual dispatch. The protected rejection retained a backup,
+recorded no public listing ID, added the reviewer outcome to the issue, and closed it.
+
+The two failed PR E2E runs improved the repository harness: Playwright now tests the
+actual OpenNext Worker and D1 instead of a removed starter, and the local D1 guard
+passes one absolute state path across root commands and filtered app scripts. The
+release commit passed all PR jobs, including 14 browser tests, and the pre-release
+full local harness.
+
+The operational residual risk is GitHub availability: notification can be delayed
+until the next five-minute schedule if GitHub or Cloudflare is temporarily
+unavailable. The hidden submission marker and D1 delivery ledger make retries
+idempotent, and D1 remains authoritative even if issue housekeeping must be retried.
