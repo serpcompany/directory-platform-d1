@@ -1,9 +1,6 @@
 export {
-  defaultSiteConfig,
-  defaultSiteContent,
+  type CheckedInSiteConfig,
   resolveCheckedInSiteConfig,
   resolveSiteContent,
-  siteConfigsById,
-  type CheckedInSiteConfig,
-  type CheckedInSiteConfigOverride,
-} from '@thedaviddias/site-contract';
+  siteConfigsById
+} from '@thedaviddias/site-contract'

@@ -10,8 +10,9 @@ Public product detail pages remain under `/products/[slug]/`.
 - Schema changes: `d1/migrations/`.
 - Badge-verified intake: reviewed YAML proposals under `d1/proposals/`.
 - Approved mutations: versioned YAML manifests under `d1/publications/`.
-- `products.json`, `categories.json`, and `data/listings.json`: immutable migration
-  inputs retained only for parity and rollback acceptance; the Worker never reads them.
+- Initial bootstrap evidence: immutable SQL and parity files under `d1/artifacts/`.
+
+Catalog JSON files are intentionally absent and are rejected by the repository guard.
 
 ## Local development
 

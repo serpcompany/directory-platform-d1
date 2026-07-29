@@ -2,7 +2,7 @@ import { expect, type Page, test } from '@playwright/test'
 
 import { detailListing } from './listing-fixture'
 
-const listingRouteBasePath = process.env.E2E_LISTING_ROUTE_BASE_PATH ?? 'listing'
+const listingRouteBasePath = process.env.E2E_LISTING_ROUTE_BASE_PATH ?? 'products'
 const categoryRouteBasePath = process.env.E2E_CATEGORY_ROUTE_BASE_PATH ?? 'categories'
 const categorySlug = process.env.E2E_CATEGORY_SLUG ?? 'video-downloaders'
 

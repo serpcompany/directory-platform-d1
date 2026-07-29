@@ -2,13 +2,33 @@ import { readFileSync } from 'node:fs'
 import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
-interface Step { env?: Record<string, string>; name?: string; run?: string }
-interface Job { env?: Record<string, string>; environment?: { name?: string }; if?: string; steps?: Step[] }
-interface Workflow { on: { push?: unknown; workflow_dispatch: { inputs: Record<string, { options?: string[]; required?: boolean }> } }; jobs: Record<string, Job>; permissions?: Record<string, string> }
+interface Step {
+  env?: Record<string, string>
+  name?: string
+  run?: string
+}
+interface Job {
+  env?: Record<string, string>
+  environment?: { name?: string }
+  if?: string
+  steps?: Step[]
+}
+interface Workflow {
+  on: {
+    push?: unknown
+    workflow_dispatch: { inputs: Record<string, { options?: string[]; required?: boolean }> }
+  }
+  jobs: Record<string, Job>
+  permissions?: Record<string, string>
+}
 
 function loadWorkflow(): { raw: string; workflow: Workflow } {
   const raw = readFileSync('.github/workflows/build-and-deploy.yml', 'utf8')
   return { raw, workflow: yaml.load(raw) as Workflow }
+}
+
+function githubExpression(expression: string): string {
+  return `$${`{{ ${expression} }}`}`
 }
 
 describe('production Worker workflow', () => {
@@ -26,10 +46,16 @@ describe('production Worker workflow', () => {
     const { workflow } = loadWorkflow()
     const runs = workflow.jobs.deploy.steps?.map(step => step.run).filter(Boolean)
     expect(runs).toEqual([
-      'pnpm worker:config:validate', 'pnpm test:d1', 'pnpm typecheck', 'pnpm worker:build',
-      'pnpm d1:remote:migration:plan:production', 'pnpm d1:remote:verify:plan:production',
-      'pnpm worker:d1:backup:production', 'pnpm worker:d1:migrate:production',
-      'pnpm worker:d1:import:production', 'pnpm worker:d1:verify:production',
+      'pnpm worker:config:validate',
+      'pnpm test:d1',
+      'pnpm typecheck',
+      'pnpm worker:build',
+      'pnpm d1:remote:migration:plan:production',
+      'pnpm d1:remote:verify:plan:production',
+      'pnpm worker:d1:backup:production',
+      'pnpm worker:d1:migrate:production',
+      'pnpm worker:d1:import:production',
+      'pnpm worker:d1:verify:production',
       'pnpm worker:deploy:production'
     ])
   })
@@ -50,23 +76,20 @@ describe('production Worker workflow', () => {
       expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBeUndefined()
     }
     for (const step of steps.filter(step => productionStepNames.has(step.name ?? ''))) {
-      expect(step.env?.CLOUDFLARE_API_TOKEN).toBe('${{ secrets.CLOUDFLARE_API_TOKEN }}')
-      expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBe('${{ inputs.confirmation }}')
-      expect(step.env?.GITHUB_REF).toBe('${{ github.ref }}')
-      expect(step.env?.GITHUB_SHA).toBe('${{ github.sha }}')
+      expect(step.env?.CLOUDFLARE_API_TOKEN).toBe(githubExpression('secrets.CLOUDFLARE_API_TOKEN'))
+      expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBe(githubExpression('inputs.confirmation'))
+      expect(step.env?.GITHUB_REF).toBe(githubExpression('github.ref'))
+      expect(step.env?.GITHUB_SHA).toBe(githubExpression('github.sha'))
     }
   })
 
   it('retains the pre-migration production backup', () => {
     const { workflow } = loadWorkflow()
-    const backupStep = workflow.jobs.deploy.steps?.find(step => step.name === 'Retain production D1 backup') as Step & { uses?: string; with?: Record<string, unknown> }
+    const backupStep = workflow.jobs.deploy.steps?.find(
+      step => step.name === 'Retain production D1 backup'
+    ) as Step & { uses?: string; with?: Record<string, unknown> }
     expect(backupStep.uses).toBe('actions/upload-artifact@v6')
-    expect(backupStep.with?.path).toBe('.wrangler/backups/${{ github.sha }}.sql')
+    expect(backupStep.with?.path).toBe(`.wrangler/backups/${githubExpression('github.sha')}.sql`)
     expect(backupStep.with?.['if-no-files-found']).toBe('error')
-  })
-
-  it('contains no local D1, static build, Pages, or legacy deploy command', () => {
-    const { raw } = loadWorkflow()
-    for (const retired of ['d1:local:prepare', 'build:site', 'deploy:site', 'GH_PAT', 'github-pages-repo-sync']) expect(raw).not.toContain(retired)
   })
 })

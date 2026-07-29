@@ -2,8 +2,7 @@ import path from 'node:path'
 import { withContentCollections } from '@content-collections/next'
 import withMDX from '@next/mdx'
 import { baseConfig, withAnalyzer } from '@thedaviddias/config-next'
-import { defaultSiteConfig, resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
-import { categories } from '@thedaviddias/web-core/categories'
+import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
 import type { NextConfig } from 'next'
 
 export const INTERNAL_PACKAGES = [
@@ -42,18 +41,8 @@ function createAliasRewrites(sourceBasePath: string, destinationBasePath: string
   ]
 }
 
-const categoryRouteSlugs = ['featured', ...categories.map(category => category.slug)]
-
-function createLegacyCategoryRedirects() {
-  return categoryRouteSlugs.map(slug => ({
-    source: `/${slug}`,
-    destination: `/categories/${slug}`,
-    permanent: true
-  }))
-}
-
 const runtimeSiteConfig = resolveCheckedInSiteConfig(
-  process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID || defaultSiteConfig.id
+  process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID || 'serp.software'
 )
 const listingBasePath = normalizeBasePath(runtimeSiteConfig.routes.listingBasePath)
 const docsBasePath = normalizeBasePath(runtimeSiteConfig.routes.docsBasePath)
@@ -146,8 +135,7 @@ let nextConfig: NextConfig = {
       ...createAliasRewrites('guides', 'posts').map(rule => ({
         ...rule,
         permanent: true
-      })),
-      ...createLegacyCategoryRedirects()
+      }))
     ]
   }
 }

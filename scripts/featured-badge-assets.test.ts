@@ -1,11 +1,11 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { inflateSync } from 'node:zlib'
-import { defaultSiteConfig, resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
 import { activeCheckedInSiteIds } from '@thedaviddias/site-contract/active-site-ids'
 import { describe, expect, it } from 'vitest'
 
-const siteIds = [defaultSiteConfig.id, ...activeCheckedInSiteIds] as const
+const siteIds = activeCheckedInSiteIds
 const badgeVariants = ['light', 'dark'] as const
 const manuallySelectedBadgeSites = ['serp.software'] as const
 const PNG_SIGNATURE = '89504e470d0a1a0a'

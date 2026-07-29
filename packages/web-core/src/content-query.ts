@@ -1,11 +1,5 @@
 import { getListingCategories } from './category-navigation'
-import {
-  normalizeJsonWebsite,
-  parseJsonWebsiteEntries,
-  type WebsiteMedia,
-  type WebsitePriority,
-  type WebsiteResourceLink
-} from './website-schema'
+import type { WebsiteMedia, WebsitePriority, WebsiteResourceLink } from './website-schema'
 
 export interface ContentMeta {
   filePath: string
@@ -145,18 +139,6 @@ export interface WebsiteLookupIndex {
   websites: readonly WebsiteMetadata[]
   websiteBySlug: ReadonlyMap<string, WebsiteMetadata>
   websiteIndexBySlug: ReadonlyMap<string, number>
-}
-
-export function buildWebsiteMetadata(input: unknown): WebsiteMetadata[] {
-  if (!Array.isArray(input) || input.length === 0) {
-    return []
-  }
-
-  return parseJsonWebsiteEntries(input)
-    .map(normalizeJsonWebsite)
-    .sort((a, b) => {
-      return new Date(b.publishedAt).getTime() - new Date(a.publishedAt).getTime()
-    })
 }
 
 export function buildWebsiteLookupIndex(websites: readonly WebsiteMetadata[]): WebsiteLookupIndex {

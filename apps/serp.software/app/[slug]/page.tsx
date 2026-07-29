@@ -1,4 +1,5 @@
 import { notFound, permanentRedirect } from 'next/navigation'
+import { getCategoryBySlug } from '@/lib/catalog/repository'
 import { getWebsiteBySlug } from '@/lib/content-loader'
 
 interface LegacyListingRouteProps {
@@ -9,7 +10,14 @@ export default async function LegacyListingRoute({ params }: LegacyListingRouteP
   const { slug } = await params
   const listing = await getWebsiteBySlug(slug)
 
-  if (!listing) notFound()
+  if (listing) {
+    permanentRedirect(`/products/${listing.slug}/`)
+  }
 
-  permanentRedirect(`/products/${listing.slug}/`)
+  const category = await getCategoryBySlug(slug)
+  if (category) {
+    permanentRedirect(`/categories/${category.slug}/`)
+  }
+
+  notFound()
 }

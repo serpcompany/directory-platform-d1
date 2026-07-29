@@ -349,7 +349,7 @@ jobs:
             const targetOwner = context.repo.owner;
             const siteRepo = context.repo.repo;
             const sourceOwner = 'serpcompany';
-            const sourceRepo = 'json-directory-template';
+            const sourceRepo = 'directory-platform-d1';
             const assignee = 'devinschumacher';
             const token = process.env.GH_PAT;
 

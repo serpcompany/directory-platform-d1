@@ -1,10 +1,10 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { defaultSiteConfig, resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
 import { activeCheckedInSiteIds } from '@thedaviddias/site-contract/active-site-ids'
 import { describe, expect, it } from 'vitest'
 
-const siteIds = [defaultSiteConfig.id, ...activeCheckedInSiteIds] as const
+const siteIds = activeCheckedInSiteIds
 const variants = ['light', 'dark'] as const
 
 type R2FeaturedBadgeAsset = {

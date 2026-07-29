@@ -8,7 +8,7 @@ import {
 } from '@thedaviddias/design-system/shadcnblocks/directory-navigation'
 import { ExternalLink, Trophy } from 'lucide-react'
 import Link from 'next/link'
-import { categories } from '../categories'
+import { resolveCategories } from '../categories'
 import { getCategoryDisplayName } from '../category-display'
 import { externalResources } from '../external-resources'
 import { getFeaturedCategoryRoute, getRoute } from '../routes'
@@ -30,9 +30,7 @@ export function AppSidebar({
 }: AppSidebarProps) {
   const showExternalResources =
     siteConfig.features.showExternalResources && externalResources.length > 0
-  const availableCategories = availableCategorySlugs
-    ? categories.filter(category => availableCategorySlugs.includes(category.slug))
-    : categories
+  const availableCategories = resolveCategories(availableCategorySlugs || [])
 
   return (
     <div className="sticky top-16 hidden h-[calc(100vh-4rem)] w-[240px] max-w-[240px] min-w-[240px] border-r sm:block">

@@ -1,112 +1,35 @@
 ---
 title: 'Common Commands'
-description: 'The main workspace commands for local development, validation, and static site builds'
+description: 'Local D1, verification, and Worker build commands'
 order: 2
 published: true
 ---
 
 # Common Commands
 
-<p className="mt-2 text-xl text-muted-foreground">
-  These are the commands you will use most while developing, validating, and
-  exporting a site from the starter.
-</p>
+Initialize and verify the isolated local D1 database:
 
-## Local development
+```bash
+pnpm d1:local:migrate
+pnpm d1:local:import
+pnpm d1:local:verify
+```
 
-Run the active site wrapper:
+Build and run the local OpenNext Worker:
 
 ```bash
 pnpm dev
 ```
 
-Run the starter wrapper directly:
+Verify the repository:
 
 ```bash
-pnpm dev:starter
+pnpm worker:config:validate
+pnpm test:d1
+pnpm test:repo
+pnpm typecheck
+pnpm worker:build
 ```
 
-Run the older multi-workspace loop:
-
-```bash
-pnpm dev:all
-```
-
-Run one checked-in site with its data prep and env wired for you:
-
-```bash
-pnpm dev:site -- --site serp.software
-```
-
-Run the starter wrapper with the Node inspector attached:
-
-```bash
-pnpm --filter starter dev:inspect
-```
-
-## Validation and tests
-
-Validate the active listing JSON shape:
-
-```bash
-pnpm validate:listings data/listings.json
-```
-
-Run the full repo tests:
-
-```bash
-pnpm test
-```
-
-Run focused starter-wrapper tests:
-
-```bash
-pnpm --dir apps/starter exec jest --runInBand --runTestsByPath app/docs/__tests__/page.test.tsx
-```
-
-## Build output
-
-Build the workspace:
-
-```bash
-pnpm build
-```
-
-Build one static site artifact:
-
-```bash
-pnpm build:site -- --site your-site-id
-```
-
-Generate the search index directly:
-
-```bash
-pnpm generate-search-index
-```
-
-## Data generation helpers
-
-Prepare the active normalized listing dataset for one site:
-
-```bash
-pnpm prepare:site -- --site serp.software
-```
-
-Transform a site-specific JSON source into `data/listings.json`:
-
-```bash
-pnpm exec tsx scripts/trial-build.ts sites/your-site/products.json data/listings.json
-```
-
-Generate the search artifact after data changes:
-
-```bash
-pnpm exec tsx scripts/search-index-generator.ts
-```
-
-## Notes
-
-- `pnpm dev` is the stable local default. The repo keeps `pnpm dev:all` for the heavier multi-workspace loop.
-- `pnpm dev:site -- --site <id>` is the safest path when the site does not use the default checked-in config.
-- The starter expects Node `24.x`.
-- When you are working on one site, prefer `build:site` over the broader root `build`.
+Production commands are available only inside the protected GitHub Actions release
+workflows.

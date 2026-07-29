@@ -43,8 +43,6 @@ pre-commit:
         - "**/scripts/**"
         - "packages/validators/**"
         - "**/packages/validators/**"
-        - "packages/generator/**"
-        - "**/packages/generator/**"
         - "packages/cli/**"
         - "**/packages/cli/**"
       run: node scripts/validation/check-console-logs.js {staged_files}

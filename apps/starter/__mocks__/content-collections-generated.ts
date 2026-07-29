@@ -1,7 +1,0 @@
-export const allAboutPages = []
-export const allDocs = []
-export const allExtensionUpdates = []
-export const allGuides = []
-export const allLegals = []
-export const allResources = []
-export const allWebsites = []

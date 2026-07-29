@@ -1,19 +1,11 @@
-# Directory onboarding
+# Maintainer onboarding
 
-- Checked-in site settings: `sites/site-config.default.ts` and
-  `sites/<id>/site-config.ts`.
-- Optional site-owned copy: `sites/<id>/site-content.ts`.
-- Runtime listing/category source: the site's isolated Cloudflare D1 binding.
-- Schema: `d1/migrations/`.
-- Reviewed intake: `d1/proposals/`.
-- Approved mutations: `d1/publications/`.
-- Thin wrapper scaffold: `pnpm generate:site-wrapper -- --site <id>`.
+`serp.software` is the only application and deployable site in this repository.
 
-`serp.software` is the only active deployable site. The default/starter wrapper remains
-framework infrastructure. Historical listing JSON is not an authoring or runtime
-contract; it is retained only as a versioned migration input until rollback and restore
-acceptance.
+Start with `AGENTS.md`, then read `ARCHITECTURE.md`, `DATA_MODEL.md`, and
+`DEVELOPMENT.md`. Checked-in site settings live in
+`sites/serp.software/site-config.ts`; catalog data lives only in D1.
 
-Before promoting another site, define a separate D1 identity for local, preview, and
-production, add a server-only repository boundary, validate the Worker configuration,
-and complete runtime/SEO/visual parity without a JSON fallback.
+Schema work belongs in `d1/migrations/`. Reviewed intake proposals belong in
+`d1/proposals/`, and approved mutations belong in `d1/publications/`. Never create a
+starter/default site, catalog file, source adapter, or file-backed fallback.

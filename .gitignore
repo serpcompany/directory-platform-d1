@@ -9,7 +9,6 @@
 # next.js
 .next/
 apps/*/out/
-apps/*/public/search/search-index.json
 
 # production
 /build
@@ -62,9 +61,6 @@ CLAUDE.local.md
 sessions/
 logs/
 tmp/deploy/
-tmp/sites/
-tmp/build-site-*/
-tmp/validate-site/
 
 # llms.txt files
 .llms/

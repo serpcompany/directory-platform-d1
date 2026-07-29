@@ -144,29 +144,23 @@ describe('collection page schema dates', () => {
     expect(JSON.stringify(data)).not.toContain('2099-01-01')
   })
 
-  it('falls back to the checked-in source date when a collection has no listings', () => {
-    expect(resolveCollectionPageSchemaDates([], '2026-05-16')).toEqual({
-      dateModified: '2026-05-16',
-      datePublished: '2026-05-16'
-    })
+  it('omits schema dates when a collection has no published listings', () => {
+    expect(resolveCollectionPageSchemaDates([])).toEqual({})
   })
 
-  it('ignores invalid listing and fallback dates instead of normalizing them by rollover', () => {
+  it('ignores invalid listing dates instead of normalizing them by rollover', () => {
     expect(
-      resolveCollectionPageSchemaDates(
-        [
-          {
-            publishedAt: '2026-02-31'
-          },
-          {
-            publishedAt: '2026-02-31T00:00:00Z'
-          },
-          {
-            publishedAt: 'not-a-date'
-          }
-        ],
-        '2026-13-01'
-      )
+      resolveCollectionPageSchemaDates([
+        {
+          publishedAt: '2026-02-31'
+        },
+        {
+          publishedAt: '2026-02-31T00:00:00Z'
+        },
+        {
+          publishedAt: 'not-a-date'
+        }
+      ])
     ).toEqual({})
   })
 

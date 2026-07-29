@@ -51,8 +51,7 @@ const EXCLUDE_PATHS = [
   'examples',
   'scripts/validation',
   'scripts',
-  'packages/validators',
-  'packages/generator'
+  'packages/validators'
 ]
 
 /**

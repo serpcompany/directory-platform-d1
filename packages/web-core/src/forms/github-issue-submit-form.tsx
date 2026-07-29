@@ -13,8 +13,6 @@ import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { categories, normalizeCategorySlug } from '../categories'
-import { getCategoryDisplayName } from '../category-display'
 import { buildSubmissionIssueUrl } from '../github-issue'
 import { hasConfiguredGitHubIssueTarget, siteConfig } from '../site-config'
 import { siteCopy } from '../site-copy'
@@ -25,8 +23,7 @@ import {
   getFeaturedOnBadgePublicUrlFromKey
 } from '../website/featured-on-badge-url'
 
-interface CategoryOption {
-  isCanonical: boolean
+export interface CategoryOption {
   label: string
   slug: string
 }
@@ -44,29 +41,6 @@ type BadgeSubmissionInstructions = {
   name: string
   siteName: string
 }
-
-function resolveCategoryOptions(): CategoryOption[] {
-  const optionsBySlug = new Map<string, CategoryOption>()
-
-  for (const category of categories) {
-    const slug = normalizeCategorySlug(category.slug)
-    const option = {
-      isCanonical: category.slug === slug,
-      label: getCategoryDisplayName(slug),
-      slug
-    }
-    const existingOption = optionsBySlug.get(slug)
-
-    if (!existingOption || (!existingOption.isCanonical && option.isCanonical)) {
-      optionsBySlug.set(slug, option)
-    }
-  }
-
-  return Array.from(optionsBySlug.values())
-}
-
-const categoryOptions = resolveCategoryOptions()
-const validCategorySlugs = new Set(categoryOptions.map(option => option.slug))
 
 function hasCompleteHttpUrl(value: string): boolean {
   try {
@@ -215,9 +189,7 @@ const optionalFaqSchema = z
   })
 
 const submissionFormSchema = z.object({
-  category: z.string().refine(value => validCategorySlugs.has(value), {
-    message: 'Choose a category.'
-  }),
+  category: z.string().trim().min(1, 'Choose a category.'),
   content: z
     .string()
     .trim()
@@ -282,7 +254,11 @@ function FieldLabel({
   )
 }
 
-export function GitHubIssueSubmitForm() {
+export function GitHubIssueSubmitForm({
+  categoryOptions
+}: {
+  categoryOptions: readonly CategoryOption[]
+}) {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [copiedTheme, setCopiedTheme] = useState<BadgeTheme | null>(null)
   const [badgeInstructions, setBadgeInstructions] = useState<BadgeSubmissionInstructions | null>(

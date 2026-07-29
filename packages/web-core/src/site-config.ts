@@ -1,4 +1,4 @@
-import { defaultSiteConfig, resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
 import type {
   AssetSource,
   SiteBadgesConfig,
@@ -38,7 +38,6 @@ export type SiteConfig = {
   githubRepoUrl: string
   githubUrl: string
   id: string
-  listingSourcePublishedAt?: string
   listingRouteBasePath: string
   name: string
   networkBrandGroup: string | null
@@ -54,15 +53,6 @@ const runtimeBrandAssetPaths = {
   favicon: '/favicon.ico',
   logo: '/logo.png',
   opengraphImage: '/opengraph-image.png'
-} as const
-
-const DEFAULT_STARTER_PLACEHOLDER = {
-  githubIssueOwner: 'example',
-  githubIssueRepo: 'directory-starter',
-  githubRepoUrl: 'https://github.com/example/directory-starter',
-  githubUrl: 'https://github.com/example',
-  redditUrl: 'https://www.reddit.com/r/directorystarter/',
-  twitterUrl: 'https://x.com/directorystarter'
 } as const
 
 function getDefaultFeaturedOnBadgeKey(siteId: string, theme: 'light' | 'dark'): string {
@@ -98,25 +88,11 @@ export function getTwitterHandleFromUrl(url: string): string | null {
 }
 
 export function hasConfiguredGitHubIssueTarget(config: SiteConfig): boolean {
-  if (!config.githubIssueOwner || !config.githubIssueRepo || !config.githubIssuesUrl) {
-    return false
-  }
-
-  return !(
-    config.id === 'default' &&
-    config.githubIssueOwner === DEFAULT_STARTER_PLACEHOLDER.githubIssueOwner &&
-    config.githubIssueRepo === DEFAULT_STARTER_PLACEHOLDER.githubIssueRepo
-  )
+  return Boolean(config.githubIssueOwner && config.githubIssueRepo && config.githubIssuesUrl)
 }
 
 export function hasConfiguredPublicSocialLinks(config: SiteConfig): boolean {
-  return !(
-    config.id === 'default' &&
-    config.githubRepoUrl === DEFAULT_STARTER_PLACEHOLDER.githubRepoUrl &&
-    config.githubUrl === DEFAULT_STARTER_PLACEHOLDER.githubUrl &&
-    config.redditUrl === DEFAULT_STARTER_PLACEHOLDER.redditUrl &&
-    config.twitterUrl === DEFAULT_STARTER_PLACEHOLDER.twitterUrl
-  )
+  return Boolean(config.githubRepoUrl && config.githubUrl && config.redditUrl && config.twitterUrl)
 }
 
 export function getConfiguredSocialLinks(config: SiteConfig): string[] {
@@ -143,10 +119,9 @@ function resolveRuntimeBrandAssetUrl(
 }
 
 export function resolveSiteConfig(
-  siteId = process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID || defaultSiteConfig.id
+  siteId = process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID || 'serp.software'
 ): SiteConfig {
   const configuredSite = resolveCheckedInSiteConfig(siteId)
-  const { listingSource } = configuredSite.content
 
   return {
     badges: {
@@ -180,8 +155,6 @@ export function resolveSiteConfig(
     githubRepoUrl: configuredSite.social.githubRepoUrl,
     githubUrl: configuredSite.social.githubUrl,
     id: configuredSite.id,
-    listingSourcePublishedAt:
-      listingSource.kind === 'trial-products-json' ? listingSource.publishedAt : undefined,
     listingRouteBasePath: configuredSite.routes.listingBasePath,
     name: configuredSite.site.name,
     networkBrandGroup: configuredSite.networkBrandGroup,

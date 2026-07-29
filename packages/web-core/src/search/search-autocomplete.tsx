@@ -5,10 +5,10 @@ import {
   type DirectoryCommandItem
 } from '@thedaviddias/design-system/shadcnblocks/directory-command'
 import { logger } from '@thedaviddias/logging'
-import { categories } from '@thedaviddias/web-core/categories'
+import { resolveCategories } from '@thedaviddias/web-core/categories'
 import { getCategoryDisplayName } from '@thedaviddias/web-core/category-display'
 import { getRoute } from '@thedaviddias/web-core/routes'
-import { SEARCH_INDEX_PUBLIC_PATH, searchIndexSchema } from '@thedaviddias/web-core/search-index'
+import { SEARCH_API_PATH, searchResponseSchema } from '@thedaviddias/web-core/search-contract'
 import { ArrowRight, Clock, Search, TrendingUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
@@ -53,8 +53,7 @@ export function SearchAutocomplete({
   const { trackSearch, trackSearchAutocomplete } = useAnalyticsEvents()
   const availableCategoryKey = availableCategorySlugs.join('\0')
   const availableCategories = useMemo(() => {
-    const availableCategorySet = new Set(availableCategoryKey.split('\0').filter(Boolean))
-    return categories.filter(category => availableCategorySet.has(category.slug))
+    return resolveCategories(availableCategoryKey.split('\0').filter(Boolean))
   }, [availableCategoryKey])
 
   const getRecentSearches = useCallback((): string[] => {
@@ -101,12 +100,14 @@ export function SearchAutocomplete({
       }
       if (!cancelled) setLoading(true)
       try {
-        const response = await fetch(`${SEARCH_INDEX_PUBLIC_PATH}?q=${encodeURIComponent(searchQuery)}&limit=5`)
+        const response = await fetch(
+          `${SEARCH_API_PATH}?q=${encodeURIComponent(searchQuery)}&limit=5`
+        )
         if (!response.ok) throw new Error('Failed to fetch search index')
 
-        const searchIndex = searchIndexSchema.parse(await response.json())
+        const searchResults = searchResponseSchema.parse(await response.json())
         const query = searchQuery.toLowerCase()
-        const websiteMatches = searchIndex
+        const websiteMatches = searchResults
           .filter(item => {
             const searchableText = `${item.name} ${item.description} ${
               item.category

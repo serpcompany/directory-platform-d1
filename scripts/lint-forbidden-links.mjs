@@ -3,7 +3,6 @@ import { ESLint } from 'eslint'
 import { isProtectedListingSurface } from './eslint-rules/no-forbidden-listing-links.mjs'
 
 const DEFAULT_PATTERNS = [
-  'data/listings.json',
   'sites/**/*.{json,jsonc,md,mdx,ts,tsx}',
   'apps/*/app/**/*.{js,jsx,md,mdx,mjs,ts,tsx}',
   'apps/*/components/**/*.{js,jsx,md,mdx,mjs,ts,tsx}',
@@ -11,8 +10,7 @@ const DEFAULT_PATTERNS = [
   'apps/*/public/**/*.{html,json,js,txt,xml}',
   'packages/site-contract/src/**/*.{js,jsx,md,mdx,mjs,ts,tsx}',
   'packages/web-core/src/**/*.{js,jsx,md,mdx,mjs,ts,tsx}',
-  'packages/content/data/**/*.{json,jsonc,md,mdx}',
-  'scripts/import-downloaders-from-sheet.ts'
+  'packages/content/data/**/*.{json,jsonc,md,mdx}'
 ]
 
 function readOption(name) {

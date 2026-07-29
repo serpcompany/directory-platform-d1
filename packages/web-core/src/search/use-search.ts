@@ -2,17 +2,13 @@
 
 import { logger } from '@thedaviddias/logging'
 import { useEffect, useState } from 'react'
-import {
-  SEARCH_INDEX_PUBLIC_PATH,
-  searchIndexSchema,
-  type SearchIndexEntry,
-} from '../search-index'
+import { SEARCH_API_PATH, searchResponseSchema } from '../search-contract'
 import type { SearchWebsiteMetadata } from './search-utils'
 import {
   filterAndSortEntries,
   transformAndSanitizeEntries,
   tryLenientProcessing,
-  validateEntries,
+  validateEntries
 } from './use-search-helpers'
 
 export function useSearch(query: string) {
@@ -32,10 +28,10 @@ export function useSearch(query: string) {
       setError(null)
 
       try {
-        const response = await fetch(`${SEARCH_INDEX_PUBLIC_PATH}?q=${encodeURIComponent(query)}&limit=100`)
+        const response = await fetch(`${SEARCH_API_PATH}?q=${encodeURIComponent(query)}&limit=100`)
         if (!response.ok) throw new Error(`Failed to search listings: ${response.status}`)
-        const searchIndex = searchIndexSchema.parse(await response.json())
-        const filtered = filterAndSortEntries(searchIndex, query)
+        const searchResults = searchResponseSchema.parse(await response.json())
+        const filtered = filterAndSortEntries(searchResults, query)
         const valid = validateEntries(filtered)
 
         if (valid.length === 0) {
@@ -49,7 +45,7 @@ export function useSearch(query: string) {
       } catch (error) {
         logger.error('Error fetching or processing search results:', {
           data: error,
-          tags: { type: 'component' },
+          tags: { type: 'component' }
         })
         if (isMounted) {
           setError(error instanceof Error ? error.message : 'An unknown error occurred')

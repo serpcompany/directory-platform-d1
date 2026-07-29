@@ -6,22 +6,11 @@
     ".": "./src/index.ts",
     "./active-site-ids": "./src/active-site-ids.ts",
     "./asset-reference": "./src/asset-reference.ts",
-    "./categories": "./src/categories.ts",
-    "./checked-in-site-source-path": "./src/checked-in-site-source-path.ts",
-    "./operator-onboarding": "./src/operator-onboarding.ts",
-    "./operator-onboarding-server": "./src/operator-onboarding-server.ts",
     "./site-content": "./src/site-content.ts",
-    "./starter-app-defaults": "./src/starter-app-defaults.ts",
-    "./site-root-listing-aliases": "./src/site-root-listing-aliases.ts",
-    "./submission-schema": "./src/submission-schema.ts",
-    "./trial-product-schema": "./src/trial-product-schema.ts",
-    "./trial-products": "./src/trial-products.ts",
     "./types": "./src/types.ts"
   },
   "devDependencies": {
     "@types/node": "catalog:",
-    "typescript": "catalog:",
-    "zod": "catalog:",
-    "zod-to-json-schema": "^3.25.1"
+    "typescript": "catalog:"
   }
 }

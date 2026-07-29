@@ -1,6 +1,5 @@
 import type { MetadataRoute } from 'next'
 import { NextResponse } from 'next/server'
-import { categories } from './categories'
 import { getActiveCategories, hasFeaturedListings } from './category-navigation'
 import { getFeaturedCategoryRoute, getRoute } from './routes'
 import { SITE_PUBLIC_URL } from './seo-config'
@@ -157,44 +156,6 @@ function getBuildDate(): string {
   return new Date().toISOString()
 }
 
-function getPriority(routePath: string): number {
-  if (routePath === '/') {
-    return 1
-  }
-
-  const normalizedPath = routePath.replace(/^\/+/, '')
-  const categorySlug = normalizedPath.startsWith('categories/')
-    ? normalizedPath.slice('categories/'.length)
-    : normalizedPath
-
-  if (categorySlug === 'featured') {
-    return 0.9
-  }
-
-  const category = categories.find(entry => entry.slug === categorySlug)
-  if (category) {
-    if (category.priority === 'high') {
-      return 0.9
-    }
-
-    if (category.priority === 'medium') {
-      return 0.8
-    }
-
-    return 0.7
-  }
-
-  if (normalizedPath.startsWith('posts/')) {
-    return 0.8
-  }
-
-  if (normalizedPath.startsWith('docs/')) {
-    return 0.8
-  }
-
-  return 0.6
-}
-
 function buildUrlEntries(paths: string[], baseUrl = SITE_PUBLIC_URL): SitemapEntry[] {
   const buildDate = getBuildDate()
 
@@ -245,7 +206,9 @@ function getPostsPaths(getGuides: (() => GuideSitemapEntry[]) | undefined): stri
   ]
 }
 
-async function getListingPaths(getWebsites: SitemapContentLoaders['getWebsites']): Promise<SitemapEntry[]> {
+async function getListingPaths(
+  getWebsites: SitemapContentLoaders['getWebsites']
+): Promise<SitemapEntry[]> {
   return (await getWebsites())
     .map(website => ({
       lastmod: new Date(website.publishedAt).toISOString(),
@@ -266,7 +229,9 @@ async function getListingPaths(getWebsites: SitemapContentLoaders['getWebsites']
     })
 }
 
-async function getTaxonomyPaths(getWebsites: SitemapContentLoaders['getWebsites']): Promise<string[]> {
+async function getTaxonomyPaths(
+  getWebsites: SitemapContentLoaders['getWebsites']
+): Promise<string[]> {
   const websites = await getWebsites()
   const paths = siteConfig.sitemap.categoryBasePath ? [] : [getRoute('listing.list')]
   const activeCategories = getActiveCategories(websites)
@@ -349,11 +314,15 @@ export function createPagesSitemapResponse(): Response {
   return toXmlResponse(renderSitemap(buildUrlEntries(getStaticPagePaths())))
 }
 
-export async function createListingsSitemapResponse(loaders: SitemapContentLoaders): Promise<Response> {
+export async function createListingsSitemapResponse(
+  loaders: SitemapContentLoaders
+): Promise<Response> {
   return toXmlResponse(renderSitemap(await getListingPaths(loaders.getWebsites)))
 }
 
-export async function createTaxonomiesSitemapResponse(loaders: SitemapContentLoaders): Promise<Response> {
+export async function createTaxonomiesSitemapResponse(
+  loaders: SitemapContentLoaders
+): Promise<Response> {
   return toXmlResponse(renderSitemap(buildUrlEntries(await getTaxonomyPaths(loaders.getWebsites))))
 }
 

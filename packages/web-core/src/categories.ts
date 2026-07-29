@@ -1,4 +1,3 @@
-import { assertSiteIdIsNotRemoved } from '@thedaviddias/site-contract/active-site-ids'
 import type { LucideIcon } from 'lucide-react'
 import {
   Brain,
@@ -119,10 +118,6 @@ const categoryPresentationBySlug: Record<string, CategoryPresentation> = {
   }
 }
 
-const siteCategorySlugs: Record<string, string[]> = {
-  'serp.software': ['adult', 'product-launch-websites', 'video-downloaders']
-}
-
 export const categoryAliases: Record<string, string> = {
   'automation-workflow': 'video-downloaders',
   'course-platforms': 'course-platform-downloaders',
@@ -143,45 +138,35 @@ function resolveCategoryIcon(slug: string): LucideIcon {
   return categoryPresentationBySlug[slug]?.icon || Package
 }
 
-function resolveRuntimeSiteId(): string | undefined {
-  return process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID
-}
-
 export function normalizeCategorySlug(slug: string): string {
   return categoryAliases[slug] || slug
 }
 
-export function resolveCategories(siteId = resolveRuntimeSiteId()): Category[] {
-  if (siteId) assertSiteIdIsNotRemoved(siteId)
-  const allowedSlugs = siteId ? siteCategorySlugs[siteId] : undefined
-  return Object.entries(categoryPresentationBySlug)
-    .filter(([slug]) => !allowedSlugs || allowedSlugs.includes(slug))
-    .map(([slug, presentation]) => {
-      const name =
-        presentation.name ||
-        slug
-          .split('-')
-          .map(word => `${word[0]?.toUpperCase() || ''}${word.slice(1)}`)
-          .join(' ')
-      return {
-        description: presentation.description || buildFallbackDescription(name),
-        icon: resolveCategoryIcon(slug),
-        name,
-        priority: presentation.priority || 'low',
-        slug
-      }
-    })
+export function getCategoryBySlug(slug: string): Category {
+  const normalizedSlug = normalizeCategorySlug(slug)
+  const presentation = categoryPresentationBySlug[normalizedSlug] || {}
+  const name =
+    presentation.name ||
+    normalizedSlug
+      .split('-')
+      .map(word => `${word[0]?.toUpperCase() || ''}${word.slice(1)}`)
+      .join(' ')
+
+  return {
+    description: presentation.description || buildFallbackDescription(name),
+    icon: resolveCategoryIcon(normalizedSlug),
+    name,
+    priority: presentation.priority || 'low',
+    slug: normalizedSlug
+  }
 }
 
-export const categories: Category[] = resolveCategories()
-
-export const getCategoryBySlug = (slug: string): Category | undefined => {
-  const normalizedSlug = normalizeCategorySlug(slug)
-  return categories.find(category => category.slug === normalizedSlug)
+export function resolveCategories(slugs: readonly string[]): Category[] {
+  return [...new Set(slugs.map(normalizeCategorySlug))].map(getCategoryBySlug)
 }
 
 export const getCategoryLabel = (slug: string): string => {
-  return getCategoryBySlug(slug)?.name || normalizeCategorySlug(slug)
+  return getCategoryBySlug(slug).name
 }
 
 export const getCategoryIcon = (slug: string): LucideIcon => {

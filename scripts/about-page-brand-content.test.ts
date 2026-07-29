@@ -131,12 +131,6 @@ describe('active site About page brand content', () => {
       expect(source).toContain(`const aboutPath = '../../sites/${siteId}/content/about'`)
       expect(source).not.toContain("const aboutPath = '../../packages/content/data/about'")
     }
-
-    const starterCollections = readFileSync(
-      resolve(process.cwd(), 'apps/starter/content-collections.ts'),
-      'utf8'
-    )
-    expect(starterCollections).toContain("const aboutPath = '../../packages/content/data/about'")
   })
 
   it('renders SERP Software About with the shared content loader', () => {

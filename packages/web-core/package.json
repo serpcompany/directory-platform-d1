@@ -67,7 +67,7 @@
     "./search/search-utils": "./src/search/search-utils.ts",
     "./search/use-search": "./src/search/use-search.ts",
     "./search/use-search-helpers": "./src/search/use-search-helpers.ts",
-    "./search-index": "./src/search-index.ts",
+    "./search-contract": "./src/search-contract.ts",
     "./schema": "./src/schema.ts",
     "./sections/creator-projects-section": "./src/sections/creator-projects-section.tsx",
     "./sections/creator-projects-section-route": "./src/sections/creator-projects-section-route.tsx",

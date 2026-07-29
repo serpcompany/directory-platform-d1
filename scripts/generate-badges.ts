@@ -2,15 +2,11 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateSync, inflateSync } from 'node:zlib'
-import {
-  defaultSiteConfig,
-  resolveCheckedInSiteConfig,
-  siteConfigsById
-} from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig, siteConfigsById } from '@thedaviddias/site-contract'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dirname, '..')
-const SERP_ARROW_MARK_PATH = 'apps/starter/public/img/serp-arrow-logo-black.svg'
+const SERP_ARROW_MARK_PATH = 'apps/serp.software/public/img/serp-arrow-logo-black.svg'
 const R2_BADGE_KEY_PREFIX = 'badge'
 const BADGE_WIDTH = 200
 const BADGE_HEIGHT = 50
@@ -530,7 +526,7 @@ function buildSvg(opts: {
 }
 
 function main(): void {
-  const siteIds = [defaultSiteConfig.id, ...Object.keys(siteConfigsById)]
+  const siteIds = Object.keys(siteConfigsById)
   const r2Assets: R2FeaturedBadgeAsset[] = []
 
   for (const siteId of siteIds) {

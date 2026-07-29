@@ -8,38 +8,12 @@ export type AssetSource =
       url: string
     }
 
-export type ListingSourceConfig =
-  | {
-      kind: 'listing-json'
-      outputPath?: string
-      path: string
-    }
-  | {
-      approvedOnly?: true
-      binding?: string
-      databaseName?: string
-      exportPath?: string
-      kind: 'd1-listings'
-      mode?: 'local-d1' | 'snapshot'
-      outputPath?: string
-      seedSource?: {
-        category: string
-        featuredCount: number
-        kind: 'trial-products-json'
-        path: string
-        publishedAt: string
-      }
-      siteId?: string
-      wranglerConfigPath?: string
-    }
-  | {
-      category: string
-      featuredCount: number
-      kind: 'trial-products-json'
-      outputPath?: string
-      path: string
-      publishedAt: string
-    }
+export type ListingSourceConfig = {
+  approvedOnly: true
+  binding: 'DB'
+  kind: 'd1-listings'
+  siteId: 'serp.software'
+}
 
 export type SiteCopyConfig = {
   brandsLabel: string
@@ -54,15 +28,6 @@ export type SiteCopyConfig = {
 }
 
 export type SiteExternalResourceIcon = 'chrome' | 'code2' | 'command' | 'gitBranch' | 'terminal'
-
-export type SiteCategoryPriority = 'high' | 'medium' | 'low'
-
-export type SiteCategoryInput = {
-  description?: string
-  name: string
-  priority?: SiteCategoryPriority
-  slug: string
-}
 
 export type SiteExternalResource = {
   description: string
@@ -104,20 +69,13 @@ export type SiteBadgesConfig = {
   }
 }
 
-export type GitHubPagesRepoSyncDeployConfig = {
-  branch: string
-  preserve: string[]
-  repoUrl: string
-  strategy: 'github-pages-repo-sync'
-}
-
 export type OpenNextCloudflareWorkerDeployConfig = {
   previewConfigPath: string
   productionConfigPath: string
   strategy: 'opennext-cloudflare-worker'
 }
 
-export type DeployConfig = GitHubPagesRepoSyncDeployConfig | OpenNextCloudflareWorkerDeployConfig
+export type DeployConfig = OpenNextCloudflareWorkerDeployConfig
 
 export type SiteFeatureFlags = {
   showAuth: boolean
@@ -158,7 +116,7 @@ export type CheckedInSiteConfig = {
     appPackageName: string
     appOutDir: string
     artifactDir: string
-    mode: 'static-directory'
+    mode: 'opennext-cloudflare-worker'
   }
   copy: SiteCopyConfig
   content: {
@@ -192,18 +150,4 @@ export type CheckedInSiteConfig = {
     twitterUrl: string
   }
   version: 1
-}
-
-type Primitive = boolean | null | number | string | undefined
-
-export type DeepPartial<T> = T extends Primitive
-  ? T
-  : T extends Array<infer U>
-    ? Array<DeepPartial<U>>
-    : {
-        [K in keyof T]?: DeepPartial<T[K]>
-      }
-
-export type CheckedInSiteConfigOverride = DeepPartial<Omit<CheckedInSiteConfig, 'id'>> & {
-  id: string
 }

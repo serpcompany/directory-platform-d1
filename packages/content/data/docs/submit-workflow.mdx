@@ -1,113 +1,20 @@
 ---
 title: 'Submit Workflow'
-description: 'How the static starter turns the /submit page into a prefilled GitHub issue review flow'
+description: 'How submissions move from GitHub review into Cloudflare D1'
 order: 4
 published: true
 ---
 
 # Submit Workflow
 
-<p className="mt-2 text-xl text-muted-foreground">
-  The active starter keeps submissions simple. The site gathers the basics, then
-  sends the user to a prefilled GitHub issue for review.
-</p>
+The `/submit` form loads active category options from D1 and opens a prefilled GitHub
+issue. It never writes the production database from the browser.
 
-## Why the starter uses GitHub issues
+A maintainer reviews an accepted submission, records a proposal under
+`d1/proposals/`, and authors a versioned publication manifest under
+`d1/publications/`. The protected publication workflow creates a backup, validates
+the current version and checksum, and applies the manifest as one D1 batch.
 
-The current starter does not run a submissions backend. It stays static-friendly by using GitHub as the review queue.
-
-That means the active app does not need:
-
-- Site auth
-- A database
-- A server action or API route for submissions
-- A moderation dashboard in the app itself
-
-Instead, the repo becomes the source of truth and GitHub becomes the audit trail.
-
-## What happens when someone submits
-
-1. The user opens `/submit`.
-2. The form collects the required listing name, category, website URL, logo URL, video URL, descriptions, FAQ, and resource link.
-3. When the user clicks **Submit**, the client builds a GitHub issue URL.
-4. The browser navigates to the GitHub issue composer with a title and prefilled body.
-5. A maintainer reviews the issue and, if approved, updates the active checked-in listing source.
-6. That accepted change becomes a PR, and CI validates the configured listing source before merge.
-
-## Current category rule
-
-The public form currently collects one category only.
-
-Treat that value as the primary category for intake.
-If the listing needs secondary categories, maintainers add them later during review in the checked-in source data.
-
-## Example GitHub issue URL
-
-```txt
-https://github.com/OWNER/REPO/issues/new
-  ?title=Submit listing: Example Project
-  &body=...
-```
-
-## Example prefilled issue body
-
-```md
-## Listing details
-
-Name: Example Project
-Website: https://example.com
-Category: developer-tools
-
-## Description
-
-A short summary of what the project does.
-
-## Media
-
-Logo URL: https://example.com/logo.png
-Video URL: https://www.youtube.com/watch?v=abc123
-
-## Resource links
-
-- Docs: https://example.com/docs
-
-## FAQs
-
-### Does it work in Chrome?
-
-Yes.
-
-## Additional notes
-
-Helpful reviewer context.
-```
-
-## Files that control the flow
-
-- `apps/starter/app/submit/page.tsx` renders the public submit page.
-- `packages/web-core/src/forms/github-issue-submit-form.tsx` renders the form and handles the client-side redirect.
-- `packages/web-core/src/github-issue.ts` builds the final GitHub issue URL, title, and body.
-- `sites/site-config.default.ts` plus `sites/<id>/site-config.ts` provide the checked-in owner, repo, and issue URL values.
-- `.github/workflows/update-listings-json.yml` validates accepted listing changes when `data/listings.json` is edited in a PR or on `main`.
-- `docs/knowledge/taxonomy-discovery-contract.md` records the current shared starter taxonomy and single-category intake rule.
-
-## How accepted listing changes are gated
-
-The current starter treats GitHub issues as intake and pull requests as the write path.
-
-That means:
-
-- the public site does not write listing JSON directly
-- maintainers review submissions in GitHub first
-- any accepted edit to the active checked-in listing source must pass validation before merge
-
-For `serp.software`, accepted listings are edited in `sites/serp.software/products.json`
-through this repository's normal PR, validation, build, and manually approved deploy process.
-
-## What to change if you customize it
-
-- Change the GitHub owner or repo in the checked-in site config.
-- Add or remove fields in `packages/web-core/src/forms/github-issue-submit-form.tsx`.
-- Keep the GitHub issue handoff if you want to stay static-friendly with no runtime infrastructure.
-
-If you also need the active data contract for accepted entries, see [JSON Shapes](/docs/json-shapes).
+The application form lives in
+`packages/web-core/src/forms/github-issue-submit-form.tsx`. The GitHub target lives in
+`sites/serp.software/site-config.ts`.

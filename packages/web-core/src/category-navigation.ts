@@ -1,77 +1,39 @@
-import {
-  categories,
-  normalizeCategorySlug,
-  resolveCategories,
-  type Category,
-} from './categories';
+import { type Category, normalizeCategorySlug, resolveCategories } from './categories'
 
 export type CategoryLike = {
-  categories?: string[];
-  category?: string;
-  featured?: boolean;
-};
-
-function normalizeListingCategory(category: string): string {
-  return normalizeCategorySlug(category);
+  categories?: string[]
+  category?: string
+  featured?: boolean
 }
 
-function resolveCategorySet(siteId?: string): Category[] {
-  return siteId ? resolveCategories(siteId) : categories;
+function normalizeListingCategory(category: string): string {
+  return normalizeCategorySlug(category)
 }
 
 export function getListingCategories(listing: CategoryLike): string[] {
   const normalizedCategories = [
     ...(listing.category ? [listing.category] : []),
-    ...(listing.categories || []),
+    ...(listing.categories || [])
   ]
-    .map((category) => category.trim())
+    .map(category => category.trim())
     .filter(Boolean)
-    .map(normalizeListingCategory);
+    .map(normalizeListingCategory)
 
-  return [...new Set(normalizedCategories)];
+  return [...new Set(normalizedCategories)]
 }
 
-export function listingMatchesCategory(
-  listing: CategoryLike,
-  categorySlug: string
-): boolean {
-  return getListingCategories(listing).includes(
-    normalizeListingCategory(categorySlug)
-  );
+export function listingMatchesCategory(listing: CategoryLike, categorySlug: string): boolean {
+  return getListingCategories(listing).includes(normalizeListingCategory(categorySlug))
 }
 
-export function getUnknownCategorySlugs(
-  listings: CategoryLike[],
-  siteId?: string
-): string[] {
-  const knownCategorySlugs = new Set(
-    resolveCategorySet(siteId).map((category) => category.slug)
-  );
-
-  return [
-    ...new Set(
-      listings
-        .flatMap(getListingCategories)
-        .filter((category) => !knownCategorySlugs.has(category))
-    ),
-  ];
-}
-
-export function getActiveCategories(
-  listings: CategoryLike[],
-  siteId?: string
-): Category[] {
-  const activeCategorySlugs = new Set(listings.flatMap(getListingCategories));
-
-  return resolveCategorySet(siteId).filter((category) =>
-    activeCategorySlugs.has(category.slug)
-  );
+export function getActiveCategories(listings: CategoryLike[]): Category[] {
+  return resolveCategories(listings.flatMap(getListingCategories))
 }
 
 export function getFeaturedListingCount(listings: CategoryLike[]): number {
-  return listings.filter((listing) => listing.featured === true).length;
+  return listings.filter(listing => listing.featured === true).length
 }
 
 export function hasFeaturedListings(listings: CategoryLike[]): boolean {
-  return getFeaturedListingCount(listings) > 0;
+  return getFeaturedListingCount(listings) > 0
 }

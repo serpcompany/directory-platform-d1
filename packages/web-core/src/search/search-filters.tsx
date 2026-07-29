@@ -5,12 +5,12 @@ import { Checkbox } from '@thedaviddias/design-system/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
-  DropdownMenuTrigger,
+  DropdownMenuTrigger
 } from '@thedaviddias/design-system/dropdown-menu'
 import { Filter, X } from 'lucide-react'
 import { useState } from 'react'
+import { getCategoryBySlug, resolveCategories } from '../categories'
 import { getCategoryDisplayName } from '../category-display'
-import { categories } from '../categories'
 
 interface SearchFiltersProps {
   selectedCategories: string[]
@@ -22,15 +22,11 @@ interface SearchFiltersProps {
 export function SearchFilters({
   selectedCategories,
   onCategoryChange,
-  availableCategories = [],
+  availableCategories = []
 }: SearchFiltersProps) {
   const [isOpen, setIsOpen] = useState(false)
 
-  const relevantCategories = categories.filter(
-    category =>
-      availableCategories.includes(category.slug) ||
-      selectedCategories.includes(category.slug)
-  )
+  const relevantCategories = resolveCategories([...availableCategories, ...selectedCategories])
 
   const handleCategoryToggle = (categorySlug: string, checked: boolean) => {
     if (checked) {
@@ -116,8 +112,7 @@ export function SearchFilters({
       {activeFiltersCount > 0 && (
         <div className="flex items-center gap-1 flex-wrap">
           {selectedCategories.map(categorySlug => {
-            const category = categories.find(entry => entry.slug === categorySlug)
-            if (!category) return null
+            const category = getCategoryBySlug(categorySlug)
 
             return (
               <div

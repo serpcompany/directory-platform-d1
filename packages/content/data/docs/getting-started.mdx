@@ -1,98 +1,27 @@
 ---
 title: 'Getting Started'
-description: 'Run the directory starter locally, configure a site, and build a static artifact'
+description: 'Run the Cloudflare D1-backed SERP Software Worker locally'
 order: 1
 published: true
 ---
 
 # Getting Started
 
-<p className="mt-2 text-xl text-muted-foreground">
-  Get the starter running locally, point it at a checked-in site config, and
-  ship a static build artifact.
-</p>
-
-## Before you start
-
-- Use Node `24.13.1` from the repo `.nvmrc`
-- Use `pnpm` `10`
-- Decide which checked-in site you are building under `sites/<id>/`
-
-## Install dependencies
+Use Node 24 and pnpm 10.
 
 ```bash
 nvm use
 pnpm install
-```
-
-## Run the app locally
-
-For normal UI work, use the web app only:
-
-```bash
+pnpm d1:local:migrate
+pnpm d1:local:import
+pnpm d1:local:verify
 pnpm dev
 ```
 
-That starts the active site wrapper on `http://localhost:3005`.
+The local preview is the same OpenNext Worker architecture used in production, with
+an isolated local D1 identity. Listings, categories, search, RSS, and sitemaps all
+query D1.
 
-Use these variants when you need them:
-
-- `pnpm dev:starter` runs the default starter wrapper directly
-- `pnpm dev:all` runs the older full Turbo workspace loop
-- `pnpm dev:site -- --site <id>` prepares the selected site's listing data and starts dev with the correct site env
-- `pnpm --filter starter dev:inspect` starts the starter wrapper with the Node inspector attached
-
-## Understand the checked-in site inputs
-
-The active starter keeps site identity and shell behavior in checked-in config files:
-
-- `sites/site-config.default.ts` defines the starter defaults
-- `sites/<id>/site-config.ts` holds sparse per-site overrides
-- `sites/<id>/site-content.ts` holds optional site-owned modules such as `externalResources` and `listingCliInstall`
-
-The current listing source of truth is usually `data/listings.json`, though a site-specific build step can transform another JSON file into that shape before export.
-
-## Build a static site artifact
-
-Build one site at a time:
-
-```bash
-pnpm build:site -- --site your-site-id
-```
-
-The output lands under `dist/sites/<site-id>` based on the checked-in build config.
-
-## Useful checks
-
-Validate listing data before building:
-
-```bash
-pnpm validate:listings data/listings.json
-```
-
-If your site uses a source adapter like `sites/<id>/products.json`, regenerate the normalized dataset first:
-
-```bash
-pnpm prepare:site -- --site your-site-id
-```
-
-Run the main test suite:
-
-```bash
-pnpm test
-```
-
-Refresh the search index explicitly when you need to inspect the generated artifact:
-
-```bash
-pnpm generate-search-index
-```
-
-## Next steps
-
-- Review the [commands reference](/docs/commands) for the day-to-day scripts
-- Use the [AI-assisted workflow notes](/docs/agents) if you are making changes with coding agents
-- Check [JSON shapes](/docs/json-shapes) before editing `data/listings.json`
-- Review the [submit workflow](/docs/submit-workflow) before changing the GitHub handoff
-- Use the [rebrand checklist](/docs/rebrand-checklist) before swapping names, assets, or legal copy
-- Browse the [directory](/listing) to review listing output
+Site presentation configuration lives in `sites/serp.software/site-config.ts`.
+Schema changes live in `d1/migrations/`, while approved catalog changes use
+versioned manifests under `d1/publications/`.

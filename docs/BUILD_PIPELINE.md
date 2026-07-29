@@ -7,8 +7,7 @@ active release path.
 
 ## Ownership
 
-- `sites/site-config.default.ts` and `sites/serp.software/site-config.ts`: checked-in
-  application configuration.
+- `sites/serp.software/site-config.ts`: checked-in application configuration.
 - `packages/content/data/**/*.mdx`: file-authored documentation and legal content.
 - `d1/migrations/`: versioned D1 schema.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
@@ -16,8 +15,8 @@ active release path.
 - `d1/publications/`: approved, versioned mutation manifests.
 - `apps/serp.software/lib/catalog/`: server-only D1 repository.
 
-The retained listing/category JSON files are migration inputs only. Runtime, build,
-search, sitemap, RSS, and writer paths must not import them.
+No catalog JSON inputs exist. Runtime, build, search, sitemap, RSS, and writer paths
+must remain D1-only.
 
 ## Validate and build
 

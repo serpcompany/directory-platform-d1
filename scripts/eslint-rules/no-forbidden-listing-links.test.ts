@@ -34,15 +34,15 @@ function lintText(source: string, filename: string) {
 }
 
 describe('no-forbidden-listing-links', () => {
-  it('reports help.serp.co/en links in product data', () => {
+  it('reports help.serp.co/en links in D1 repository code', () => {
     const messages = lintText(
-      '{\n  "relatedLinks": [{ "url": "https://help.serp.co/en/" }]\n}\n',
-      'sites/browserextensions.io/products.json'
+      'const supportUrl = "https://help.serp.co/en/"\n',
+      'apps/serp.software/lib/catalog/repository.ts'
     )
 
     expect(messages).toEqual([
       expect.objectContaining({
-        line: 2,
+        line: 1,
         message: expect.stringContaining('https://help.serp.co/en/'),
         ruleId: 'directory/no-forbidden-listing-links'
       })
@@ -66,7 +66,7 @@ describe('no-forbidden-listing-links', () => {
   it('reports help.serp.co/en links in listing normalization code', () => {
     const messages = lintText(
       'const helpCenter = "https://help.serp.co/en/"\n',
-      'packages/site-contract/src/trial-products.ts'
+      'packages/web-core/src/content-query.ts'
     )
 
     expect(messages).toHaveLength(1)

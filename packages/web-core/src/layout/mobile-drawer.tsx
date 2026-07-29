@@ -7,7 +7,7 @@ import {
   DirectoryNavigationSection,
   directoryNavigationInteractiveClassName
 } from '@thedaviddias/design-system/shadcnblocks/directory-navigation'
-import { categories } from '@thedaviddias/web-core/categories'
+import { resolveCategories } from '@thedaviddias/web-core/categories'
 import { getCategoryDisplayName } from '@thedaviddias/web-core/category-display'
 import { externalResources } from '@thedaviddias/web-core/external-resources'
 import { getRoute } from '@thedaviddias/web-core/routes'
@@ -49,9 +49,7 @@ export function MobileDrawer({
   const isAuthConfigured = authState?.isConfigured ?? true
   const showExternalResources =
     siteConfig.features.showExternalResources && externalResources.length > 0
-  const availableCategories = availableCategorySlugs
-    ? categories.filter(category => availableCategorySlugs.includes(category.slug))
-    : categories
+  const availableCategories = resolveCategories(availableCategorySlugs || [])
 
   // Close drawer when route changes
   useEffect(() => {

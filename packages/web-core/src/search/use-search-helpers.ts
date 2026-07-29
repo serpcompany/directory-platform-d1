@@ -1,16 +1,13 @@
 import { logger } from '@thedaviddias/logging'
-import type { SearchIndexEntry } from '../search-index'
+import type { SearchResult } from '../search-contract'
 import type { SearchWebsiteMetadata } from './search-utils'
 import {
   canTransformToWebsiteMetadata,
   matchesSearchQuery,
-  transformToWebsiteMetadata,
+  transformToWebsiteMetadata
 } from './search-utils'
 
-export function filterAndSortEntries(
-  entries: SearchIndexEntry[],
-  query: string
-): SearchIndexEntry[] {
+export function filterAndSortEntries(entries: SearchResult[], query: string): SearchResult[] {
   const queryLower = query.toLowerCase()
 
   return entries
@@ -20,7 +17,7 @@ export function filterAndSortEntries(
       } catch (matchError) {
         logger.error('Error matching entry:', {
           data: { matchError, entry },
-          tags: { type: 'component' },
+          tags: { type: 'component' }
         })
         return false
       }
@@ -42,23 +39,21 @@ export function filterAndSortEntries(
     })
 }
 
-export function validateEntries(entries: SearchIndexEntry[]): SearchIndexEntry[] {
+export function validateEntries(entries: SearchResult[]): SearchResult[] {
   return entries.filter(entry => {
     try {
       return canTransformToWebsiteMetadata(entry)
     } catch (validationError) {
       logger.error('Error validating entry:', {
         data: { validationError, entry },
-        tags: { type: 'component' },
+        tags: { type: 'component' }
       })
       return false
     }
   })
 }
 
-export function transformAndSanitizeEntries(
-  entries: SearchIndexEntry[]
-): SearchWebsiteMetadata[] {
+export function transformAndSanitizeEntries(entries: SearchResult[]): SearchWebsiteMetadata[] {
   return entries
     .map(entry => {
       try {
@@ -66,7 +61,7 @@ export function transformAndSanitizeEntries(
       } catch (transformError) {
         logger.error('Error transforming entry:', {
           data: { transformError, entry },
-          tags: { type: 'component' },
+          tags: { type: 'component' }
         })
         return {
           url: '',
@@ -77,7 +72,7 @@ export function transformAndSanitizeEntries(
           category: '',
           publishedAt: '',
           categories: [],
-          tags: [],
+          tags: []
         }
       }
     })
@@ -92,15 +87,13 @@ export function transformAndSanitizeEntries(
       } catch {
         return {
           ...result,
-          website: '#',
+          website: '#'
         }
       }
     })
 }
 
-export function tryLenientProcessing(
-  entries: SearchIndexEntry[]
-): SearchWebsiteMetadata[] {
+export function tryLenientProcessing(entries: SearchResult[]): SearchWebsiteMetadata[] {
   try {
     return entries
       .map(entry => {
@@ -114,7 +107,7 @@ export function tryLenientProcessing(
   } catch (lenientError) {
     logger.error('Error during lenient processing:', {
       data: lenientError,
-      tags: { type: 'component' },
+      tags: { type: 'component' }
     })
     return []
   }

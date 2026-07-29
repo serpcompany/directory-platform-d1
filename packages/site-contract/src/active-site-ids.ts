@@ -27,7 +27,5 @@ export function assertSiteIdIsSupported(siteId: string): void {
     return
   }
 
-  throw new Error(
-    `Site "${siteId}" is not an active checked-in site in this repo. Use "default" or a supported checked-in site id instead.`
-  )
+  throw new Error(`Site "${siteId}" is not active in this repo. Use "serp.software".`)
 }

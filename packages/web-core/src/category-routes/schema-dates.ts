@@ -1,5 +1,4 @@
 import type { WebsiteMetadata } from '../content-query'
-import { siteConfig } from '../site-config'
 
 type PublishedDateSource = Pick<WebsiteMetadata, 'publishedAt'>
 
@@ -69,22 +68,14 @@ function comparePublishedDate(a: ParsedSchemaDate, b: ParsedSchemaDate): number 
 }
 
 export function resolveCollectionPageSchemaDates(
-  items: readonly PublishedDateSource[],
-  fallbackPublishedAt = siteConfig.listingSourcePublishedAt
+  items: readonly PublishedDateSource[]
 ): CollectionPageSchemaDates {
   const publishedDates = items
     .map(item => parseSchemaDate(item.publishedAt))
     .filter((publishedAt): publishedAt is ParsedSchemaDate => publishedAt !== null)
     .sort(comparePublishedDate)
-  const fallbackDate = parseSchemaDate(fallbackPublishedAt)
-
   if (publishedDates.length === 0) {
-    return fallbackDate
-      ? {
-          dateModified: fallbackDate.output,
-          datePublished: fallbackDate.output
-        }
-      : {}
+    return {}
   }
 
   return {

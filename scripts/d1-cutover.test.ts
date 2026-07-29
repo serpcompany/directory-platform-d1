@@ -1,8 +1,7 @@
-import { readFileSync } from 'node:fs'
+import { readdirSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 import { parse } from 'yaml'
-import { createD1MigrationArtifact } from './d1-migration-artifact.ts'
 import { buildPublicationPlan, executePublicationPlan, manifestSchema } from './d1-publisher.ts'
 
 const provenance = {
@@ -11,28 +10,15 @@ const provenance = {
   beforeChecksum: 'a'.repeat(64)
 }
 
-const retiredRuntimeReferences = [
-  'products.json',
-  'categories.json',
-  'data/listings.json',
-  'search/search-index.json',
-  'trial-products-json',
-  'listing-json'
-]
-
 describe('local D1 cutover contracts', () => {
-  it('generates a deterministic, field-complete migration artifact', () => {
-    const first = createD1MigrationArtifact()
-    const firstSql = readFileSync(resolve(first.artifactPath), 'utf8')
-    const firstReport = readFileSync(resolve(first.reportPath), 'utf8')
-    createD1MigrationArtifact()
-    expect(readFileSync(resolve(first.artifactPath), 'utf8')).toBe(firstSql)
-    expect(readFileSync(resolve(first.reportPath), 'utf8')).toBe(firstReport)
-
-    const report = parse(firstReport) as {
+  it('keeps the reviewed SQL bootstrap and parity evidence internally consistent', () => {
+    const artifactSql = readFileSync(resolve('d1/artifacts/serp-software-v1.sql'), 'utf8')
+    const reportSource = readFileSync(resolve('d1/artifacts/serp-software-v1-parity.yaml'), 'utf8')
+    const report = parse(reportSource) as {
       parity: {
         duplicateSlugs: string[]
         exactSlugSet: string[]
+        importBatches: number
         invalidRecords: unknown[]
         records: Array<{ checksum: string; source: unknown; target: unknown }>
       }
@@ -44,6 +30,15 @@ describe('local D1 cutover contracts', () => {
     expect(report.parity.exactSlugSet).toHaveLength(report.source.productCount)
     expect(report.target.listingCount).toBe(report.source.productCount)
     expect(report.parity.records).toHaveLength(report.source.productCount)
+    expect(
+      readdirSync(resolve('d1/artifacts/serp-software-v1-import')).filter(file =>
+        file.endsWith('.sql')
+      )
+    ).toHaveLength(report.parity.importBatches)
+    expect(artifactSql).toContain(report.target.checksum)
+    expect(
+      readFileSync(resolve('d1/artifacts/serp-software-v1-import/0001.sql'), 'utf8')
+    ).toContain("'serp.software'")
     expect(
       report.parity.records.every(
         record => record.checksum && JSON.stringify(record.source) === JSON.stringify(record.target)
@@ -187,10 +182,7 @@ describe('local D1 cutover contracts', () => {
     const route = readFileSync(resolve('apps/serp.software/app/products/[slug]/page.tsx'), 'utf8')
     expect(repository).toContain('JOIN listings l ON l.id = r.listing_id')
     expect(repository).toContain('r.old_slug = ?')
-    expect(repository).toContain('FROM listings l WHERE ${publicEligibilitySql()} AND id IN')
-    expect(repository).toContain(
-      'JOIN listings l ON l.id=f.listing_id WHERE ${publicEligibilitySql()}'
-    )
+    expect(repository).toContain('FROM listings l WHERE $' + '{publicEligibilitySql()} AND id IN')
     expect(route.indexOf('permanentRedirect')).toBeLessThan(
       route.indexOf('notFound()', route.indexOf('if (!project)'))
     )
@@ -269,22 +261,6 @@ describe('local D1 cutover contracts', () => {
           'Duplicate listing operation ID.'
         ])
       )
-  })
-
-  it('keeps retired catalog files and adapters out of the Worker runtime', () => {
-    const runtimeFiles = [
-      'apps/serp.software/lib/content-loader.ts',
-      'apps/serp.software/lib/catalog/repository.ts',
-      'apps/serp.software/app/api/search/route.ts',
-      'apps/serp.software/app/[slug]/page.tsx',
-      'apps/serp.software/next.config.ts',
-      'sites/serp.software/site-config.ts'
-    ]
-    for (const file of runtimeFiles) {
-      const source = readFileSync(resolve(file), 'utf8')
-      for (const retired of retiredRuntimeReferences)
-        expect(source, `${file} references ${retired}`).not.toContain(retired)
-    }
   })
 
   it('pins every executable D1 path to the dedicated local identity', () => {

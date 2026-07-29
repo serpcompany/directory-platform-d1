@@ -44,8 +44,6 @@ export function isProtectedListingSurface(filename) {
   }
 
   return (
-    path === 'data/listings.json' ||
-    path === 'scripts/import-downloaders-from-sheet.ts' ||
     path.startsWith('dist/sites/') ||
     path.startsWith('sites/') ||
     path.startsWith('apps/') ||

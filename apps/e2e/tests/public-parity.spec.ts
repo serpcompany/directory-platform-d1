@@ -2,11 +2,12 @@ import { expect, type Locator, type Page, test } from '@playwright/test'
 
 import { detailListing } from './listing-fixture'
 
-const listingRouteBasePath = process.env.E2E_LISTING_ROUTE_BASE_PATH ?? 'listing'
+const listingRouteBasePath = process.env.E2E_LISTING_ROUTE_BASE_PATH ?? 'products'
 const categoryRouteBasePath = process.env.E2E_CATEGORY_ROUTE_BASE_PATH ?? 'categories'
 const categorySlug = process.env.E2E_CATEGORY_SLUG ?? 'video-downloaders'
 const isPilotParityTarget =
-  process.env.E2E_SITE_ID === 'serpdownloaders.com' || listingRouteBasePath === 'products'
+  (process.env.E2E_SITE_ID ?? 'serp.software') === 'serp.software' &&
+  listingRouteBasePath === 'products'
 
 async function gotoPilot(page: Page, path: string) {
   await page.goto(path, { waitUntil: 'domcontentloaded' })
@@ -30,7 +31,7 @@ async function expectExternalLink(link: Locator) {
 }
 
 test.describe('pilot public parity interactions', () => {
-  test.skip(!isPilotParityTarget, 'Pilot parity tests require serpdownloaders.com route env')
+  test.skip(!isPilotParityTarget, 'Public parity tests require the serp.software route env')
 
   test('homepage search submit preserves search URL behavior', async ({ page }) => {
     await gotoPilot(page, '/')

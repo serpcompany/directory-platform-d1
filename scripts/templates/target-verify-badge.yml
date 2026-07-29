@@ -17,6 +17,6 @@ jobs:
       contains(github.event.comment.body, '/check-badge'))
     permissions:
       issues: write
-    uses: serpcompany/json-directory-template/.github/workflows/reusable-verify-badge.yml@main
+    uses: serpcompany/directory-platform-d1/.github/workflows/reusable-verify-badge.yml@main
     secrets:
       GH_PAT: ${{ secrets.GH_PAT }}

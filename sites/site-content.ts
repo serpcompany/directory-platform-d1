@@ -1,1 +1,1 @@
-export { defaultSiteContent, resolveSiteContent } from '@thedaviddias/site-contract/site-content';
+export { resolveSiteContent } from '@thedaviddias/site-contract/site-content'

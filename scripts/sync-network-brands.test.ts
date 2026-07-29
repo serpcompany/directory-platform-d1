@@ -127,13 +127,12 @@ describe('syncNetworkBrands', () => {
   it('defaults to the SERP docs source and web-core runtime target', () => {
     const paths = getDefaultNetworkBrandsPaths({
       homeDir: '/Users/example',
-      repoRoot: '/workspace/json-directory-template'
+      repoRoot: '/workspace/directory-platform-d1'
     })
 
     expect(paths).toEqual({
       sourcePath: '/Users/example/dev/repos/serp/docs/websites/pages/brands.json',
-      targetPath:
-        '/workspace/json-directory-template/packages/web-core/src/data/network-brands.json'
+      targetPath: '/workspace/directory-platform-d1/packages/web-core/src/data/network-brands.json'
     })
   })
 })

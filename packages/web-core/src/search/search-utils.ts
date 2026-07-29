@@ -1,5 +1,5 @@
 import { logger } from '@thedaviddias/logging'
-import type { SearchIndexEntry } from '../search-index'
+import type { SearchResult } from '../search-contract'
 
 export interface SearchWebsiteMetadata {
   url: string
@@ -13,7 +13,7 @@ export interface SearchWebsiteMetadata {
   publishedAt: string
 }
 
-export function canTransformToWebsiteMetadata(entry: SearchIndexEntry): boolean {
+export function canTransformToWebsiteMetadata(entry: SearchResult): boolean {
   try {
     if (entry.slug.includes('.DS_Store') || entry.url.includes('.DS_Store')) {
       return false
@@ -31,22 +31,20 @@ export function canTransformToWebsiteMetadata(entry: SearchIndexEntry): boolean 
   } catch (error) {
     logger.error('Error checking entry validity:', {
       data: { error, entry },
-      tags: { type: 'component' },
+      tags: { type: 'component' }
     })
     return false
   }
 }
 
-export function transformToWebsiteMetadata(
-  entry: SearchIndexEntry
-): SearchWebsiteMetadata {
+export function transformToWebsiteMetadata(entry: SearchResult): SearchWebsiteMetadata {
   try {
     const website = entry.website || ''
     const name = entry.name || 'Untitled'
     const description = entry.description || ''
     const categories = [
       ...(entry.category ? [entry.category] : []),
-      ...(entry.categories || []),
+      ...(entry.categories || [])
     ].filter(Boolean)
     const uniqueCategories = [...new Set(categories)]
 
@@ -59,12 +57,12 @@ export function transformToWebsiteMetadata(
       categories: uniqueCategories,
       tags: [],
       category: uniqueCategories[0] || '',
-      publishedAt: '',
+      publishedAt: ''
     }
   } catch (error) {
     logger.error('Error transforming entry:', {
       data: { error, entry },
-      tags: { type: 'component' },
+      tags: { type: 'component' }
     })
 
     return {
@@ -76,15 +74,12 @@ export function transformToWebsiteMetadata(
       categories: [],
       tags: [],
       category: '',
-      publishedAt: '',
+      publishedAt: ''
     }
   }
 }
 
-export function matchesSearchQuery(
-  entry: SearchIndexEntry,
-  query: string
-): boolean {
+export function matchesSearchQuery(entry: SearchResult, query: string): boolean {
   try {
     if (!query) {
       return false
@@ -97,16 +92,14 @@ export function matchesSearchQuery(
       entry.category?.toLowerCase(),
       entry.categories?.join(' ').toLowerCase(),
       entry.website?.toLowerCase(),
-      entry.url?.toLowerCase(),
+      entry.url?.toLowerCase()
     ].filter(Boolean)
 
-    return searchTerms.every(term =>
-      searchableFields.some(field => field?.includes(term))
-    )
+    return searchTerms.every(term => searchableFields.some(field => field?.includes(term)))
   } catch (error) {
     logger.error('Error matching query:', {
       data: { error, entry, query },
-      tags: { type: 'component' },
+      tags: { type: 'component' }
     })
     return false
   }

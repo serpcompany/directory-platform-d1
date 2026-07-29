@@ -207,12 +207,10 @@ async function runBadgeCheck({
 
 async function runCreateListingPr({
   ghPat = 'test-token',
-  issueBody = submissionIssueBody(),
-  mainProducts = {}
+  issueBody = submissionIssueBody()
 }: {
   ghPat?: null | string
   issueBody?: string
-  mainProducts?: Record<string, unknown>
 } = {}) {
   const comments: string[] = []
   const failures: string[] = []
@@ -259,26 +257,14 @@ async function runCreateListingPr({
     if (
       method === 'GET' &&
       decodedPath ===
-        '/repos/serpcompany/json-directory-template/pulls?state=open&head=serpcompany:listing/serp.co/serplists.com&base=main'
+        '/repos/serpcompany/directory-platform-d1/pulls?state=open&head=serpcompany:listing/serp.co/serplists.com&base=main'
     ) {
       data = []
     } else if (
       method === 'GET' &&
-      decodedPath === '/repos/serpcompany/json-directory-template/git/ref/heads/main'
+      decodedPath === '/repos/serpcompany/directory-platform-d1/git/ref/heads/main'
     ) {
       data = { object: { sha: 'main-sha' } }
-    } else if (
-      method === 'GET' &&
-      decodedPath === '/repos/serpcompany/json-directory-template/git/trees/main-sha:sites/serp.co'
-    ) {
-      data = { tree: [{ path: 'products.json', sha: 'main-products-sha' }] }
-    } else if (
-      method === 'GET' &&
-      decodedPath === '/repos/serpcompany/json-directory-template/git/blobs/main-products-sha'
-    ) {
-      data = {
-        content: Buffer.from(JSON.stringify(mainProducts), 'utf8').toString('base64')
-      }
     } else {
       return {
         ok: false,
@@ -379,14 +365,13 @@ describe('reusable verify badge workflow', () => {
 
     expect(createPrStep?.if).toBe("steps.badge.outputs.found == 'true'")
     expect(createPrStep?.env?.GH_PAT).toBe(githubExpression('{{ secrets.GH_PAT }}'))
-    expect(source).toContain("const sourceRepo = 'json-directory-template'")
+    expect(source).toContain("const sourceRepo = 'directory-platform-d1'")
     expect(source).toContain("const assignee = 'devinschumacher'")
     expect(source).toContain('const proposalPath = `d1/proposals/')
-    expect(source).toContain("kind: listing-create-proposal")
+    expect(source).toContain('kind: listing-create-proposal')
     expect(source).toContain("const { createHash } = require('node:crypto')")
     expect(source).toContain('submission.logoUrl ? [`    logo:')
     expect(source).not.toContain(`/media/products/$${'{'}submission.slug}/logo.png`)
-    expect(source).not.toContain('products.json')
     expect(source).toContain(`/repos/$${'{'}sourceOwner}/$${'{'}sourceRepo}/pulls`)
     expect(source).toContain('/assignees')
   })
@@ -397,7 +382,7 @@ describe('reusable verify badge workflow', () => {
     expect(fetch).not.toHaveBeenCalled()
     expect(failures).toEqual(['Missing GH_PAT secret for source repo PR creation.'])
     expect(comments).toEqual([
-      ':warning: **Badge verified, PR not created**\n\nThe badge is verified, but this repo is missing the `GH_PAT` secret required to create a PR in `serpcompany/json-directory-template`. @devinschumacher, please add the secret and rerun `/check-badge`.'
+      ':warning: **Badge verified, PR not created**\n\nThe badge is verified, but this repo is missing the `GH_PAT` secret required to create a PR in `serpcompany/directory-platform-d1`. @devinschumacher, please add the secret and rerun `/check-badge`.'
     ])
   })
 
@@ -406,8 +391,6 @@ describe('reusable verify badge workflow', () => {
     expect(source).toContain('d1/proposals/')
     expect(source).toContain('After review, convert this proposal into a versioned manifest')
     expect(source).not.toContain('readProductsAt')
-    expect(source).not.toContain('productsBlobSha')
-    expect(source).not.toContain('JSON.stringify(products')
   })
 
   it('parses the details section so media URLs are not mistaken for the submitted website', () => {
@@ -429,9 +412,7 @@ describe('reusable verify badge workflow', () => {
     expect(source).toContain('expectedBadgeImageUrls.includes(src)')
     expect(source).toContain('if (lastAttempt.foundDofollow && lastAttempt.foundBadgeImage)')
     expect(source).not.toContain('if (foundDofollow) {')
-    expect(source).toContain(
-      "const listingPathParts = ['products', submission.slug]"
-    )
+    expect(source).toContain("const listingPathParts = ['products', submission.slug]")
     expect(source).toContain('[0, 30, 60, 120, 180, 300]')
     expect(source).toContain('[0, 15, 45]')
     expect(source).toContain('core.notice(')
@@ -607,7 +588,7 @@ describe('target verify badge workflow template', () => {
     const verifyJob = workflow.jobs.verify
 
     expect(verifyJob.uses).toBe(
-      'serpcompany/json-directory-template/.github/workflows/reusable-verify-badge.yml@main'
+      'serpcompany/directory-platform-d1/.github/workflows/reusable-verify-badge.yml@main'
     )
     expect(verifyJob.secrets?.GH_PAT).toBe(githubExpression('{{ secrets.GH_PAT }}'))
     expect(verifyJob.steps).toBeUndefined()

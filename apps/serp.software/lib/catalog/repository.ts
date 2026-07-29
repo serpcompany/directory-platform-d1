@@ -7,7 +7,7 @@ import type {
   WebsiteNavigationMetadata,
   WebsiteRelatedCardMetadata
 } from '@thedaviddias/web-core/content-query'
-import { websiteJsonEntrySchema } from '@thedaviddias/web-core/website-schema'
+import { websiteEntrySchema } from '@thedaviddias/web-core/website-schema'
 import { cache } from 'react'
 
 const SITE_ID = 'serp.software'
@@ -155,7 +155,7 @@ async function hydrateListings(
       .map(media => media.url)
     const logo = mediaRowsForListing.find(media => media.kind === 'logo')?.url
     const video = mediaRowsForListing.find(media => media.kind === 'video')?.url
-    const parsed = websiteJsonEntrySchema.parse({
+    const parsed = websiteEntrySchema.parse({
       categories: categoryMemberships.map(category => category.slug),
       category: primary.slug,
       content: row.content || undefined,
@@ -376,17 +376,6 @@ export async function searchListings(query: string, limit = 50): Promise<Website
     ]
   )
   return hydrateListings(database, rows)
-}
-
-async function getListingFaqs(
-  listingId: string
-): Promise<Array<{ question: string; answer: string }>> {
-  const database = await getDatabase()
-  return queryAll(
-    database,
-    `SELECT f.question, f.answer FROM listing_faqs f JOIN listings l ON l.id=f.listing_id WHERE ${publicEligibilitySql()} AND f.listing_id = ? ORDER BY f.sort_order`,
-    [SITE_ID, listingId]
-  )
 }
 
 export async function getAutocomplete(query: string, limit = 8): Promise<WebsiteMetadata[]> {
