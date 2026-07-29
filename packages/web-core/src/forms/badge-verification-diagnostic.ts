@@ -109,6 +109,12 @@ export function getBadgeVerificationDiagnostic(
         title: 'Website temporarily rate-limited verification'
       }
     }
+    if (status === 530) {
+      return {
+        message: `The verifier received HTTP 530 before it could load a page from ${website}. Check the domain DNS, origin server, and firewall or bot-protection settings, then try again.`,
+        title: 'Website could not be reached'
+      }
+    }
     if (status >= 500) {
       return {
         message: `${website} returned HTTP ${httpStatus}, which means its server failed before the badge could be checked. Restore the page, then try again.`,

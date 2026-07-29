@@ -3,7 +3,7 @@
 Status: active
 Owner: submission intake
 Created: 2026-07-30
-Last updated: 2026-07-30 05:49 JST
+Last updated: 2026-07-30 05:58 JST
 
 ## Purpose and big picture
 
@@ -37,8 +37,10 @@ protected GitHub Actions workflow in `docs/DEPLOY_RUNBOOK.md`.
   behavior through the local OpenNext Worker, D1 API, restored UI, and screenshots.
 - [x] 2026-07-30 05:49 JST Passed the repository harness and the complete Playwright
   suite, including a restore-and-retry browser test for the new diagnostic.
-- [ ] Pass GitHub review checks.
-- [ ] Deploy through the protected workflow and verify production behavior.
+- [x] 2026-07-30 05:52 JST Passed GitHub review checks and merged PR #9.
+- [x] 2026-07-30 05:55 JST Deployed reviewed `main` through protected production
+  workflow run `30490152839`.
+- [ ] Finish production acceptance and reject the disposable D1 rows.
 
 ## Surprises and discoveries
 
@@ -56,6 +58,12 @@ protected GitHub Actions workflow in `docs/DEPLOY_RUNBOOK.md`.
   Evidence: the first local Worker run classified an `.invalid` hostname as
   `verification_service_error`; after classification was based on the failing phase,
   the same Worker/D1 journey returned `site_unreachable` with zero attempts consumed.
+- Observation: production Cloudflare returns a synthetic HTTP 530 response for an
+  unresolvable `.invalid` hostname instead of throwing from `fetch`.
+  Evidence: disposable live submission `ec1454a7-5783-47aa-bcba-8153d165f3ea`
+  persisted `http_530` with zero attempts consumed. The generic 5xx copy was accurate
+  that no badge scan occurred but did not identify the likely DNS/origin problem, so
+  HTTP 530 receives dedicated remediation.
 
 ## Decision log
 
