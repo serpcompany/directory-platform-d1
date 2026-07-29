@@ -1,6 +1,6 @@
 # Add a private draft listing preview
 
-Status: active
+Status: completed
 Owner: submission intake and production operations
 Created: 2026-07-30
 Last updated: 2026-07-30
@@ -50,8 +50,10 @@ preview, so the response must not send a referrer, be cached, or be indexed.
 - [x] 2026-07-30 04:10 JST Proved correct/wrong capability behavior, visual
       rendering, privacy headers, status-based revocation, private issue delivery,
       and the complete repository harness locally.
-- [ ] Merge, deploy through the protected workflow, and prove a live assigned issue
-      opens a private preview that expires after decline.
+- [x] 2026-07-30 04:36 JST Merged PRs #4 and #6, deployed through two protected
+      backup/migrate/verify releases, proved a live assigned preview with zero
+      structured-data scripts, rejected its disposable row, and proved immediate
+      preview revocation plus issue closure.
 
 ## Surprises and discoveries
 
@@ -222,8 +224,29 @@ changing production still requires fresh authority under `docs/DEPLOY_RUNBOOK.md
   did expose the shared visual breadcrumb's JSON-LD; the follow-up opt-out fixes
   that finding before final acceptance.
 - Follow-up full harness and 14 browser E2E tests passed locally.
-- Add the follow-up PR/run and post-decision revocation evidence after release.
+- PR #6 merged as `5387b1d`; its GitHub build, type, unit, policy, E2E, triage, and
+  review gates passed.
+- Corrected production run `30484831819` retained a new D1 backup, found migration
+  state current, verified D1, and deployed the Worker.
+- The corrected live preview returned 200 with the draft banner, required privacy
+  headers, and zero `application/ld+json` scripts.
+- Protected review run `30485018888` retained a pre-decision backup, rejected the
+  disposable D1 row, commented on issue #5, and closed it.
+- The identical preview capability subsequently returned 404 with no draft content.
+  The public `/products/httpbin.org/` route contained no acceptance listing data and
+  rendered the generic not-found surface.
 
 ## Outcomes and retrospective
 
-Complete after the requirement-by-requirement audit.
+The private reviewer experience is live. Every badge-verified submission notified
+after migration `0008` receives a one-click draft link in its assigned private issue.
+The page renders normalized D1 staging data through the real listing-detail UI,
+visibly labels itself unpublished, is uncached/unindexed/no-referrer, and emits no
+structured data. D1 stores only the capability digest, and the `verified` status
+predicate revokes the link immediately after approval or rejection.
+
+The live acceptance test caught a breadcrumb JSON-LD source outside the page's
+obvious schema slot. Keeping the plan active through production proof allowed that
+privacy gap to be corrected before completion. There are no known residual risks
+beyond the deliberate bearer-link model: anyone who receives the raw private issue
+URL can view the draft until a reviewer decides it.
