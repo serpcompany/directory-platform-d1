@@ -1,3 +1,4 @@
+import { execFileSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { resolve } from 'node:path'
@@ -33,7 +34,33 @@ function sourceFixture(): { root: string; site: string } {
       }
     })
   )
+  execFileSync('git', ['init', '--quiet'], { cwd: root })
+  execFileSync('git', ['config', 'user.email', 'migration-test@example.com'], { cwd: root })
+  execFileSync('git', ['config', 'user.name', 'Migration Test'], { cwd: root })
+  execFileSync('git', ['remote', 'add', 'origin', 'https://example.com/source.git'], { cwd: root })
+  commitFixture(root)
   return { root, site }
+}
+
+function commitFixture(root: string): void {
+  execFileSync('git', ['add', '.'], { cwd: root })
+  execFileSync('git', ['commit', '--quiet', '-m', 'fixture'], { cwd: root })
+}
+
+function writeTrialAdapterConfig(root: string, site: string): void {
+  writeFileSync(
+    resolve(root, 'sites', site, 'site-config.ts'),
+    `export const config = {
+      content: {
+        listingSource: {
+          category: 'video-tools',
+          featuredCount: 6,
+          kind: 'trial-products-json',
+          publishedAt: '2026-05-03'
+        }
+      }
+    }\n`
+  )
 }
 
 describe('legacy migration preflight', () => {
@@ -78,6 +105,7 @@ describe('legacy migration preflight', () => {
         }
       })
     )
+    commitFixture(fixture.root)
 
     const report = inspectLegacySite(fixture.root, fixture.site)
     expect(report.readyForMapping).toBe(false)
@@ -89,6 +117,171 @@ describe('legacy migration preflight', () => {
         'Product map-key has no tagline.',
         'Product map-key has no title.'
       ])
+    )
+  })
+
+  it('validates an omitted category through the checked-in trial adapter contract', () => {
+    const fixture = sourceFixture()
+    writeTrialAdapterConfig(fixture.root, fixture.site)
+    writeFileSync(
+      resolve(fixture.root, 'sites', fixture.site, 'products.json'),
+      JSON.stringify({
+        'example-tool': {
+          product: {
+            productPage: 'https://example.com/tool',
+            slug: 'example-tool',
+            tagline: 'A complete product description.',
+            title: 'Example Tool'
+          },
+          content: { body: '## Overview\n\nUseful product.' }
+        }
+      })
+    )
+    commitFixture(fixture.root)
+
+    const report = inspectLegacySite(fixture.root, fixture.site, '2026-07-30T00:00:00.000Z')
+
+    expect(report.readyForMapping).toBe(true)
+    expect(report.adapter).toEqual({
+      defaultCategory: 'video-tools',
+      featuredCount: 6,
+      kind: 'trial-products-json',
+      publishedAt: '2026-05-03'
+    })
+    expect(report.warnings).toContain(
+      '1 products use trial-products-json default category video-tools.'
+    )
+  })
+
+  it('rejects an adapter default category that is absent from taxonomy', () => {
+    const fixture = sourceFixture()
+    writeTrialAdapterConfig(fixture.root, fixture.site)
+    writeFileSync(
+      resolve(fixture.root, 'sites', fixture.site, 'categories.json'),
+      JSON.stringify([{ slug: 'other', name: 'Other', description: 'Other products.' }])
+    )
+    writeFileSync(
+      resolve(fixture.root, 'sites', fixture.site, 'products.json'),
+      JSON.stringify({
+        'example-tool': {
+          product: {
+            productPage: 'https://example.com/tool',
+            slug: 'example-tool',
+            tagline: 'A complete product description.',
+            title: 'Example Tool'
+          },
+          content: { body: '## Overview\n\nUseful product.' }
+        }
+      })
+    )
+    commitFixture(fixture.root)
+
+    const report = inspectLegacySite(fixture.root, fixture.site)
+
+    expect(report.readyForMapping).toBe(false)
+    expect(report.issues).toContain(
+      'Product example-tool requires missing adapter default category video-tools.'
+    )
+  })
+
+  it('rejects ambiguous or dynamic adapter configuration', () => {
+    const fixture = sourceFixture()
+    writeFileSync(
+      resolve(fixture.root, 'sites', fixture.site, 'site-config.ts'),
+      `const listingSource = {
+        category: 'video-tools',
+        featuredCount: 6,
+        kind: 'trial-products-json',
+        publishedAt: '2026-05-03'
+      }
+      export const config = { content: { listingSource } }\n`
+    )
+    commitFixture(fixture.root)
+
+    const report = inspectLegacySite(fixture.root, fixture.site)
+
+    expect(report.readyForMapping).toBe(false)
+    expect(report.issues).toContain(
+      'site config must contain exactly one static content.listingSource object for migration.'
+    )
+  })
+
+  it('rejects an adapter-like object outside the exported site config', () => {
+    const fixture = sourceFixture()
+    writeFileSync(
+      resolve(fixture.root, 'sites', fixture.site, 'site-config.ts'),
+      `const unrelated = {
+        content: {
+          listingSource: {
+            category: 'video-tools',
+            featuredCount: 6,
+            kind: 'trial-products-json',
+            publishedAt: '2026-05-03'
+          }
+        }
+      }
+      export const config = { content: unrelated }\n`
+    )
+    commitFixture(fixture.root)
+
+    const report = inspectLegacySite(fixture.root, fixture.site)
+
+    expect(report.readyForMapping).toBe(false)
+    expect(report.issues).toContain(
+      'listingSource must be declared directly under the exported site config content object.'
+    )
+  })
+
+  it('rejects invalid adapter dates and out-of-range featured counts', () => {
+    const fixture = sourceFixture()
+    writeFileSync(
+      resolve(fixture.root, 'sites', fixture.site, 'site-config.ts'),
+      `export const config = {
+        content: {
+          listingSource: {
+            category: 'video-tools',
+            featuredCount: 10001,
+            kind: 'trial-products-json',
+            publishedAt: '2026-02-31'
+          }
+        }
+      }\n`
+    )
+    commitFixture(fixture.root)
+
+    const report = inspectLegacySite(fixture.root, fixture.site)
+
+    expect(report.readyForMapping).toBe(false)
+    expect(report.issues).toContain(
+      'trial-products-json content.listingSource must statically declare a valid category, featuredCount from 0 to 10000, and calendar publishedAt date.'
+    )
+  })
+
+  it('rejects malformed TypeScript and unsupported source kinds', () => {
+    const malformedFixture = sourceFixture()
+    writeFileSync(
+      resolve(malformedFixture.root, 'sites', malformedFixture.site, 'site-config.ts'),
+      'export const config = { content: { listingSource: {'
+    )
+    commitFixture(malformedFixture.root)
+    expect(inspectLegacySite(malformedFixture.root, malformedFixture.site).issues).toContain(
+      'site config contains TypeScript syntax errors and cannot be inspected safely.'
+    )
+
+    const unsupportedFixture = sourceFixture()
+    writeFileSync(
+      resolve(unsupportedFixture.root, 'sites', unsupportedFixture.site, 'site-config.ts'),
+      `export const config = {
+        content: {
+          listingSource: {
+            kind: 'listing-json'
+          }
+        }
+      }\n`
+    )
+    commitFixture(unsupportedFixture.root)
+    expect(inspectLegacySite(unsupportedFixture.root, unsupportedFixture.site).issues).toContain(
+      'Unsupported static content.listingSource kind for migration: listing-json.'
     )
   })
 })

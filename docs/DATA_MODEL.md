@@ -6,7 +6,7 @@ The schema is versioned in `d1/migrations/`.
 - `categories` stores active taxonomy rows and display order.
 - `listings` stores public product fields, status, publication time, and stable IDs.
 - `listing_categories` stores ordered many-to-many category membership.
-- `listing_resources` and `listing_faqs` store repeatable detail content.
+- `listing_resource_links` and `listing_faqs` store repeatable detail content.
 - `publication_state` records the current version and checksum.
 - publication audit tables record applied manifests and operations.
 - `listing_submissions` stores private pending, verified, approved, or rejected
@@ -18,8 +18,10 @@ The schema is versioned in `d1/migrations/`.
   capability. The raw capability is never stored in D1. This table is an operational
   delivery ledger, not the submission source of truth.
 
-Public queries require the `serp.software` site ID, approved status, active rows, and
-a publication time that is not in the future.
+Public queries require the Worker-selected site ID, approved status, active rows, and
+a publication time that is not in the future. `serp.software` and
+`pornvideodownloaders.com` use separate D1 databases in every environment as well as
+tenant predicates, so an incorrect binding or site ID fails closed.
 
 Creating or badge-verifying a submission never satisfies those public predicates.
 Only the protected submission approval workflow can promote a verified row into the
@@ -37,10 +39,12 @@ publisher validates the base version, prior checksum, IDs, slugs, URLs, categori
 and repeatable fields before sending one batch. YAML is a review envelope, not an
 alternate runtime database.
 
-`d1/artifacts/serp-software-v1.sql` and its batch/parity files preserve the initial
-bootstrap. They are immutable release evidence and must not be treated as editable
-catalog source.
+`d1/artifacts/serp-software-v1.sql`,
+`d1/artifacts/pornvideodownloaders-com-v1.sql`, and their batch/parity files preserve
+the initial bootstraps. They are immutable release evidence and must not be treated
+as editable catalog source.
 
 Future initial site imports must follow [the migration SOP](./MIGRATION_SOP.md). The
 presence of `site_id` columns does not by itself prove safe multisite runtime,
-publication, backup, or deployment behavior.
+publication, backup, or deployment behavior. The per-site target registry and
+protected workflows are part of that proof.

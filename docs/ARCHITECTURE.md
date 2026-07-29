@@ -1,7 +1,8 @@
 # Architecture
 
-The public application is `apps/serp.software`, built by
-`@opennextjs/cloudflare` and deployed as a Cloudflare Worker.
+The public applications are `apps/serp.software` and
+`apps/pornvideodownloaders.com`. Each is built by `@opennextjs/cloudflare` and
+deployed as a distinct Cloudflare Worker with a distinct D1 database.
 
 Each request reaches the Worker with a D1 database bound as `DB`. Server components
 and route handlers call the server-only catalog repository. That repository performs
@@ -17,8 +18,8 @@ Browser
 ```
 
 The same repository supplies home/category/product pages, `/api/search`, RSS, and
-sitemap inputs. Site presentation settings remain checked in at
-`sites/serp.software/site-config.ts`; they do not contain catalog records.
+sitemap inputs. Site presentation settings remain checked in under `sites/<site-id>/`;
+they do not contain catalog records.
 
 `D1_RUNTIME_ENV` must match the intended local, preview, or production environment.
 Wrangler configuration keeps those identities separate. Production commands also
@@ -26,14 +27,14 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 
 ## Responsibility map
 
-- `apps/serp.software/app/` adapts HTTP routes and Server Components to application
+- `apps/<site-id>/app/` adapts HTTP routes and Server Components to application
   behavior.
-- `apps/serp.software/lib/catalog/` owns D1 access, public eligibility, relational
+- `apps/<site-id>/lib/catalog/` owns D1 access, public eligibility, relational
   hydration, and server-only enforcement.
-- `apps/serp.software/lib/submissions/` owns private intake, submitter and reviewer
+- `apps/<site-id>/lib/submissions/` owns private intake, submitter and reviewer
   capability access, rate limits, badge verification state, and the D1-backed draft
   preview mapping.
-- `sites/serp.software/` owns checked-in presentation, route, feature, and public site
+- `sites/<site-id>/` owns checked-in presentation, route, feature, and public site
   settings.
 - `packages/web-core/` owns reusable page/view behavior but never obtains a database
   binding directly.
@@ -68,6 +69,10 @@ normalized staging tables through `DB`, requires `verified` status and a hashed
 review capability, and fails closed with the same runtime-environment checks as the
 other D1 boundaries.
 
-The repository is currently single-site outside the relational schema. Adding another
-site requires the tenancy and isolation work in [the migration SOP](./MIGRATION_SOP.md),
-not merely another `sites/` directory.
+Every executable site selection is explicit and checked against the active-site
+registry. Each tenant has its own app package, local state subdirectory, Wrangler
+templates, preview and production D1 resources, Worker name, route, confirmation
+strings, and protected GitHub environments. Shared publication and submission tools
+bind their SQL to the selected site and reject mismatches. Adding a third site still
+requires the full tenancy and isolation work in
+[the migration SOP](./MIGRATION_SOP.md), not merely another `sites/` directory.

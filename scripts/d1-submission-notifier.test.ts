@@ -9,6 +9,7 @@ import {
   notifyVerifiedSubmissions,
   validateNotificationContext
 } from './d1-submission-notifier'
+import { siteTargets } from './site-targets'
 
 const env = {
   CI: 'true',
@@ -22,7 +23,8 @@ const env = {
   SUBMISSION_REVIEWER_GITHUB_LOGIN: 'reviewer',
   CLOUDFLARE_ACCOUNT_ID: 'account',
   CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: 'database',
-  CLOUDFLARE_API_TOKEN: 'cloudflare-token'
+  CLOUDFLARE_API_TOKEN: 'cloudflare-token',
+  DEPLOY_SITE_ID: 'serp.software'
 }
 
 const submission = {
@@ -40,7 +42,7 @@ const submission = {
   created_at: '2026-07-30 05:55:00'
 }
 const previewToken = 'a'.repeat(43)
-const previewUrl = buildReviewPreviewUrl(submission.id, previewToken)
+const previewUrl = buildReviewPreviewUrl(submission.id, previewToken, 'serp.software')
 
 function githubExpression(expression: string): string {
   return `$${`{{ ${expression} }}`}`
@@ -120,6 +122,7 @@ describe('D1 submission notifier', () => {
   it('formats private review details without turning submitted mentions into notifications', () => {
     const issue = buildReviewIssue({
       submission,
+      target: siteTargets['serp.software'],
       previewUrl,
       resources: [
         {
@@ -139,7 +142,7 @@ describe('D1 submission notifier', () => {
       ]
     })
     expect(issue.title).toBe('[Submission review] Example @ Product (example.com)')
-    expect(issue.body).toContain(`<!-- serp-submission-id: ${submission.id} -->`)
+    expect(issue.body).toContain(`<!-- d1-submission: serp.software:${submission.id} -->`)
     expect(issue.body).toContain('Example &#64; Product')
     expect(issue.body).toContain('A useful &lt;listing&gt;.')
     expect(issue.body).toContain('approve-serp.software-submission-production')
@@ -163,6 +166,7 @@ describe('D1 submission notifier', () => {
         name: `${'N'.repeat(60)}\n${'N'.repeat(59)}`,
         slug: `${'s'.repeat(240)}.example`
       },
+      target: siteTargets['serp.software'],
       previewUrl,
       resources: [],
       faqs: []
@@ -243,7 +247,7 @@ describe('D1 submission notifier', () => {
         return Response.json([
           {
             assignees: [],
-            body: `<!-- serp-submission-id: ${submission.id} -->`,
+            body: `<!-- d1-submission: serp.software:${submission.id} -->`,
             html_url: 'https://github.com/serpcompany/directory-platform-d1/issues/41',
             number: 41
           }
@@ -326,7 +330,9 @@ describe('D1 submission notifier', () => {
     expect(workflow.on.schedule).toEqual([{ cron: '*/5 * * * *' }])
     expect(workflow.on.workflow_dispatch).toBeDefined()
     expect(workflow.permissions).toEqual({ contents: 'read', issues: 'write' })
-    expect(workflow.jobs.notify.environment.name).toBe('production')
+    expect(workflow.jobs.notify.environment.name).toBe('${{ matrix.environment }}')
+    expect(source).toContain('site_id: pornvideodownloaders.com')
+    expect(source).toContain('environment: pornvideodownloaders-production')
     expect(workflow.jobs.notify.steps.at(-1)?.run).toBe('pnpm d1:notify:production')
     expect(workflow.jobs.notify.steps.at(-1)?.env).toEqual(
       expect.objectContaining({

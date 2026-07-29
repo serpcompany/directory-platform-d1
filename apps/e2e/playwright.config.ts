@@ -1,10 +1,16 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const playwrightPort = Number(process.env.PLAYWRIGHT_PORT ?? 3100)
+const selectedSiteId = process.env.E2E_SITE_ID ?? 'serp.software'
+const playwrightPort = Number(
+  process.env.PLAYWRIGHT_PORT ?? (selectedSiteId === 'pornvideodownloaders.com' ? 9544 : 3100)
+)
 const baseUrl = process.env.PLAYWRIGHT_BASE_URL ?? `http://127.0.0.1:${playwrightPort}`
+const defaultWebServerCommand =
+  selectedSiteId === 'pornvideodownloaders.com'
+    ? `cd ../.. && pnpm d1:pornvideodownloaders:local:migrate && pnpm d1:pornvideodownloaders:local:import && pnpm d1:pornvideodownloaders:local:verify && PORT=${playwrightPort} pnpm preview:pornvideodownloaders`
+    : `cd ../.. && pnpm d1:local:migrate && pnpm d1:local:import && pnpm d1:local:verify && PORT=${playwrightPort} pnpm worker:preview`
 const webServerCommand =
-  process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ??
-  `cd ../.. && pnpm d1:local:migrate && pnpm d1:local:import && pnpm d1:local:verify && PORT=${playwrightPort} pnpm worker:preview`
+  process.env.PLAYWRIGHT_WEB_SERVER_COMMAND ?? defaultWebServerCommand
 const workerCount = Number(process.env.E2E_WORKERS ?? 2)
 const ignoredTests = [
   ...(process.env.E2E_VISUAL === '1' ? [] : ['**/visual.spec.ts']),

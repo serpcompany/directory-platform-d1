@@ -5,10 +5,6 @@ on:
   schedule:
     - cron: '*/5 * * * *'
 
-concurrency:
-  group: serp-software-production-d1
-  cancel-in-progress: false
-
 permissions:
   contents: read
   issues: write
@@ -17,8 +13,19 @@ jobs:
   notify:
     runs-on: ubuntu-latest
     if: github.ref == 'refs/heads/main'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - site_id: serp.software
+            environment: production
+          - site_id: pornvideodownloaders.com
+            environment: pornvideodownloaders-production
+    concurrency:
+      group: ${{ matrix.site_id }}-production-d1
+      cancel-in-progress: false
     environment:
-      name: production
+      name: ${{ matrix.environment }}
     steps:
       - name: Checkout reviewed source
         uses: actions/checkout@v6
@@ -33,6 +40,7 @@ jobs:
           GITHUB_WORKFLOW_REF: ${{ github.workflow_ref }}
           GITHUB_REPOSITORY: ${{ github.repository }}
           GITHUB_TOKEN: ${{ github.token }}
+          DEPLOY_SITE_ID: ${{ matrix.site_id }}
           SUBMISSION_REVIEWER_GITHUB_LOGIN: ${{ vars.SUBMISSION_REVIEWER_GITHUB_LOGIN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}

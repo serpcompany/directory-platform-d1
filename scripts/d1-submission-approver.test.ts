@@ -11,6 +11,7 @@ const env = {
   GITHUB_WORKFLOW_REF:
     'serpcompany/directory-platform-d1/.github/workflows/approve-d1-submission.yml@refs/heads/main',
   D1_SUBMISSION_APPROVAL_CONFIRM: 'approve-serp.software-submission-production',
+  DEPLOY_SITE_ID: 'serp.software',
   CLOUDFLARE_ACCOUNT_ID: 'account',
   CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: 'database',
   CLOUDFLARE_API_TOKEN: 'token'

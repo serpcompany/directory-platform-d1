@@ -1,4 +1,4 @@
-import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig, resolveRuntimeSiteId } from '@thedaviddias/site-contract'
 import type {
   AssetSource,
   SiteBadgesConfig,
@@ -118,9 +118,7 @@ function resolveRuntimeBrandAssetUrl(
   return runtimeBrandAssetPaths[kind]
 }
 
-export function resolveSiteConfig(
-  siteId = process.env.NEXT_PUBLIC_SITE_ID || process.env.SITE_ID || 'serp.software'
-): SiteConfig {
+export function resolveSiteConfig(siteId = resolveRuntimeSiteId()): SiteConfig {
   const configuredSite = resolveCheckedInSiteConfig(siteId)
 
   return {

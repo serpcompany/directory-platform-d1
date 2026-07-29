@@ -12,7 +12,7 @@ export type ListingSourceConfig = {
   approvedOnly: true
   binding: 'DB'
   kind: 'd1-listings'
-  siteId: 'serp.software'
+  siteId: 'pornvideodownloaders.com' | 'serp.software'
 }
 
 export type SiteCopyConfig = {

@@ -1,7 +1,12 @@
 # Deploy Runbook
 
-The active `serp.software` release is an OpenNext Cloudflare Worker backed by
-Cloudflare D1. GitHub Pages repo sync and local production deploys are not supported.
+Each active site is an OpenNext Cloudflare Worker backed by its own Cloudflare D1
+database. GitHub Pages repo sync and local remote deploys are not supported.
+
+| Site | Deployment workflow | Preview environment | Production environment |
+| --- | --- | --- | --- |
+| `serp.software` | `build-and-deploy.yml` | `preview` | `production` |
+| `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 ## Local verification
 
@@ -21,10 +26,10 @@ separate database-operation approval. They are guarded by
 
 ## Initial production release
 
-Use `.github/workflows/build-and-deploy.yml` from `main`. The workflow requires:
+Use the selected site's workflow from `main`. The workflow requires:
 
-- the protected `production` environment;
-- the exact `deploy-serp.software-production` confirmation;
+- the site's protected production environment;
+- `deploy-<site-id>-production` exactly;
 - successful configuration, D1 contract, type, and Worker build checks.
 
 The workflow retains a pre-change D1 export, applies migrations, imports the
@@ -33,6 +38,10 @@ catalog parity, and then deploys the Worker. A failed migration, import, or
 verification stops the release before Worker deployment.
 
 Do not run production Wrangler or D1 commands from a local worktree.
+
+For `pornvideodownloaders.com`, rehearse the same sequence first with the `preview`
+target and `deploy-pornvideodownloaders.com-preview`. The preview job uses a separate
+Worker, D1 database, protected environment, backup, and exact parity verification.
 
 ## Verified public submissions
 
@@ -49,8 +58,8 @@ the private repository. The application stores only its SHA-256 digest, sends
 `verified`.
 
 Review the submitted fields, website, and badge in that issue, then manually run
-`.github/workflows/approve-d1-submission.yml` from `main` with the submission UUID and
-the exact `approve-serp.software-submission-production` confirmation. The protected
+`.github/workflows/approve-d1-submission.yml` from `main` with the site ID, submission
+UUID, and exact `approve-<site-id>-submission-production` confirmation. The protected
 workflow backs up D1, applies migrations, and promotes only a verified row while
 recording publication provenance. Select `reject` to close a pending or verified
 submission without publishing it. After the D1 decision succeeds, the workflow
@@ -67,8 +76,9 @@ Catalog changes follow a two-stage review path:
 
 1. A maintainer authors a versioned manifest under
    `d1/publications/`.
-2. From `main`, manually run `.github/workflows/publish-d1.yml`.
-3. Enter `publish-serp.software-production` and approve the protected production
+2. From `main`, manually run `.github/workflows/publish-d1.yml` with the manifest's
+   exact site ID.
+3. Enter `publish-<site-id>-production` and approve that site's protected production
    environment.
 
 The publication workflow retains a pre-change backup and sends the validated
@@ -101,5 +111,10 @@ After an authorized production run:
 - verify the home page, product detail, category, search, RSS, and sitemap routes;
 - verify a legacy root product slug redirects to `/products/<slug>/`;
 - retain the workflow backup for the required recovery window.
+
+Provisioning a new site's Cloudflare databases, Worker names, route, environment
+secrets, and GitHub environment protection is a one-time prerequisite. Record the
+resource IDs and workflow run URLs in the site's active ExecPlan without committing
+credentials.
 
 See [BUILD_PIPELINE.md](./BUILD_PIPELINE.md) for ownership and release architecture.

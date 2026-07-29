@@ -49,7 +49,7 @@ describe('production Worker workflow', () => {
       'pnpm worker:config:validate',
       'pnpm test:d1',
       'pnpm typecheck',
-      'pnpm worker:build',
+      'pnpm worker:build:serpsoftware',
       'pnpm d1:remote:migration:plan:production',
       'pnpm d1:remote:verify:plan:production',
       'pnpm worker:d1:backup:production',
@@ -89,7 +89,9 @@ describe('production Worker workflow', () => {
       step => step.name === 'Retain production D1 backup'
     ) as Step & { uses?: string; with?: Record<string, unknown> }
     expect(backupStep.uses).toBe('actions/upload-artifact@v6')
-    expect(backupStep.with?.path).toBe(`.wrangler/backups/${githubExpression('github.sha')}.sql`)
+    expect(backupStep.with?.path).toBe(
+      `.wrangler/backups/serp-software/production/${githubExpression('github.sha')}.sql`
+    )
     expect(backupStep.with?.['if-no-files-found']).toBe('error')
   })
 })

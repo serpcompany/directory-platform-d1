@@ -28,6 +28,7 @@ const environment = {
   GITHUB_SHA: 'a'.repeat(40),
   GITHUB_WORKFLOW_REF: 'owner/repo/.github/workflows/publish-d1.yml@refs/heads/main',
   D1_PUBLICATION_CONFIRM: 'publish-serp.software-production',
+  DEPLOY_SITE_ID: 'serp.software',
   CLOUDFLARE_ACCOUNT_ID: 'account',
   CLOUDFLARE_API_TOKEN: 'token',
   CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: 'database'
@@ -51,26 +52,41 @@ function response(result: unknown): Response {
 
 describe('remote D1 publisher', () => {
   it('preflights and publishes the reviewed manifest as one API batch', async () => {
-    const fetchImplementation = vi.fn()
+    const fetchImplementation = vi
+      .fn()
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
     const result = await publishRemoteManifest(manifestPath, environment, fetchImplementation)
     expect(result.idempotent).toBe(false)
     expect(fetchImplementation).toHaveBeenCalledTimes(2)
-    const publishBody = JSON.parse(fetchImplementation.mock.calls[1]?.[1]?.body as string) as { batch: unknown[] }
+    const publishBody = JSON.parse(fetchImplementation.mock.calls[1]?.[1]?.body as string) as {
+      batch: unknown[]
+    }
     expect(publishBody.batch.length).toBeGreaterThan(1)
   })
 
   it('returns idempotent success only for the same manifest content', async () => {
-    const initialFetch = vi.fn()
+    const initialFetch = vi
+      .fn()
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
     const initial = await publishRemoteManifest(manifestPath, environment, initialFetch)
-    const inputChecksum = JSON.parse(initialFetch.mock.calls[1]?.[1]?.body as string).batch[3].params[4]
-    const retryFetch = vi.fn().mockResolvedValueOnce(response([{
-      success: true,
-      results: [{ outcome: 'succeeded', input_checksum: inputChecksum, after_checksum: initial.afterChecksum }]
-    }]))
+    const inputChecksum = JSON.parse(initialFetch.mock.calls[1]?.[1]?.body as string).batch[3]
+      .params[4]
+    const retryFetch = vi.fn().mockResolvedValueOnce(
+      response([
+        {
+          success: true,
+          results: [
+            {
+              outcome: 'succeeded',
+              input_checksum: inputChecksum,
+              after_checksum: initial.afterChecksum
+            }
+          ]
+        }
+      ])
+    )
     await expect(publishRemoteManifest(manifestPath, environment, retryFetch)).resolves.toEqual({
       afterChecksum: initial.afterChecksum,
       idempotent: true
@@ -79,13 +95,22 @@ describe('remote D1 publisher', () => {
   })
 
   it('records a failed outcome after a rolled-back batch', async () => {
-    const fetchImplementation = vi.fn()
+    const fetchImplementation = vi
+      .fn()
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
-      .mockResolvedValueOnce(new Response(JSON.stringify({ success: false, errors: [{ message: 'stale version' }] }), { status: 409 }))
+      .mockResolvedValueOnce(
+        new Response(JSON.stringify({ success: false, errors: [{ message: 'stale version' }] }), {
+          status: 409
+        })
+      )
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
-    await expect(publishRemoteManifest(manifestPath, environment, fetchImplementation)).rejects.toThrow('stale version')
+    await expect(
+      publishRemoteManifest(manifestPath, environment, fetchImplementation)
+    ).rejects.toThrow('stale version')
     expect(fetchImplementation).toHaveBeenCalledTimes(3)
-    const failureBody = JSON.parse(fetchImplementation.mock.calls[2]?.[1]?.body as string) as { batch: Array<{ sql: string }> }
+    const failureBody = JSON.parse(fetchImplementation.mock.calls[2]?.[1]?.body as string) as {
+      batch: Array<{ sql: string }>
+    }
     expect(failureBody.batch[0]?.sql).toContain("outcome='failed'")
   })
 })
