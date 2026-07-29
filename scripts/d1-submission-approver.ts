@@ -228,8 +228,10 @@ export async function approveRemoteSubmission(
 }
 
 async function main(): Promise<void> {
-  const submissionId = process.argv[2]
-  const decision = process.argv[3] || 'approve'
+  const [submissionId, requestedDecision = 'approve'] = process.argv
+    .slice(2)
+    .filter(value => value !== '--')
+  const decision = requestedDecision
   if (!submissionId || (decision !== 'approve' && decision !== 'reject')) {
     throw new Error('Usage: pnpm d1:approve:production -- <submission-id> [approve|reject]')
   }
