@@ -42,7 +42,7 @@ function statePath(): string {
     if (!manifest.d1StateDirectory) throw new Error('Runtime manifest has no D1 state directory.')
     return resolve(manifest.d1StateDirectory)
   }
-  return DEFAULT_STATE_PATH
+  return resolve(DEFAULT_STATE_PATH)
 }
 
 function wrangler(args: string[], capture = false): string {

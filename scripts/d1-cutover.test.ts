@@ -280,6 +280,7 @@ describe('local D1 cutover contracts', () => {
     const guard = readFileSync(resolve('scripts/d1-local-guard.ts'), 'utf8')
     const publisher = readFileSync(resolve('scripts/d1-publisher.ts'), 'utf8')
     expect(guard).toContain("'--local'")
+    expect(guard).toContain('return resolve(DEFAULT_STATE_PATH)')
     expect(publisher).toContain('CLI publication is disabled')
     expect(publisher).toContain('D1Database.batch')
     expect(`${guard}\n${publisher}`).not.toMatch(

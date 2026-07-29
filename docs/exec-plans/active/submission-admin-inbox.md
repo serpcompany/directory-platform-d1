@@ -85,10 +85,13 @@ will record the external issue identity so the process is idempotent and auditab
   Playwright exposed and fixed the two stale expectations, then passed 14/14 tests.
 - Observation: a cold OpenNext Worker build on the GitHub E2E runner can exceed
   three minutes even though the same E2E journey starts in roughly 30 seconds
-  locally.
-  Evidence: GitHub run `30478933069` reached the new D1 Worker command but timed out
-  at exactly 180 seconds before Playwright began; the dedicated Worker build job
-  took nearly two minutes without the local D1 setup and preview startup.
+  locally; the timeout initially hid a path-identity defect.
+  Evidence: GitHub runs `30478933069` and `30479366794` reached the new D1 Worker
+  command but timed out at exactly 180 and 360 seconds. The no-manifest guard
+  returned a relative `.wrangler/state` path: root-level migrations populated one
+  database while the filtered app preview resolved the same string from
+  `apps/serp.software` and opened an empty database, leaving the root route unhealthy.
+  Resolving the default path absolutely makes both processes use the same local D1.
 
 ## Decision log
 
