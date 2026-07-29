@@ -1,9 +1,9 @@
 # Make badge verification understandable and reliable
 
-Status: active
+Status: completed
 Owner: submission intake
 Created: 2026-07-30
-Last updated: 2026-07-30 05:58 JST
+Completed: 2026-07-30 06:10 JST
 
 ## Purpose and big picture
 
@@ -40,7 +40,10 @@ protected GitHub Actions workflow in `docs/DEPLOY_RUNBOOK.md`.
 - [x] 2026-07-30 05:52 JST Passed GitHub review checks and merged PR #9.
 - [x] 2026-07-30 05:55 JST Deployed reviewed `main` through protected production
   workflow run `30490152839`.
-- [ ] Finish production acceptance and reject the disposable D1 rows.
+- [x] 2026-07-30 06:04 JST Added production-specific HTTP 530 guidance, passed all
+  PR #10 checks, merged, and deployed workflow run `30490906222`.
+- [x] 2026-07-30 06:10 JST Proved both outcomes in the live browser and rejected the
+  disposable D1 rows through protected runs `30491106096` and `30491108723`.
 
 ## Surprises and discoveries
 
@@ -156,13 +159,31 @@ and existing stable error strings remain compatible.
 
 - `.runtime/directory-platform-d1-main/artifacts/human-badge-missing.png`
 - `.runtime/directory-platform-d1-main/artifacts/human-badge-unreachable.png`
+- `.runtime/directory-platform-d1-main/artifacts/live-badge-missing.png`
+- `.runtime/directory-platform-d1-main/artifacts/live-badge-unreachable.png`
 - `.runtime/directory-platform-d1-main/logs/runtime.log`
 - `CI=1 pnpm test:e2e`: 15 passed, including
   `apps/e2e/tests/submission-verification.spec.ts`
 - `pnpm harness:check`: repository tests, type checks, lint, architecture and D1
   contracts, documentation checks, Cloudflare configuration, and Worker build passed
-- PR checks, production deployment, and protected cleanup runs remain pending.
+- PR #9 and PR #10: all policy, type, unit, Worker-build, and Playwright checks passed
+- Production deploys: runs `30490152839` and `30490906222` passed
+- Protected cleanup: runs `30491106096` and `30491108723` passed; D1 API confirmed
+  both disposable rows have `status: rejected`
 
 ## Outcomes and retrospective
 
-Pending implementation and acceptance evidence.
+Badge verification now reports what actually happened instead of exposing
+`fetch_failed` or implying every failure means “badge absent.” A fetched HTML page
+without the badge is the only path to **Page reached — badge not found**. Connection,
+timeout, redirect, HTTP, response-format, and verifier-service failures have distinct
+plain-language remediation. The UI restores that diagnosis from D1, names the exact
+URL checked, and explains that JavaScript-injected badges cannot be scanned.
+
+The limited attempt counter now advances only for successful checks and conclusive
+HTML scan failures. The live reachable-page proof persisted `badge_missing` with one
+attempt; the live unresolvable-domain proof persisted `http_530` with zero attempts.
+Both rendered the expected human-facing UI on `serp.software`, and both disposable
+rows were rejected without publication. No schema change was required. The remaining
+intentional limitation is server-side initial-HTML scanning rather than browser
+rendering; the submitter-facing instructions disclose it.
