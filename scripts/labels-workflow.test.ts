@@ -45,7 +45,7 @@ describe('labels workflow', () => {
         .flatMap(rule => rule['any-glob-to-any-file'] || []) || []
 
     expect(globs).toContain('d1/migrations/**')
-    expect(globs).toContain('d1/proposals/**')
+    expect(globs).toContain('apps/serp.software/lib/submissions/**')
     expect(globs).toContain('d1/publications/**')
   })
 })

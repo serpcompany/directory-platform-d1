@@ -301,7 +301,7 @@ describe('local D1 cutover contracts', () => {
   it('keeps production exports compatible by avoiding virtual tables', () => {
     const migration = readFileSync(resolve('d1/migrations/0001_public_catalog.sql'), 'utf8')
     const release = readFileSync(resolve('scripts/worker-release.ts'), 'utf8')
-    expect(release).toContain("'d1', 'export'")
+    expect(release).toMatch(/'d1',\s*'export'/u)
     expect(migration).not.toMatch(/CREATE\\s+VIRTUAL\\s+TABLE/i)
   })
 })

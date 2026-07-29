@@ -1,0 +1,193 @@
+# Repository harness
+
+Status: active  
+Responsible area: repository harness  
+Last verified: 2026-07-30  
+Validation: `pnpm harness:fast`
+
+The harness turns repository knowledge into short feedback loops, isolated runtimes,
+and evidence an agent can inspect. It is adapted to this existing production product;
+it does not copy product-neutral template requirements that would replace the current
+application or stack.
+
+## Operating principles
+
+1. The repository is the system of record.
+2. `AGENTS.md` is a map; detailed procedures live here, in runbooks, or in skills.
+3. Important rules become executable checks with remediation.
+4. Untrusted input is parsed at the boundary.
+5. Fast feedback runs repeatedly; the full gate runs before completion.
+6. Worktrees do not share D1 state, ports, logs, caches, or browser evidence.
+7. Runtime state is machine-readable.
+8. Failures improve a test, check, document, or tool rather than becoming folklore.
+9. Production authority remains separate from local technical capability.
+
+## Feedback loops
+
+### Fast loop
+
+```bash
+pnpm harness:fast
+```
+
+This runs documentation health, the D1-only architecture guard, D1 contract tests,
+and TypeScript checks. Each step stops on failure and prints the governing document.
+
+### Full loop
+
+```bash
+pnpm harness:check
+# equivalent
+pnpm validate
+```
+
+The full loop adds read-only lint, repository tests, Wrangler identity validation,
+and the OpenNext Worker build. It never deploys or accesses a remote D1 database.
+
+Run a focused test while implementing, the fast loop at milestone boundaries, and the
+full loop before a substantial completion claim.
+
+## Documentation health
+
+```bash
+pnpm docs:check
+```
+
+The checker enforces:
+
+- required docs, indexes, ExecPlan scaffolding, and skills exist;
+- the root agent map remains concise;
+- local Markdown links resolve;
+- migration SOP phase headings remain intact;
+- skill frontmatter supports progressive disclosure;
+- lint commands are read-only;
+- the root harness command surface remains available.
+
+When it fails, repair the source document or command. Do not weaken the checker to
+make stale documentation pass.
+
+## Runtime legibility
+
+```bash
+pnpm agent:manifest
+pnpm agent:doctor
+pnpm agent:dev
+pnpm agent:logs
+pnpm agent:evidence
+pnpm agent:ui:capture -- --name home --path /
+```
+
+`agent:manifest` prints URLs, ports, D1 and Wrangler state paths, log/artifact paths,
+Git identity, Worker name, D1 binding, and runtime variables as JSON.
+
+`agent:dev` initializes an isolated runtime when needed, builds the Worker, starts its
+local D1 preview on the manifest port, and mirrors output into
+`.runtime/<instance>/logs/runtime.log`. `agent:logs` returns the last 200 lines.
+
+`agent:evidence` writes a timestamped JSON record containing the commit, dirty paths,
+runtime identity, bindings, and validation commands. It does not claim those commands
+passed; attach their actual output separately.
+
+`agent:ui:capture` requires a running isolated Worker. It records the final DOM,
+full-page screenshot, console events, failed requests, and response metadata under
+the runtime artifact directory for a named route journey.
+
+For broader browser behavior, use the existing Playwright smoke suite:
+
+```bash
+pnpm test:e2e:smoke
+```
+
+Playwright retains traces, screenshots, and video on failure. A running isolated
+Worker may be supplied through `PLAYWRIGHT_BASE_URL` and
+`PLAYWRIGHT_WEB_SERVER_COMMAND`.
+
+## Worktree isolation
+
+Create a worktree from a clean controlling checkout:
+
+```bash
+pnpm worktree:new -- feature-name
+```
+
+The command:
+
+1. creates sibling worktree `directory-platform-d1-worktrees/feature-name`;
+2. creates branch `codex/feature-name`;
+3. installs the frozen lockfile;
+4. allocates a deterministic, worktree-specific port;
+5. creates isolated D1, Wrangler, cache, log, artifact, and browser directories;
+6. writes `.runtime/manifest.json`;
+7. prints the exact directory from which to open Codex.
+
+Inside an existing manually created worktree:
+
+```bash
+pnpm worktree:init -- feature-name
+pnpm worktree:doctor
+```
+
+Remove only a registered harness worktree:
+
+```bash
+pnpm worktree:destroy -- feature-name
+```
+
+Destroy preserves `codex/feature-name` for recovery. It refuses paths outside the
+managed sibling directory. Runtime material is ignored by Git.
+
+The local D1 guard reads the worktree manifest and passes that instance’s state path
+to Wrangler. No worktree receives preview or production credentials automatically,
+and `.env` files are deliberately not copied.
+
+## Migration harness
+
+The preflight reads a legacy site in place and writes nothing unless an explicit
+report path is supplied:
+
+```bash
+pnpm migration:preflight -- \
+  --source-root /absolute/path/to/json-directory \
+  --site-id example.com
+```
+
+It reports source hashes, listing/category counts, supporting files, slug/category
+integrity, structural issues, and warnings. Passing means the source is coherent
+enough to map; it does not mean the current single-site runtime can accept it.
+
+Follow [the migration SOP](./MIGRATION_SOP.md) and the
+[migration skill](../.agents/skills/migrate-json-directory-site/SKILL.md).
+
+## Execution plans and review
+
+Substantial work follows [`PLANS.md`](../PLANS.md). Keep the active plan current,
+review the complete diff, run targeted checks, run the full harness, collect runtime
+evidence where behavior changed, and record remaining risk.
+
+The [review-change skill](../.agents/skills/review-change/SKILL.md) converts this into
+a repeatable checklist.
+
+## Harness maintenance
+
+- Add a focused regression test when a failure exposes a missing guardrail.
+- Keep checks deterministic, read-only, and local unless their name explicitly says
+  otherwise.
+- Give every custom failure a violated rule, why it matters, approved remediation,
+  and documentation path.
+- Update [the quality score](./QUALITY_SCORE.md) when evidence or known gaps change.
+- Garden docs when paths, commands, responsibilities, or external assumptions change.
+
+Run the deterministic garden locally with `pnpm docs:garden`. The scheduled
+`.github/workflows/harness-gardening.yml` repeats documentation, architecture,
+migration-fixture, worktree-fixture, and fast-loop checks without write or deployment
+permission.
+
+## Known boundaries
+
+- The repository is currently a single production site, not a generic multisite
+  template.
+- Named route capture is available; scripted before/after interaction sequences remain
+  a future improvement.
+- Local logs are file-queryable; a local metrics/tracing backend is not yet included.
+- `pnpm format` is intentionally mutating. Review its diff; validation uses read-only
+  lint instead.

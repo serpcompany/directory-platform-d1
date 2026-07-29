@@ -66,9 +66,10 @@ tmp/deploy/
 .llms/
 
 # llms.txt documentation
-.agents/
-
 .cursor/
 
 **/next-env.d.ts
 !d1/artifacts/*.yaml
+
+# Per-worktree harness state, logs, browser profiles, and evidence
+.runtime/

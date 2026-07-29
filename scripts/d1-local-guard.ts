@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
@@ -7,8 +7,7 @@ import { parse } from 'yaml'
 const DATABASE_NAME = 'serp-software-local'
 const DATABASE_ID = '00000000-0000-0000-0000-000000000002'
 const CONFIG_PATH = 'wrangler.jsonc'
-const STATE_PATH = '.wrangler/state'
-const ARTIFACT_PATH = 'd1/artifacts/serp-software-v1.sql'
+const DEFAULT_STATE_PATH = '.wrangler/state'
 const ARTIFACT_BATCH_DIRECTORY = 'd1/artifacts/serp-software-v1-import'
 const REPORT_PATH = 'd1/artifacts/serp-software-v1-parity.yaml'
 
@@ -21,16 +20,52 @@ interface WranglerConfig {
 function validateLocalConfig(): void {
   const config = JSON.parse(readFileSync(resolve(CONFIG_PATH), 'utf8')) as WranglerConfig
   const binding = config.d1_databases?.find(candidate => candidate.binding === 'DB')
-  if (config.name !== DATABASE_NAME || config.vars?.D1_RUNTIME_ENV !== 'local') throw new Error('Wrangler config is not the dedicated local serp.software Worker.')
-  if (!binding || binding.database_name !== DATABASE_NAME || binding.database_id !== DATABASE_ID) throw new Error('Refusing non-local, preview, or production D1 identity.')
+  if (config.name !== DATABASE_NAME || config.vars?.D1_RUNTIME_ENV !== 'local')
+    throw new Error('Wrangler config is not the dedicated local serp.software Worker.')
+  if (!binding || binding.database_name !== DATABASE_NAME || binding.database_id !== DATABASE_ID)
+    throw new Error('Refusing non-local, preview, or production D1 identity.')
+}
+
+function statePath(): string {
+  if (process.env.HARNESS_D1_STATE_DIRECTORY) {
+    return resolve(process.env.HARNESS_D1_STATE_DIRECTORY)
+  }
+  const manifestPath = resolve('.runtime/manifest.json')
+  if (existsSync(manifestPath)) {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      d1StateDirectory?: string
+      repositoryPath?: string
+    }
+    if (resolve(manifest.repositoryPath || '') !== resolve('.')) {
+      throw new Error('Runtime manifest belongs to another worktree.')
+    }
+    if (!manifest.d1StateDirectory) throw new Error('Runtime manifest has no D1 state directory.')
+    return resolve(manifest.d1StateDirectory)
+  }
+  return DEFAULT_STATE_PATH
 }
 
 function wrangler(args: string[], capture = false): string {
-  return execFileSync('pnpm', ['exec', 'wrangler', ...args, '--local', '--persist-to', STATE_PATH, '--config', CONFIG_PATH], {
-    encoding: 'utf8',
-    env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },
-    stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit'
-  }) || ''
+  return (
+    execFileSync(
+      'pnpm',
+      [
+        'exec',
+        'wrangler',
+        ...args,
+        '--local',
+        '--persist-to',
+        statePath(),
+        '--config',
+        CONFIG_PATH
+      ],
+      {
+        encoding: 'utf8',
+        env: { ...process.env, WRANGLER_SEND_METRICS: 'false' },
+        stdio: capture ? ['ignore', 'pipe', 'pipe'] : 'inherit'
+      }
+    ) || ''
+  )
 }
 
 function query(command: string): unknown[] {
@@ -44,13 +79,21 @@ function migrate(): void {
 }
 
 function importArtifact(): void {
-  const report = parse(readFileSync(resolve(REPORT_PATH), 'utf8')) as { parity: { importBatches: number }; target: { checksum: string } }
-  const current = query("SELECT checksum FROM publication_state WHERE site_id = 'serp.software'") as Array<{ checksum?: string }>
+  const report = parse(readFileSync(resolve(REPORT_PATH), 'utf8')) as {
+    parity: { importBatches: number }
+    target: { checksum: string }
+  }
+  const current = query(
+    "SELECT checksum FROM publication_state WHERE site_id = 'serp.software'"
+  ) as Array<{ checksum?: string }>
   if (current[0]?.checksum === report.target.checksum) {
     console.log(`Local D1 already matches ${report.target.checksum}; import is a no-op.`)
     return
   }
-  if (current[0]?.checksum) throw new Error('Refusing to overwrite a different published catalog; publish a manifest instead.')
+  if (current[0]?.checksum)
+    throw new Error(
+      'Refusing to overwrite a different published catalog; publish a manifest instead.'
+    )
   for (let index = 1; index <= report.parity.importBatches; index += 1) {
     const batchPath = `${ARTIFACT_BATCH_DIRECTORY}/${String(index).padStart(4, '0')}.sql`
     wrangler(['d1', 'execute', DATABASE_NAME, '--file', batchPath, '--yes'])
@@ -59,13 +102,27 @@ function importArtifact(): void {
 }
 
 function verify(): void {
-  const report = parse(readFileSync(resolve(REPORT_PATH), 'utf8')) as { parity: { exactSlugSet: string[] }; target: { checksum: string; listingCount: number } }
-  const state = query("SELECT version, checksum FROM publication_state WHERE site_id = 'serp.software'") as Array<{ checksum?: string; version?: number }>
-  const rows = query("SELECT slug FROM listings WHERE site_id = 'serp.software' AND status = 'approved' AND is_active = 1 ORDER BY slug") as Array<{ slug: string }>
+  const report = parse(readFileSync(resolve(REPORT_PATH), 'utf8')) as {
+    parity: { exactSlugSet: string[] }
+    target: { checksum: string; listingCount: number }
+  }
+  const state = query(
+    "SELECT version, checksum FROM publication_state WHERE site_id = 'serp.software'"
+  ) as Array<{ checksum?: string; version?: number }>
+  const rows = query(
+    "SELECT slug FROM listings WHERE site_id = 'serp.software' AND status = 'approved' AND is_active = 1 ORDER BY slug"
+  ) as Array<{ slug: string }>
   const slugs = rows.map(row => row.slug)
-  if (state[0]?.checksum !== report.target.checksum) throw new Error('D1 publication checksum does not match the migration report.')
-  if (rows.length !== report.target.listingCount || slugs.join('\0') !== report.parity.exactSlugSet.join('\0')) throw new Error('D1 listing count or exact slug set does not match the migration report.')
-  console.log(`Verified local D1 publication v${state[0]?.version}: ${rows.length} listings, checksum ${state[0]?.checksum}`)
+  if (state[0]?.checksum !== report.target.checksum)
+    throw new Error('D1 publication checksum does not match the migration report.')
+  if (
+    rows.length !== report.target.listingCount ||
+    slugs.join('\0') !== report.parity.exactSlugSet.join('\0')
+  )
+    throw new Error('D1 listing count or exact slug set does not match the migration report.')
+  console.log(
+    `Verified local D1 publication v${state[0]?.version}: ${rows.length} listings, checksum ${state[0]?.checksum}`
+  )
 }
 
 function publish(args: string[]): void {
@@ -76,18 +133,36 @@ function publish(args: string[]): void {
 
 function preview(): void {
   execFileSync('pnpm', ['--filter', 'serp.software', 'build:worker'], { stdio: 'inherit' })
-  const result = spawnSync('pnpm', ['--filter', 'serp.software', 'preview:worker'], { stdio: 'inherit' })
+  const result = spawnSync('pnpm', ['--filter', 'serp.software', 'preview:worker'], {
+    env: { ...process.env, HARNESS_D1_STATE_DIRECTORY: statePath() },
+    stdio: 'inherit'
+  })
   if (result.status) process.exitCode = result.status
 }
 
 export function runLocalD1Command(args: string[]): void {
   validateLocalConfig()
   const [command, ...rest] = args
-  if (command === 'migrate') return migrate()
-  if (command === 'import') return importArtifact()
-  if (command === 'verify') return verify()
-  if (command === 'publish') return publish(rest)
-  if (command === 'preview') return preview()
+  if (command === 'migrate') {
+    migrate()
+    return
+  }
+  if (command === 'import') {
+    importArtifact()
+    return
+  }
+  if (command === 'verify') {
+    verify()
+    return
+  }
+  if (command === 'publish') {
+    publish(rest)
+    return
+  }
+  if (command === 'preview') {
+    preview()
+    return
+  }
   throw new Error(`Unknown local D1 command: ${command || 'missing'}`)
 }
 

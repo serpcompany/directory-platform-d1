@@ -13,8 +13,7 @@ import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'
 import { z } from 'zod'
-import { buildSubmissionIssueUrl } from '../github-issue'
-import { hasConfiguredGitHubIssueTarget, siteConfig } from '../site-config'
+import { siteConfig } from '../site-config'
 import { siteCopy } from '../site-copy'
 import { buildFeaturedOnBadgeEmbedHtml } from '../website/featured-on-badge-embed-panel'
 import {
@@ -36,7 +35,8 @@ type BadgeTheme = 'light' | 'dark'
 type BadgeSubmissionInstructions = {
   badgeEmbeds: Record<BadgeTheme, string>
   badgePreviewPaths: Record<BadgeTheme, string>
-  githubIssueUrl: string
+  submissionId: string
+  token: string
   listingUrl: string
   name: string
   siteName: string
@@ -65,11 +65,13 @@ function getSubmissionSlug(website: string): string {
 }
 
 export function buildBadgeSubmissionInstructions({
-  githubIssueUrl,
+  submissionId,
+  token,
   name,
   website
 }: {
-  githubIssueUrl: string
+  submissionId: string
+  token: string
   name: string
   website: string
 }): BadgeSubmissionInstructions {
@@ -104,7 +106,8 @@ export function buildBadgeSubmissionInstructions({
       dark: getFeaturedOnBadgePreviewPathFromKey(badgeKeys.dark),
       light: getFeaturedOnBadgePreviewPathFromKey(badgeKeys.light)
     },
-    githubIssueUrl,
+    submissionId,
+    token,
     listingUrl,
     name,
     siteName
@@ -254,7 +257,7 @@ function FieldLabel({
   )
 }
 
-export function GitHubIssueSubmitForm({
+export function D1SubmissionForm({
   categoryOptions
 }: {
   categoryOptions: readonly CategoryOption[]
@@ -264,8 +267,10 @@ export function GitHubIssueSubmitForm({
   const [badgeInstructions, setBadgeInstructions] = useState<BadgeSubmissionInstructions | null>(
     null
   )
+  const [verificationState, setVerificationState] = useState<'pending' | 'checking' | 'verified'>(
+    'pending'
+  )
   const listingLabel = siteCopy.listingName.singularTitle
-  const hasConfiguredIssueTarget = hasConfiguredGitHubIssueTarget(siteConfig)
   const {
     control,
     formState: { errors, isSubmitting, isValid },
@@ -304,41 +309,38 @@ export function GitHubIssueSubmitForm({
   )
 
   const isSubmitDisabled =
-    !hasConfiguredIssueTarget ||
-    !isValid ||
-    isSubmitting ||
-    hasPartiallyFilledFaq ||
-    hasPartiallyFilledResourceLink
+    !isValid || isSubmitting || hasPartiallyFilledFaq || hasPartiallyFilledResourceLink
 
-  function handleValidSubmit(values: SubmissionFormValues): void {
+  async function handleValidSubmit(values: SubmissionFormValues): Promise<void> {
     setSubmitError(null)
-
-    if (!hasConfiguredIssueTarget) {
-      setSubmitError('GitHub issue submission is disabled until this site config is complete.')
-      return
-    }
-
-    const githubIssueUrl = buildSubmissionIssueUrl({
-      category: values.category,
-      description: values.description,
-      faqs: values.faqs.filter(faq => faq.question.trim() && faq.answer.trim()),
-      logoUrl: values.logoUrl,
-      name: values.name,
-      notes: values.content,
-      resourceLinks: values.resourceLinks.filter(
-        resourceLink => resourceLink.label.trim() && !isEmptyUrlField(resourceLink.url)
-      ),
-      videoUrl: values.videoUrl,
-      website: values.website
-    })
-
-    setBadgeInstructions(
-      buildBadgeSubmissionInstructions({
-        githubIssueUrl,
-        name: values.name,
-        website: values.website
+    try {
+      const response = await fetch('/api/submissions', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...values,
+          faqs: values.faqs.filter(faq => faq.question.trim() && faq.answer.trim()),
+          resourceLinks: values.resourceLinks.filter(
+            resourceLink => resourceLink.label.trim() && !isEmptyUrlField(resourceLink.url)
+          )
+        })
       })
-    )
+      const result = (await response.json()) as { error?: string; id?: string; token?: string }
+      if (!response.ok || !result.id || !result.token) {
+        throw new Error(result.error || 'Unable to save your submission.')
+      }
+      setBadgeInstructions(
+        buildBadgeSubmissionInstructions({
+          submissionId: result.id,
+          token: result.token,
+          name: values.name,
+          website: values.website
+        })
+      )
+      setVerificationState('pending')
+    } catch (error) {
+      setSubmitError(error instanceof Error ? error.message : 'Unable to save your submission.')
+    }
   }
 
   function handleReset(): void {
@@ -346,14 +348,37 @@ export function GitHubIssueSubmitForm({
     setSubmitError(null)
     setBadgeInstructions(null)
     setCopiedTheme(null)
+    setVerificationState('pending')
   }
 
-  function handleOpenGitHubIssue(): void {
+  async function handleVerifyBadge(): Promise<void> {
     if (!badgeInstructions) {
       return
     }
-
-    window.open(badgeInstructions.githubIssueUrl, '_blank', 'noopener,noreferrer')
+    setSubmitError(null)
+    setVerificationState('checking')
+    try {
+      const response = await fetch(`/api/submissions/${badgeInstructions.submissionId}/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: badgeInstructions.token })
+      })
+      const result = (await response.json()) as {
+        error?: string
+        lastVerificationError?: string
+        status?: string
+      }
+      if (!response.ok || result.status !== 'verified') {
+        throw new Error(
+          result.error ||
+            `Badge not verified (${result.lastVerificationError || 'badge missing'}). Install it and try again.`
+        )
+      }
+      setVerificationState('verified')
+    } catch (error) {
+      setVerificationState('pending')
+      setSubmitError(error instanceof Error ? error.message : 'Unable to verify the badge.')
+    }
   }
 
   async function handleCopyBadge(theme: BadgeTheme): Promise<void> {
@@ -371,13 +396,6 @@ export function GitHubIssueSubmitForm({
       <div className="space-y-4">
         <h1 className="text-3xl font-bold">{siteCopy.submitLabel}</h1>
       </div>
-
-      {!hasConfiguredIssueTarget ? (
-        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900 dark:border-amber-900/60 dark:bg-amber-950/40 dark:text-amber-100">
-          GitHub issue submission is disabled until this site config provides a complete public
-          issue target.
-        </div>
-      ) : null}
 
       {submitError ? (
         <div className="rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-900 dark:border-red-900/60 dark:bg-red-950/40 dark:text-red-100">
@@ -625,17 +643,16 @@ export function GitHubIssueSubmitForm({
           if (!open) {
             setBadgeInstructions(null)
             setCopiedTheme(null)
+            setVerificationState('pending')
           }
         }}
       >
         <DialogContent className="max-h-[min(760px,calc(100dvh-2rem))] overflow-y-auto sm:max-w-2xl">
           <DialogHeader>
-            <DialogTitle>
-              Add the badge to your website to verify ownership & get listed
-            </DialogTitle>
+            <DialogTitle>Verify your featured badge</DialogTitle>
             <DialogDescription>
-              Copy one badge snippet, publish it on your site, then open the GitHub issue. The issue
-              workflow checks for this badge automatically and on each `/check-badge` comment.
+              Your submission is saved in D1. Publish one badge on your site, then verify it to
+              enter the maintainer review queue.
             </DialogDescription>
           </DialogHeader>
 
@@ -646,7 +663,7 @@ export function GitHubIssueSubmitForm({
                   <li>Copy either badge snippet below.</li>
                   <li>Paste it into a public page on your submitted website.</li>
                   <li>Make sure the badge link is not marked `nofollow`.</li>
-                  <li>Open the GitHub issue and finish creating the submission.</li>
+                  <li>Use the verification button below to check the live page.</li>
                 </ol>
               </div>
 
@@ -703,14 +720,22 @@ export function GitHubIssueSubmitForm({
             >
               Back to form
             </button>
-            <button
-              type="button"
-              onClick={handleOpenGitHubIssue}
-              className="inline-flex items-center justify-center gap-2 rounded-none bg-foreground px-4 py-2 text-sm font-bold text-background transition-colors hover:bg-foreground/90"
-            >
-              Submit Form
-              <ExternalLink className="size-4" />
-            </button>
+            {verificationState === 'verified' ? (
+              <span className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 dark:text-emerald-400">
+                <Check className="size-4" />
+                Badge verified — awaiting maintainer review
+              </span>
+            ) : (
+              <button
+                type="button"
+                disabled={verificationState === 'checking'}
+                onClick={() => void handleVerifyBadge()}
+                className="inline-flex items-center justify-center gap-2 rounded-none bg-foreground px-4 py-2 text-sm font-bold text-background transition-colors hover:bg-foreground/90 disabled:opacity-50"
+              >
+                {verificationState === 'checking' ? 'Checking badge…' : 'Verify installed badge'}
+                <ExternalLink className="size-4" />
+              </button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

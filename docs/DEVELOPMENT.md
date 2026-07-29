@@ -23,12 +23,22 @@ checksum.
 For code changes, run:
 
 ```bash
-pnpm test:repo
-pnpm test:d1
-pnpm typecheck
-pnpm worker:build
+pnpm harness:fast
+pnpm harness:check
 ```
 
 Add application queries to the catalog repository, not client components. Add a D1
 migration for schema changes and a reviewed publication manifest for catalog changes.
 Do not create a second site/default config or a file-backed catalog path.
+
+For an agent-readable isolated runtime:
+
+```bash
+pnpm worktree:init -- task-name
+pnpm agent:manifest
+pnpm agent:dev
+```
+
+See [HARNESS.md](./HARNESS.md) for worktree, log, evidence, and review workflows.
+Inspecting another legacy site starts with [MIGRATION_SOP.md](./MIGRATION_SOP.md);
+the preflight is read-only and does not make this runtime multisite.

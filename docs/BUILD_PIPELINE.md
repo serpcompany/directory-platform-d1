@@ -11,7 +11,7 @@ active release path.
 - `packages/content/data/**/*.mdx`: file-authored documentation and legal content.
 - `d1/migrations/`: versioned D1 schema.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
-- `d1/proposals/`: reviewed intake proposals; these do not mutate D1.
+- `listing_submissions` and child tables: private, badge-gated public intake.
 - `d1/publications/`: approved, versioned mutation manifests.
 - `apps/serp.software/lib/catalog/`: server-only D1 repository.
 
@@ -46,12 +46,15 @@ production environment. After confirmation it:
 
 No production command is authorized from a dirty local worktree.
 
-## Ongoing catalog publication
+## Verified submission approval
 
-Badge verification creates a YAML proposal PR. A maintainer reviews it and creates a
-versioned manifest under `d1/publications/`. `.github/workflows/publish-d1.yml` requires
-manual confirmation and protected-environment approval, retains a pre-publication
-backup, and publishes the manifest as one D1 API batch.
+The public form writes normalized staging rows to D1. Server-side badge verification
+makes a submission reviewable but not public. A maintainer runs the protected
+`approve-d1-submission.yml` workflow, which retains a backup and atomically promotes
+only a verified row.
+
+Maintainer-authored catalog changes still use a versioned manifest under
+`d1/publications/` and `.github/workflows/publish-d1.yml`.
 
 The publisher enforces tenant identity, base version, prior checksum, record/category
 invariants, stable IDs, idempotency, and audit rows. The next checksum is derived from

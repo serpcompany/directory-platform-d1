@@ -1,0 +1,409 @@
+# JSON-directory to D1 migration SOP
+
+Status: approved process; no additional site migration is authorized or in progress  
+Responsible area: platform and catalog data  
+Last verified: 2026-07-30  
+Validation: `pnpm docs:check` and `pnpm migration:preflight`
+
+This procedure describes how a future maintainer can migrate one legacy site from an
+external `json-directory` checkout into the D1 architecture while preserving its
+public behavior. It captures the lessons from the `serp.software` cutover without
+turning legacy files into a supported runtime source.
+
+This document prepares future work. Do not import another site merely because this
+SOP exists.
+
+## Scope and support boundary
+
+The current repository deploys one application and one tenant: `serp.software`.
+Several boundaries still encode that identity:
+
+- `apps/serp.software/lib/catalog/repository.ts`;
+- `sites/serp.software/site-config.ts`;
+- the D1 publisher’s manifest schema and local database identity;
+- Wrangler preview and production configurations;
+- protected build, publish, and badge workflows;
+- initial import and parity artifact names.
+
+The relational schema includes `site_id`, but that alone does not make the runtime or
+release tooling multisite. A future second-site migration must first choose and
+implement a tenancy architecture. Until then, `migration:preflight` is inventory
+only.
+
+Legacy catalog files must remain in the external source checkout. They may be read by
+the migration harness during a reviewed migration, but they must never be copied into
+this repository, committed, served, or retained as a fallback.
+
+## Required evidence package
+
+Create an ExecPlan at:
+
+```text
+docs/exec-plans/active/<site-id>-d1-migration.md
+```
+
+Keep temporary evidence under the ignored directory:
+
+```text
+tmp/migrations/<site-id>/
+  preflight.json
+  source-inventory.md
+  field-map.md
+  normalization-report.json
+  parity-report.yaml
+  route-samples.txt
+  asset-inventory.json
+  rollback-plan.md
+```
+
+The committed migration result may include:
+
+- new or generalized application configuration;
+- forward-only D1 migrations;
+- deterministic initial SQL and bounded import batches;
+- a committed parity report with source hashes, counts, and exact slug sets;
+- tests for mapping, configuration, runtime, routes, and release workflows;
+- documentation and a completed ExecPlan.
+
+Do not commit the source catalog, normalized catalog JSON, database exports containing
+production data, secrets, or Wrangler credentials.
+
+Every evidence item must identify the source Git commit and source file SHA-256
+checksums. A count without a source identity is not reproducible evidence.
+
+## Phase 0: choose the tenancy architecture
+
+Record one decision in the ExecPlan before writing migration code.
+
+### Option A: independent deployment repository
+
+Use the D1 platform as a baseline for a separate site repository. This offers the
+clearest Worker, database, workflow, and rollback isolation. Adapt all site identity
+and branding deliberately; do not preserve `serp.software` literals accidentally.
+
+### Option B: multiple sites in this monorepo
+
+Add a distinct app/Worker boundary and, by default, a distinct D1 database for each
+site. Shared packages may remain common, while binding identities, local state,
+protected environments, backups, and deployments remain isolated.
+
+A shared physical D1 database is a separate architecture decision. The schema’s
+tenant columns are necessary but insufficient proof of safe shared tenancy. It
+requires tenant-bound queries, tenant-bound uniqueness, authorization analysis,
+backup/restore impact analysis, and cross-tenant tests.
+
+### Required platformization before Option B
+
+The platformization ExecPlan must, at minimum:
+
+1. replace application and publisher `SITE_ID` literals with a parsed server-side
+   site identity;
+2. make site configuration selection explicit and exhaustive—never default/fallback;
+3. parameterize local, preview, and production Worker/D1 identities;
+4. preserve one protected production environment and confirmation phrase per site;
+5. parameterize bootstrap artifacts and parity reports without weakening checks;
+6. make publisher schemas bind a reviewed site ID rather than accepting arbitrary
+   caller input;
+7. test that every query, redirect, publication, and verification is tenant-bound;
+8. prove builds and local D1 states do not cross between apps or worktrees;
+9. document whether assets are copied, referenced, or moved to R2;
+10. prove one site can fail, roll back, or deploy without mutating another.
+
+Do not solve these by adding a default site, wildcard configuration, filesystem
+fallback, or generic JSON source adapter.
+
+## Phase 1: freeze and inventory the source
+
+1. Identify the authoritative legacy repository and site directory.
+2. Record its remote, branch, and exact commit.
+3. Stop catalog edits or define a cutoff commit and delta policy.
+4. Confirm the source checkout is clean.
+5. Inventory site configuration, content, assets, redirects, deployment behavior,
+   analytics, forms, SEO routes, RSS, sitemap, and catalog files.
+6. Run the read-only preflight from this repository:
+
+```bash
+mkdir -p tmp/migrations/example.com
+pnpm migration:preflight -- \
+  --source-root /Users/devin/dev/repos/json-directory \
+  --site-id example.com \
+  --output tmp/migrations/example.com/preflight.json
+```
+
+The preflight verifies:
+
+- the external site directory and expected source files exist;
+- product records are keyed by valid, matching slugs;
+- titles, taglines, URLs, and category memberships are structurally usable;
+- category slugs are unique;
+- every listing membership resolves to a declared category;
+- repeatable fields have the expected container shape;
+- supporting config, content, assets, and README files are inventoried;
+- source checksums and record counts are captured.
+
+`readyForMapping: true` means only that the source is coherent enough to map. It is
+not authorization to modify D1 and is not proof of application parity.
+
+Resolve every issue or record an explicit, reviewed normalization decision. Warnings
+may be accepted only in the ExecPlan Decision Log.
+
+## Phase 2: map and normalize
+
+Create a field map before generating SQL. Preserve facts; do not silently invent
+content.
+
+| Legacy concept | D1 target | Mapping rule |
+|---|---|---|
+| site identity | `sites.id` and runtime site config | Exact reviewed site ID. |
+| category slug/name/description | `categories` | Preserve slug; assign deterministic sort order from source order. |
+| product map key | `listings.slug` | Must equal the nested declared slug. |
+| title | `listings.name` | Preserve Unicode text after boundary parsing. |
+| tagline | `listings.description` | Preserve as public summary. |
+| product page URL | `listings.website` | Parse as HTTP(S); record intentional URL changes. |
+| content body | `listings.content` | Preserve Markdown; compare rendered semantics. |
+| category list | `listing_categories` | Preserve order; first membership is primary unless source semantics say otherwise. |
+| featured flag | `listings.is_featured` | Parse a real boolean; missing means false. |
+| media logo/images/video | `listing_media` | Preserve kind and order; decide asset ownership separately. |
+| related links | `listing_resource_links` | Parse label and HTTP(S) URL; preserve order. |
+| FAQ entries | `listing_faqs` | Preserve question, answer, and order. |
+| source ordering | display/sort columns | Preserve intentionally and test it. |
+| publication state | status and `published_at` | Use a documented cutoff timestamp; do not backdate casually. |
+
+### Stable identifiers
+
+Generate listing IDs deterministically from the reviewed site ID and source identity,
+or preserve an already stable identifier. Record the algorithm and collision check.
+IDs must not depend only on a mutable slug if slug redirects or later renames are
+required.
+
+### Normalization report
+
+Report every transformation, including:
+
+- trimmed or normalized strings;
+- invalid or rewritten URLs;
+- duplicate or renamed slugs;
+- category aliases and missing memberships;
+- unsupported legacy fields;
+- Markdown or HTML conversions;
+- asset URL changes;
+- records excluded from publication and why.
+
+The report must show zero unexplained drops. A record may be intentionally excluded
+only through a reviewed decision with its source identity.
+
+### Parse, then transform
+
+The migration tool should parse the legacy shape into precise source types, then map
+those types into D1 rows. Domain transformation code must not repeatedly accept
+`unknown` or loosely shaped objects. Invalid input stops artifact generation.
+
+## Phase 3: construct deterministic D1 artifacts
+
+Only begin after Phase 0 platform support exists and the source/field map is approved.
+
+1. Add any required forward-only schema migration.
+2. Build a one-time migration generator that reads only the explicit external source
+   path.
+3. Emit deterministic SQL and bounded import batches directly into a site-specific
+   artifact directory.
+4. Emit a parity report containing source commit, source hashes, mapping version,
+   listing/category counts, exact slug set, row-level checksums, batch count, and
+   target publication checksum.
+5. Run the generator twice from the same source commit and compare byte-for-byte
+   outputs.
+6. Commit generated SQL and parity evidence, not an intermediate catalog file.
+7. Remove the generator after cutover unless it remains a general, external-only,
+   tested migration tool with no runtime imports.
+
+The artifact must be idempotent at the release boundary. The importer may initialize
+an empty publication state or no-op on the exact checksum. It must refuse to overwrite
+a different publication.
+
+Use small batches that fit D1 limits. Preserve foreign-key ordering:
+
+1. site;
+2. categories;
+3. listings;
+4. category memberships;
+5. media, resources, and FAQs;
+6. publication state and audit evidence.
+
+## Phase 4: prove local parity
+
+Use an isolated worktree and local D1 state:
+
+```bash
+pnpm worktree:init -- example-com-migration
+pnpm worktree:doctor
+pnpm d1:local:migrate
+pnpm d1:local:import
+pnpm d1:local:verify
+```
+
+The site-specific implementation must parameterize these commands safely before use;
+the current commands intentionally target only `serp.software`.
+
+Parity proof must cover:
+
+- exact approved listing count and slug set;
+- exact active category count and slug set;
+- duplicate IDs, slugs, and memberships;
+- exactly one primary active category per public listing;
+- repeatable field counts and ordering;
+- publication version and checksum;
+- source-to-target row checksums or reviewed semantic comparisons;
+- home page ordering and pagination;
+- product and category routes;
+- search terms, result URLs, and empty states;
+- RSS and sitemap membership;
+- legacy redirects and canonical URLs;
+- site configuration, branding, navigation, analytics, and submission behavior;
+- representative desktop and mobile browser journeys;
+- missing D1 binding and wrong-environment fail-closed behavior.
+
+Run:
+
+```bash
+pnpm harness:fast
+pnpm test:e2e:smoke
+pnpm harness:check
+```
+
+Attach actual command output and browser artifacts to the ExecPlan. A successful build
+does not prove data or route parity.
+
+## Phase 5: provision Cloudflare safely
+
+Provisioning requires explicit Cloudflare and repository authority.
+
+1. Create site-specific preview and production D1 databases.
+2. Record real IDs only in the intended Wrangler configuration; never in templates or
+   public docs.
+3. Create a site-specific Worker name, route/domain, and protected GitHub environment.
+4. Configure scoped Cloudflare credentials as environment secrets.
+5. Add exact confirmation phrases for preview/production mutations.
+6. Validate that local config contains only the synthetic local D1 ID.
+7. Add remote plan commands that reveal target names/IDs without mutating them.
+8. Require a retained D1 backup before migration or import.
+9. Ensure remote workflows run only from the intended branch and clean commit.
+
+Never copy `serp.software` production IDs to another site. Never use a local Wrangler
+command as a substitute for the protected workflow.
+
+## Phase 6: rehearse and release
+
+### Preview rehearsal
+
+1. retain a preview backup if preview contains meaningful data;
+2. apply migrations;
+3. import only into empty expected publication state;
+4. run exact remote parity verification;
+5. deploy the preview Worker;
+6. execute the route and browser checklist;
+7. rehearse restoration or document the tested recovery mechanism.
+
+### Production release
+
+1. merge the reviewed code, artifacts, tests, SOP-specific ExecPlan, and workflows;
+2. record the exact commit to release;
+3. stop legacy catalog writes at the cutoff;
+4. retain a production D1 backup;
+5. apply forward migrations;
+6. import the deterministic artifact;
+7. verify checksum, counts, exact slugs, memberships, and publication state;
+8. deploy the Worker only after D1 verification passes;
+9. verify home, representative products/categories, search, RSS, sitemaps, canonical
+   URLs, and redirects over the public domain;
+10. monitor errors and preserve the legacy deployment during the agreed observation
+    window.
+
+Every step must be visible in a protected workflow. A database verification failure
+must stop Worker deployment.
+
+## Phase 7: remove the JSON architecture
+
+After production parity and the observation window:
+
+1. remove catalog files from the new project;
+2. remove JSON loaders, adapters, generators, schemas used only by the old runtime,
+   browser search indexes, static builds, and Pages deployment paths;
+3. remove starter/default site fallbacks and obsolete workflows;
+4. make taxonomy, search, RSS, sitemap, submission options, and redirects D1-derived;
+5. add architecture-guard cases for every removed source kind and filename;
+6. update `AGENTS.md`, architecture, data model, development, build, deploy, and
+   onboarding docs;
+7. search tracked and generated outputs for legacy catalog filenames;
+8. rebuild and repeat the search;
+9. archive the legacy repository as read-only or clearly mark it superseded;
+10. move the completed ExecPlan with final evidence into `docs/exec-plans/completed/`.
+
+Deletion is not parity proof. Remove the old path only after D1 and public runtime
+evidence are independently established. Git history remains the recovery path for
+removed repository files.
+
+## Rollback and recovery
+
+Define rollback before production mutation.
+
+- Retain the pre-change D1 export for the required recovery window.
+- Keep the legacy deployment available until acceptance and observation complete.
+- If import verification fails before traffic cutover, stop; do not deploy the new
+  Worker.
+- If the Worker fails but D1 verification passed, roll back the Worker version rather
+  than automatically overwriting valid D1 state.
+- If D1 data is wrong, stop publication, review the retained export and target
+  recovery point, obtain fresh production approval, restore through the reviewed
+  Cloudflare procedure, and re-run exact verification.
+- Never “roll back” with a source catalog import after ongoing D1 publications have
+  begun; that can erase legitimate changes.
+- Record every partial failure and retry in the ExecPlan.
+
+All migration and import steps must be idempotent or explicitly state why they are not
+and how to recover safely.
+
+## Completion checklist
+
+### Architecture
+
+- [ ] Tenancy/deployment option is decided and implemented.
+- [ ] All site identity, Worker, D1, workflow, and artifact boundaries are explicit.
+- [ ] Runtime catalog reads are D1-only and fail closed.
+- [ ] No default site, catalog fallback, or generic JSON runtime exists.
+
+### Source and mapping
+
+- [ ] Source repository, commit, cutoff, and SHA-256 checksums are recorded.
+- [ ] Preflight issues are zero; accepted warnings are documented.
+- [ ] Field map and normalization report explain every transformation and exclusion.
+- [ ] Stable ID and ordering rules are deterministic.
+
+### Data evidence
+
+- [ ] Fresh local migrations succeed.
+- [ ] Initial import is deterministic and safely retryable.
+- [ ] Listing/category counts and exact slug sets match.
+- [ ] Memberships, primary categories, repeatables, and row checksums match.
+- [ ] Publication version/checksum and audit evidence match.
+
+### Application evidence
+
+- [ ] Home, product, category, search, RSS, sitemap, canonical, and redirect behavior
+      match the approved source behavior.
+- [ ] Site config, content, assets, analytics, and submission flows are accounted for.
+- [ ] Browser evidence covers representative desktop and mobile journeys.
+- [ ] Missing/wrong bindings fail closed.
+
+### Release and recovery
+
+- [ ] Preview rehearsal and recovery procedure succeeded.
+- [ ] Protected production backup, migration, import, verify, and deploy steps exist.
+- [ ] Post-release checks passed on the public domain.
+- [ ] Rollback decision points and retained artifacts are recorded.
+
+### Cleanup and knowledge
+
+- [ ] Catalog files and obsolete runtime/deployment code are absent.
+- [ ] Architecture guards prevent regression.
+- [ ] Docs, skills, and the completed ExecPlan reflect the final system.
+- [ ] `pnpm harness:check` and relevant runtime checks pass from the release commit.

@@ -34,15 +34,23 @@ verification stops the release before Worker deployment.
 
 Do not run production Wrangler or D1 commands from a local worktree.
 
-## Ongoing catalog publication
+## Verified public submissions
+
+Public submissions are staged in normalized D1 tables and require a successful badge
+verification. Review the verified row, then manually run
+`.github/workflows/approve-d1-submission.yml` from `main` with the submission UUID and
+the exact `approve-serp.software-submission-production` confirmation. The protected
+workflow backs up D1, applies migrations, and promotes only a verified row while
+recording publication provenance.
+
+## Maintainer-authored catalog publication
 
 Catalog changes follow a two-stage review path:
 
-1. Submission automation creates a proposal under `d1/proposals/`.
-2. A maintainer reviews it and authors a versioned manifest under
+1. A maintainer authors a versioned manifest under
    `d1/publications/`.
-3. From `main`, manually run `.github/workflows/publish-d1.yml`.
-4. Enter `publish-serp.software-production` and approve the protected production
+2. From `main`, manually run `.github/workflows/publish-d1.yml`.
+3. Enter `publish-serp.software-production` and approve the protected production
    environment.
 
 The publication workflow retains a pre-change backup and sends the validated

@@ -55,6 +55,7 @@ describe('D1-only repository architecture', () => {
       ) {
         continue
       }
+      if (!existsSync(resolve(file))) continue
 
       const source = readFileSync(resolve(file), 'utf8')
       for (const token of forbiddenTokens) {
@@ -66,10 +67,7 @@ describe('D1-only repository architecture', () => {
   })
 
   it('keeps catalog access server-only and bound to D1', () => {
-    const repository = readFileSync(
-      resolve('apps/serp.software/lib/catalog/repository.ts'),
-      'utf8'
-    )
+    const repository = readFileSync(resolve('apps/serp.software/lib/catalog/repository.ts'), 'utf8')
     const config = readFileSync(resolve('sites/serp.software/site-config.ts'), 'utf8')
 
     expect(repository).toContain("import 'server-only'")

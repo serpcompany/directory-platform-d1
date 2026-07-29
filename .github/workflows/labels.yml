@@ -20,7 +20,7 @@ jobs:
               {
                 name: 'area:content',
                 color: '0E8A16',
-                description: 'Touches D1 catalog migrations, reviewed proposals, or publication manifests.'
+                description: 'Touches D1 catalog migrations, verified submissions, or publication manifests.'
               }
             ]
 

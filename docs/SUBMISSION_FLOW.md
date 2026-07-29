@@ -1,23 +1,25 @@
 # Submission flow
 
-The public `/submit` page queries active categories from D1 and renders a client-side
-form. Submitting opens a prefilled issue in `serpcompany/serp.software`; it does not
-write to D1.
+The public `/submit` page queries active categories from D1. Its client form sends a
+validated request to `POST /api/submissions`, which writes the submission, resource
+links, FAQs, and creation event to normalized D1 staging tables. The response includes
+an opaque capability token; only its SHA-256 digest is stored.
 
-The issue repository calls `.github/workflows/reusable-verify-badge.yml`. A successful
-badge check creates a proposal PR in `serpcompany/directory-platform-d1` under
-`d1/proposals/`. Proposals are review documents and cannot mutate production.
+The submitter installs either generated badge and selects **Verify installed badge**.
+`POST /api/submissions/<id>/verify` authenticates the capability, enforces attempt and
+cooldown limits, and performs a bounded server-side fetch of the submitted public
+website. Verification succeeds only when the expected badge image links to the future
+listing URL without `nofollow`. Successful verification changes the staging status to
+`verified`; it does not make the listing public.
 
-A maintainer converts an accepted proposal into a versioned manifest under
-`d1/publications/`. The protected `publish-d1.yml` workflow:
-
-1. requires the `publish-serp.software-production` confirmation and production
-   environment approval;
-2. retains a pre-change D1 export;
-3. validates tenant, base version, prior checksum, records, and categories;
-4. applies the reviewed manifest as one D1 batch;
-5. records publication state and audit operations.
+A maintainer reviews verified rows and manually runs
+`.github/workflows/approve-d1-submission.yml` from `main`. The workflow requires the
+`approve-serp.software-submission-production` confirmation and protected production
+environment approval. It retains a pre-change D1 export, applies migrations, verifies
+the row is badge-verified, atomically promotes its normalized data into the catalog,
+and records publication and submission audit events.
 
 The public form is implemented in
-`packages/web-core/src/forms/github-issue-submit-form.tsx`; the D1 publisher is
-`scripts/d1-publisher.ts`.
+`packages/web-core/src/forms/d1-submission-form.tsx`; the server-only write boundary is
+`apps/serp.software/lib/submissions/repository.ts`. Submission intake does not use
+GitHub Issues or catalog files.

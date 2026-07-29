@@ -7,20 +7,20 @@ describe('buildBadgeSubmissionInstructions', () => {
     vi.resetModules()
   })
 
-  it('builds serp.software badge snippets before opening the GitHub issue', async () => {
+  it('builds serp.software badge snippets for a D1 submission capability', async () => {
     process.env.SITE_ID = 'serp.software'
     vi.resetModules()
 
-    const { buildBadgeSubmissionInstructions } = await import('./github-issue-submit-form')
+    const { buildBadgeSubmissionInstructions } = await import('./d1-submission-form')
     const instructions = buildBadgeSubmissionInstructions({
-      githubIssueUrl: 'https://github.com/serpcompany/serp.software/issues/new?title=Submit',
+      submissionId: 'submission-id',
+      token: 'capability-token',
       name: 'SERP AI',
       website: 'https://www.serp.ai/'
     })
 
-    expect(instructions.githubIssueUrl).toBe(
-      'https://github.com/serpcompany/serp.software/issues/new?title=Submit'
-    )
+    expect(instructions.submissionId).toBe('submission-id')
+    expect(instructions.token).toBe('capability-token')
     expect(instructions.listingUrl).toBe('https://serp.software/products/serp.ai/')
     expect(instructions.badgePreviewPaths.light).toBe('/badge/featured-on-serp.software-light.svg')
     expect(instructions.badgePreviewPaths.dark).toBe('/badge/featured-on-serp.software-dark.svg')

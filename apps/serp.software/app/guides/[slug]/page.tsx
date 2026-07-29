@@ -1,22 +1,21 @@
-import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { type GuideMetadata, getGuideBySlug, getGuides } from '@/lib/content-loader'
 import { GuideHeader } from '@thedaviddias/web-core/guides/guide-header'
 import {
   GuideDetailPage,
   generateGuideDetailMetadata,
-  generateGuideDetailStaticParams,
+  generateGuideDetailStaticParams
 } from '@thedaviddias/web-core/guides/guide-page'
 import { JsonLd } from '@thedaviddias/web-core/json-ld'
 import { components } from '@thedaviddias/web-core/mdx-components'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { generateGuideSchema } from '@thedaviddias/web-core/schema'
+import { siteConfig } from '@thedaviddias/web-core/site-config'
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { getGuideBySlug, getGuides } from '@/lib/content-loader'
 import {
   generateDisabledRouteMetadata,
   isRouteFeatureEnabled,
   requireRouteFeature
 } from '@/lib/route-feature-gates'
-import { generateGuideSchema } from '@thedaviddias/web-core/schema'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
 
 interface GuidePageProps {
   params: Promise<{

@@ -133,3 +133,61 @@ export const publicationState = sqliteTable('publication_state', {
   checksum: text('checksum').notNull(),
   publishedAt: text('published_at').notNull()
 })
+
+export const listingSubmissions = sqliteTable(
+  'listing_submissions',
+  {
+    id: text('id').primaryKey(),
+    siteId: text('site_id')
+      .notNull()
+      .references(() => sites.id),
+    slug: text('slug').notNull(),
+    name: text('name').notNull(),
+    description: text('description').notNull(),
+    website: text('website').notNull(),
+    content: text('content').notNull(),
+    categorySlug: text('category_slug').notNull(),
+    logoUrl: text('logo_url').notNull(),
+    videoUrl: text('video_url'),
+    status: text('status', {
+      enum: ['pending_badge', 'verified', 'approved', 'rejected']
+    }).notNull(),
+    accessTokenHash: text('access_token_hash').notNull(),
+    verificationAttempts: integer('verification_attempts').notNull(),
+    lastVerificationAt: text('last_verification_at'),
+    lastVerificationError: text('last_verification_error'),
+    badgeVerifiedAt: text('badge_verified_at'),
+    reviewedAt: text('reviewed_at'),
+    reviewedBy: text('reviewed_by'),
+    listingId: text('listing_id').references(() => listings.id),
+    createdAt: text('created_at').notNull(),
+    updatedAt: text('updated_at').notNull()
+  },
+  table => [unique('listing_submissions_site_token_unique').on(table.siteId, table.accessTokenHash)]
+)
+
+export const listingSubmissionResourceLinks = sqliteTable('listing_submission_resource_links', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  submissionId: text('submission_id')
+    .notNull()
+    .references(() => listingSubmissions.id),
+  label: text('label').notNull(),
+  url: text('url').notNull(),
+  sortOrder: integer('sort_order').notNull()
+})
+
+export const listingSubmissionFaqs = sqliteTable('listing_submission_faqs', {
+  id: integer('id').primaryKey({ autoIncrement: true }),
+  submissionId: text('submission_id')
+    .notNull()
+    .references(() => listingSubmissions.id),
+  question: text('question').notNull(),
+  answer: text('answer').notNull(),
+  sortOrder: integer('sort_order').notNull()
+})
+
+export const listingSubmissionRateLimits = sqliteTable('listing_submission_rate_limits', {
+  fingerprintHash: text('fingerprint_hash').primaryKey(),
+  windowStartedAt: integer('window_started_at').notNull(),
+  requestCount: integer('request_count').notNull()
+})

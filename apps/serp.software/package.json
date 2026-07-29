@@ -9,8 +9,9 @@
     "clean": "git clean -xdf .cache .turbo .next coverage node_modules",
     "dev": "NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software next dev --webpack --port ${PORT:-3005}",
     "dev:inspect": "NODE_OPTIONS='--inspect' NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software next dev --webpack --port ${PORT:-3005}",
-    "lint": "biome check --write",
-    "preview:worker": "opennextjs-cloudflare preview --config ../../wrangler.jsonc --persist-to ../../.wrangler/state",
+    "lint": "biome lint .",
+    "lint:fix": "biome check --write .",
+    "preview:worker": "opennextjs-cloudflare preview --config ../../wrangler.jsonc --persist-to ${HARNESS_D1_STATE_DIRECTORY:-../../.wrangler/state} --port ${PORT:-8787}",
     "start": "next start",
     "typecheck": "NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software tsc --noEmit --emitDeclarationOnly false"
   },

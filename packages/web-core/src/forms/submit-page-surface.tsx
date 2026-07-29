@@ -1,4 +1,4 @@
-import { type CategoryOption, GitHubIssueSubmitForm } from './github-issue-submit-form'
+import { type CategoryOption, D1SubmissionForm } from './d1-submission-form'
 
 export function SubmitPageSurface({
   categoryOptions
@@ -7,7 +7,7 @@ export function SubmitPageSurface({
 }) {
   return (
     <section className="container mx-auto max-w-3xl px-6 py-16">
-      <GitHubIssueSubmitForm categoryOptions={categoryOptions} />
+      <D1SubmissionForm categoryOptions={categoryOptions} />
     </section>
   )
 }

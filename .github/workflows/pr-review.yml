@@ -25,6 +25,9 @@ jobs:
       - name: Install
         uses: ./.github/actions/install
 
+      - name: Validate repository documentation
+        run: pnpm docs:check
+
       - name: Validate Worker configuration contracts
         run: pnpm worker:config:validate
 
@@ -36,6 +39,9 @@ jobs:
 
       - name: Run repository policy tests
         run: pnpm test:repo
+
+      - name: Run D1 contract tests
+        run: pnpm test:d1
 
   typecheck:
     name: Type Check

@@ -40,5 +40,11 @@ pnpm worker:build
 ```
 
 Production releases run only from protected GitHub Actions workflows on `main`.
-See [Architecture](./docs/ARCHITECTURE.md), [Development](./docs/DEVELOPMENT.md),
-[Data model](./docs/DATA_MODEL.md), and [Deploy runbook](./docs/DEPLOY_RUNBOOK.md).
+
+For agent-first development, use `pnpm harness:fast` during implementation and
+`pnpm harness:check` before handoff. `pnpm agent:manifest` exposes the current local
+runtime and binding identity.
+
+See the [documentation index](./docs/README.md), [Harness](./docs/HARNESS.md), and
+[Migration SOP](./docs/MIGRATION_SOP.md). The SOP prepares future legacy-site
+migrations; it does not authorize or begin one.
