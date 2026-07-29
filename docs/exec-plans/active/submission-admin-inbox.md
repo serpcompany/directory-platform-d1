@@ -83,6 +83,12 @@ will record the external issue identity so the process is idempotent and auditab
   Evidence: GitHub run `30478305706` failed before server startup with
   `cd: can't cd to ../starter`; after targeting the guarded D1 Worker, local CI-mode
   Playwright exposed and fixed the two stale expectations, then passed 14/14 tests.
+- Observation: a cold OpenNext Worker build on the GitHub E2E runner can exceed
+  three minutes even though the same E2E journey starts in roughly 30 seconds
+  locally.
+  Evidence: GitHub run `30478933069` reached the new D1 Worker command but timed out
+  at exactly 180 seconds before Playwright began; the dedicated Worker build job
+  took nearly two minutes without the local D1 setup and preview startup.
 
 ## Decision log
 

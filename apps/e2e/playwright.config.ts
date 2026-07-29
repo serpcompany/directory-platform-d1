@@ -87,7 +87,7 @@ export default defineConfig({
     command: webServerCommand,
     url: baseUrl,
     reuseExistingServer: !process.env.CI,
-    timeout: 180000, // D1 initialization plus the OpenNext Worker build
+    timeout: 360000, // D1 initialization plus the OpenNext Worker build on CI runners
     env: {
       // Minimize external dependencies for testing
       NEXT_PUBLIC_SENTRY_DSN:
