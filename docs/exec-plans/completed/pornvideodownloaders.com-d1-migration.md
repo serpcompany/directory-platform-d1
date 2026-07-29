@@ -1,6 +1,6 @@
 # Migrate pornvideodownloaders.com into the D1 multisite platform
 
-Status: active  
+Status: completed  
 Owner: platform and catalog data  
 Created: 2026-07-30  
 Last updated: 2026-07-30
@@ -84,10 +84,30 @@ description unless a reviewed source change supplies text.
 - [x] 2026-07-30 08:10 JST Opened reviewed release PR
   `https://github.com/serpcompany/directory-platform-d1/pull/12`; build, type,
   unit, and explicit second-site browser checks passed on the initial run.
-- [ ] Rehearse the protected preview backup/migrate/import/verify/deploy/recovery flow.
-- [ ] Merge the reviewed release, run the protected production workflow, verify the
-  public domain, and monitor the observation window.
-- [ ] Complete cleanup and move this plan to `docs/exec-plans/completed/`.
+- [x] 2026-07-30 08:07 JST Merged release PR 12 as `95cbb15`, then completed the
+  protected preview rehearsal in
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30498026224`.
+  The workflow retained the empty bootstrap export, migrated and imported 286
+  listings, verified checksum
+  `5f692bca14184318a5517a0713efde0fd6af1629424291be538faaace96c4f8a`,
+  and deployed the preview Worker.
+- [x] 2026-07-30 08:14 JST Completed the first protected production release in
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30498617196`
+  and verified the public domain, representative routes, redirect, search, feed,
+  submission form, and exact 286/4/8 listing/taxonomy/page sitemap counts.
+- [x] 2026-07-30 08:22 JST Corrected the long-name mobile hero defect found by the
+  production screenshot, added a 390 px containment regression assertion, passed
+  PR 13's complete CI matrix, and merged it as `cfdd094`.
+- [x] 2026-07-30 08:29 JST Repeated protected preview and production releases from
+  the populated D1 databases in runs
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30499335359`
+  and
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30499549588`.
+  Both checksum-protected imports no-op/verified cleanly, retained new backups, and
+  deployed the same reviewed commit.
+- [x] 2026-07-30 08:32 JST Completed final desktop/mobile and repeated HTTP
+  observation checks, recorded the recovery artifacts and release identities, and
+  moved this plan to `docs/exec-plans/completed/`.
 
 ## Surprises and discoveries
 
@@ -149,6 +169,18 @@ description unless a reviewed source change supplies text.
   Evidence: corrected retention path is
   `.wrangler/backups/serp-software/production/<sha>.sql`, and the focused workflow
   and release tests pass.
+- Observation: Cloudflare's account-token success screen presents Account ID and
+  API token with identical unlabeled copy icons. The first preview attempt therefore
+  received the Account ID as its secret and failed authentication before database
+  mutation. Rolling the token and selecting the field explicitly labeled
+  `Your API Token` corrected the protected environments; the rerun passed.
+  Evidence: preview run `30498026224`, attempts 1 and 2.
+- Observation: A 390 px production screenshot exposed that the shared hero's
+  unconditional `whitespace-nowrap` clipped the longer second-site name even though
+  the document itself had no horizontal overflow.
+  Evidence: PR 13 changed the constraint to apply from the medium breakpoint and
+  added an element-boundary assertion; its CI and the corrected preview screenshot
+  passed.
 
 ## Decision log
 
@@ -366,10 +398,43 @@ permissions.
 - Frozen source:
   `/Users/devin/dev/repos/json-directory-worktrees/pornvideodownloaders-main`
 - Committed parity report, workflow runs, backups, browser evidence, and live-route
-  checks: to be added as milestones complete.
+  checks:
+  - parity:
+    `d1/artifacts/pornvideodownloaders-com-v1-parity.yaml`
+  - initial reviewed release: PR 12, merge `95cbb15`
+  - mobile follow-up: PR 13, final release `cfdd094`
+  - final preview run:
+    `https://github.com/serpcompany/directory-platform-d1/actions/runs/30499335359`
+  - final preview backup: artifact `8742874309`, checksum
+    `e3443629ea89c04aac5eb6c5989892b89fe6a1763a891fc3de5b765429db30d4`
+  - final production run:
+    `https://github.com/serpcompany/directory-platform-d1/actions/runs/30499549588`
+  - final production backup: artifact `8742959907`, checksum
+    `ed82c52965ecaa44800a3879a75034fbfcfa6b268f7f80eaba50498a75e1722a`
+  - final production Worker version:
+    `21e293cf-4ad9-4b95-867a-e2e286199b2f`
 
 ## Outcomes and retrospective
 
-In progress. Final outcomes must compare the live second-site result with the purpose
-above, cite exact validation and protected workflow evidence, describe the
-observation window, and list residual risks or harness improvements.
+`pornvideodownloaders.com` is live as the second independently deployable D1 site.
+It reads 286 listings from the isolated production database, retains the three
+source categories plus the derived featured taxonomy route, preserves the legacy
+redirect and public presentation, and deploys independently from `serp.software`.
+
+The final reviewed commit passed repository policy, type, unit, OpenNext build, and
+end-to-end CI. Local explicit second-site browser tests passed four of four. Both
+final protected deployments backed up already-populated D1, reapplied the
+checksum-protected importer idempotently, verified exact parity, and only then
+deployed their Worker. Production HTTP and browser checks passed for home, product,
+category, search, RSS, sitemaps, submission, legacy redirect, desktop rendering, and
+390 px mobile rendering. The observation window ran from the first production
+cutover through the corrected final release and documentation closure, with repeated
+200 responses and stable exact counts throughout.
+
+The only residual source risk is explicit and unchanged: 25 legacy media references
+have no corresponding file in the authoritative source. Their references remain
+preserved and the shared fallback handles failures. The release also continues to
+emit the known generated-bundle duplicate `options` key warning during OpenNext
+builds; it does not fail builds or runtime checks. A useful harness improvement was
+captured in PR 13: mobile acceptance now checks the hero element boundary, not only
+document-level horizontal overflow.
