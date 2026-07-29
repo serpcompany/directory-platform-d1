@@ -1,6 +1,6 @@
 # Replace GitHub issue submissions with verified D1 intake
 
-Status: active  
+Status: completed  
 Owner: serp.software application and D1 release pipeline  
 Created: 2026-07-30  
 Last updated: 2026-07-30
@@ -62,10 +62,14 @@ Repository constraints:
   live configuration references.
 - [x] 2026-07-30 02:18 JST Proved local schema, API, UI capture, catalog isolation,
   approval transaction, Worker build, and the full eight-stage harness.
-- [ ] Commit and push the reviewed source.
-- [ ] Back up and migrate production D1, deploy the Worker, and verify live behavior.
-- [ ] Disable the old repository’s issue intake and Pages deployment after live
-  verification.
+- [x] 2026-07-30 02:25 JST Committed and pushed the reviewed source to `main`.
+- [x] 2026-07-30 02:28 JST Protected run `30475232939` retained a backup, verified the
+  339-listing catalog, and deployed Worker commit `ba0ff72`.
+- [x] 2026-07-30 02:34 JST Protected run `30475792701` exercised the reject path and
+  closed the production test row without publishing it.
+- [x] 2026-07-30 02:35 JST Disabled Issues and GitHub Pages on the old public
+  `serpcompany/serp.software` repository; the repository remains public and unarchived
+  as historical source.
 
 ## Surprises and discoveries
 
@@ -84,6 +88,14 @@ Repository constraints:
   application work rather than a second storage product.
   Evidence: `wrangler.jsonc`, `wrangler.preview.jsonc`, and
   `wrangler.production.jsonc`.
+- Observation: A live duplicate test exposed that exact website identity must be
+  checked in addition to the derived hostname slug.
+  Evidence: the first test row was accepted with slug `serp.ly`; the hardened Worker
+  returns `409 listing_exists` for the same existing URL.
+- Observation: GitHub Actions compiled the reviewer CLI as CommonJS and preserved a
+  literal `--` argument from the package script.
+  Evidence: failed runs `30475474123` and `30475665569`; the async entrypoint and
+  argument-normalization regression checks fixed both before run `30475792701`.
 
 ## Decision log
 
@@ -206,10 +218,29 @@ Worker release tooling.
 
 ## Important artifacts
 
-This section will link the migration, test evidence, local browser capture, production
-workflow run, retained backup identity, deployed Worker version, and live-route
-checks as they are produced.
+- Full local harness: eight stages passed in 24.7 seconds, including 120 repository
+  tests, 24 D1 tests, lint, types, config, and Worker build.
+- UI evidence:
+  `.runtime/directory-platform-d1-main/artifacts/ui/d1-submit/evidence.json` and
+  `after.png`.
+- Production deploy:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30475232939`.
+- Protected review proof:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30475792701`.
+- Live checks: `/`, `/submit`, `/api/search`, `/sitemap-index.xml`, and `/rss.xml`
+  returned 200; capability mismatch returned 404; exact existing website submission
+  returned 409; the protected test row returned status `rejected`.
 
 ## Outcomes and retrospective
 
-Pending implementation and evidence.
+The public submission flow now stages normalized data in D1, protects private state
+with a hashed capability, rate-limits creation and verification, and requires a
+bounded successful dofollow badge check before review. Creation and verification
+cannot alter public catalog eligibility. Protected review can approve only verified
+rows or reject pending/verified rows, retaining backups and audit evidence.
+
+All GitHub Issues intake code, reusable badge workflows, templates, active
+configuration, and documentation were removed from the production repository. The
+old public repository remains readable for history, but its Issues feature and Pages
+deployment are disabled. Production continues to serve 339 pre-existing listings
+from D1, and the new Worker/API/UI are live.

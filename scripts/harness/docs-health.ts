@@ -90,7 +90,7 @@ function validateSkill(root: string, file: string): string[] {
 
 export function checkDocumentation(root = resolve('.')): string[] {
   const violations: string[] = []
-  const files = repositoryFiles(root)
+  const files = repositoryFiles(root).filter(file => existsSync(resolve(root, file)))
 
   for (const file of REQUIRED_FILES) {
     if (!existsSync(resolve(root, file)))
