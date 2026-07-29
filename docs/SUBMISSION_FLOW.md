@@ -17,6 +17,20 @@ listing URL without `nofollow`. Successful verification changes the staging stat
 `verified`; it does not make the listing public. The form tells the submitter that the
 administrator will be notified within a few minutes.
 
+The verifier loads the exact submitted website URL and scans the HTML returned by
+that request. The form identifies that URL and explains that a badge inserted only
+after client-side JavaScript runs cannot be detected. A successful HTML fetch with no
+badge is reported as **Page reached — badge not found**. Connection failure, timeout,
+HTTP status, redirect failure, non-HTML content, oversized HTML, wrong link target,
+and `nofollow` are separate outcomes with specific remediation; raw internal codes
+are not shown to submitters.
+
+The ten-attempt limit counts successful checks and conclusive HTML scan failures
+(`badge_missing`, `nofollow`, and `wrong_destination`). Transient connection,
+timeout, HTTP, redirect, response-format, and verifier-service failures still update
+the last-check time and remain subject to the 30-second cooldown, but they do not
+consume a content-verification attempt.
+
 Restoring a saved verification session calls the capability-protected submission
 status endpoint and rebuilds the badge instructions from D1 state. Successful
 verification clears the saved resume capability. A copied resume link is a bearer

@@ -1,3 +1,4 @@
+import { BADGE_VERIFIER_USER_AGENT } from '@thedaviddias/web-core/forms/submission-contract'
 import { validatePublicHttpUrl } from '../url-safety'
 
 const MAX_HTML_BYTES = 1_000_000
@@ -7,6 +8,22 @@ const FETCH_TIMEOUT_MS = 8_000
 type ScanResult =
   | { ok: true }
   | { ok: false; code: 'badge_missing' | 'nofollow' | 'wrong_destination' }
+
+export type BadgeVerificationResult =
+  | ScanResult
+  | {
+      ok: false
+      code:
+        | 'fetch_timeout'
+        | 'invalid_target'
+        | 'invalid_redirect'
+        | 'not_html'
+        | 'response_too_large'
+        | 'site_unreachable'
+        | 'too_many_redirects'
+        | 'verification_service_error'
+        | `http_${number}`
+    }
 
 function attribute(tag: string, name: string): string | null {
   const match = tag.match(new RegExp(`\\b${name}\\s*=\\s*(?:"([^"]*)"|'([^']*)'|([^\\s>]+))`, 'i'))
@@ -90,35 +107,53 @@ export async function verifyFeaturedBadge(
   website: string,
   expected: { badgeUrls: readonly string[]; listingUrl: string },
   fetcher: typeof fetch = fetch
-): Promise<
-  | ScanResult
-  | { ok: false; code: 'fetch_failed' | 'invalid_target' | 'not_html' | 'response_too_large' }
-> {
+): Promise<BadgeVerificationResult> {
   let current = website
-  try {
-    for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
-      const safe = validatePublicHttpUrl(current)
-      if (!safe.ok) return { ok: false, code: 'invalid_target' }
-      const response = await fetcher(safe.url, {
-        headers: { 'User-Agent': 'SERPSoftwareBadgeVerifier/1.0' },
+  for (let redirect = 0; redirect <= MAX_REDIRECTS; redirect += 1) {
+    const safe = validatePublicHttpUrl(current)
+    if (!safe.ok) return { ok: false, code: 'invalid_target' }
+
+    let response: Response
+    try {
+      response = await fetcher(safe.url, {
+        headers: { 'User-Agent': BADGE_VERIFIER_USER_AGENT },
         redirect: 'manual',
         signal: AbortSignal.timeout(FETCH_TIMEOUT_MS)
       })
-      if (response.status >= 300 && response.status < 400) {
-        const location = response.headers.get('location')
-        if (!location || redirect === MAX_REDIRECTS) return { ok: false, code: 'fetch_failed' }
-        current = new URL(location, safe.url).toString()
-        continue
+    } catch (error) {
+      if (
+        typeof error === 'object' &&
+        error !== null &&
+        'name' in error &&
+        error.name === 'TimeoutError'
+      ) {
+        return { ok: false, code: 'fetch_timeout' }
       }
-      if (!response.ok) return { ok: false, code: 'fetch_failed' }
-      const contentType = response.headers.get('content-type') || ''
-      if (!contentType.toLowerCase().includes('text/html')) return { ok: false, code: 'not_html' }
-      return scanFeaturedBadge(await readBoundedHtml(response), expected)
+      return { ok: false, code: 'site_unreachable' }
     }
-  } catch (error) {
-    if (error instanceof Error && error.message === 'response_too_large') {
-      return { ok: false, code: 'response_too_large' }
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location')
+      if (!location) return { ok: false, code: 'invalid_redirect' }
+      if (redirect === MAX_REDIRECTS) return { ok: false, code: 'too_many_redirects' }
+      try {
+        current = new URL(location, safe.url).toString()
+      } catch {
+        return { ok: false, code: 'invalid_redirect' }
+      }
+      continue
+    }
+    if (!response.ok) return { ok: false, code: `http_${response.status}` }
+    const contentType = response.headers.get('content-type') || ''
+    if (!contentType.toLowerCase().includes('text/html')) return { ok: false, code: 'not_html' }
+    try {
+      return scanFeaturedBadge(await readBoundedHtml(response), expected)
+    } catch (error) {
+      if (error instanceof Error && error.message === 'response_too_large') {
+        return { ok: false, code: 'response_too_large' }
+      }
+      return { ok: false, code: 'verification_service_error' }
     }
   }
-  return { ok: false, code: 'fetch_failed' }
+  return { ok: false, code: 'verification_service_error' }
 }

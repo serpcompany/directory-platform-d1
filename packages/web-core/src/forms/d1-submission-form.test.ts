@@ -26,6 +26,7 @@ describe('buildBadgeSubmissionInstructions', () => {
 
     expect(instructions.submissionId).toBe('submission-id')
     expect(instructions.token).toBe('capability-token')
+    expect(instructions.website).toBe('https://www.serp.ai/')
     expect(instructions.listingUrl).toBe('https://serp.software/products/serp.ai/')
     expect(instructions.badgePreviewPaths.light).toBe('/badge/featured-on-serp.software-light.svg')
     expect(instructions.badgePreviewPaths.dark).toBe('/badge/featured-on-serp.software-dark.svg')
@@ -62,5 +63,10 @@ describe('buildBadgeSubmissionInstructions', () => {
     expect(source).toContain('Badge verification is required')
     expect(source).toContain('Your submission enters admin review')
     expect(source).toContain('Badge verified — admin notified within a few minutes')
+    expect(source).toContain('URL checked:')
+    expect(source).toContain('A badge added')
+    expect(source).toContain('only after JavaScript runs cannot be detected')
+    expect(source).toContain('result.lastVerificationError || result.code')
+    expect(source).not.toContain('Badge not verified (')
   })
 })
