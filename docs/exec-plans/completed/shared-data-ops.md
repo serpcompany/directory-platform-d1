@@ -141,6 +141,10 @@ remain separate mechanisms.
   harnesses, both Worker builds, local route evidence, fresh migration replay, and
   final before/after report. The final full harness passed in 40.5 seconds with 43
   repository test files and 234 tests passing, one skipped.
+- [x] 2026-07-30 23:49 JST Published draft PR #25 and confirmed all seven protected
+  clean-runner checks pass after making the scan-status benchmark portable. Unit
+  Tests passed in 1m10s, Type Check in 1m17s, policy validation in 1m13s, both
+  OpenNext Worker builds in 2m7s, and browser E2E in 3m43s.
 - [ ] Publish only through a separately authorized publication workflow; pushing,
   opening a PR, merging, deploying, and remote D1 migration remain unapproved.
 
@@ -655,8 +659,8 @@ The complete workspace scope now uses `@serpdirectory/*`; frozen installation re
 formatting was applied only because the changed-file Biome gate treats every renamed
 import as changed.
 
-Residual work is operational, not local source completion: a clean-runner PR must
-record CI timing, and an authorized release must apply migration `0009` before
-deploying code that names its index. Post-release read-only telemetry must confirm
-production D1 row counts. No branch was pushed, no PR was opened, and no remote
-Worker or D1 operation was performed.
+Residual work is operational, not source completion: an authorized release must
+apply migration `0009` before deploying code that names its index. Post-release
+read-only telemetry must confirm production D1 row counts. The feature branch and
+draft PR #25 are published with green CI; no merge, remote Worker deployment, or
+remote D1 operation was performed.
