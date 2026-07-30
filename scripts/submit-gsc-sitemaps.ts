@@ -20,6 +20,7 @@ type SubmitGscArgs = {
   dryRun: boolean
   siteIds: string[]
   submitCanonical: boolean
+  verifyCredentials: boolean
 }
 
 const webmastersScope = 'https://www.googleapis.com/auth/webmasters'
@@ -50,7 +51,8 @@ function parseArgs(argv: string[]): SubmitGscArgs {
     deleteSitemapUrls: [],
     dryRun: false,
     siteIds: [],
-    submitCanonical: true
+    submitCanonical: true,
+    verifyCredentials: false
   }
 
   for (let index = 0; index < argv.length; index += 1) {
@@ -70,6 +72,12 @@ function parseArgs(argv: string[]): SubmitGscArgs {
       continue
     }
 
+    if (arg === '--verify-credentials') {
+      args.submitCanonical = false
+      args.verifyCredentials = true
+      continue
+    }
+
     if (arg === '--site' && argv[index + 1]) {
       args.siteIds.push(argv[index + 1])
       index += 1
@@ -85,7 +93,7 @@ function parseArgs(argv: string[]): SubmitGscArgs {
     throw new Error(`Unknown argument: ${arg}`)
   }
 
-  if (!args.submitCanonical && args.deleteSitemapUrls.length === 0) {
+  if (!args.submitCanonical && !args.verifyCredentials && args.deleteSitemapUrls.length === 0) {
     throw new Error('Nothing to do. Remove --no-submit or pass --delete-sitemap <url>.')
   }
 
@@ -230,6 +238,20 @@ async function getAccessToken(env: NodeJS.ProcessEnv): Promise<string> {
   return body.access_token
 }
 
+async function verifyCredentialAuthority(accessToken: string): Promise<void> {
+  const response = await fetch('https://www.googleapis.com/webmasters/v3/sites', {
+    headers: {
+      Authorization: `Bearer ${accessToken}`
+    }
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to verify Search Console credential authority: ${response.status} ${await response.text()}`
+    )
+  }
+}
+
 async function submitSitemap(
   accessToken: string,
   siteUrl: string,
@@ -314,6 +336,12 @@ export async function runSubmitGscSitemaps(
   }
 
   const accessToken = await getAccessToken(env)
+
+  if (args.verifyCredentials) {
+    await verifyCredentialAuthority(accessToken)
+    console.log('Verified Search Console credential authority without mutation.')
+    return
+  }
 
   for (const target of deleteTargets) {
     const siteUrl = siteUrlFor(target.domain, env)
