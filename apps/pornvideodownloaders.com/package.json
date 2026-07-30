@@ -5,13 +5,13 @@
   "scripts": {
     "analyze": "ANALYZE=true pnpm build",
     "build": "NODE_NO_WARNINGS=1 NEXT_PUBLIC_SITE_ID=pornvideodownloaders.com SITE_ID=pornvideodownloaders.com next build",
-    "build:worker": "NODE_NO_WARNINGS=1 NEXT_PUBLIC_SITE_ID=pornvideodownloaders.com SITE_ID=pornvideodownloaders.com opennextjs-cloudflare build --config ../../wrangler.pornvideodownloaders.local.jsonc",
+    "build:worker": "NODE_NO_WARNINGS=1 NEXT_PUBLIC_SITE_ID=pornvideodownloaders.com SITE_ID=pornvideodownloaders.com opennextjs-cloudflare build --config ../../configs/wrangler/pornvideodownloaders.com/local.jsonc",
     "clean": "git clean -xdf .cache .turbo .next coverage node_modules",
     "dev": "NEXT_PUBLIC_SITE_ID=pornvideodownloaders.com SITE_ID=pornvideodownloaders.com next dev --webpack --port ${PORT:-3005}",
     "dev:inspect": "NODE_OPTIONS='--inspect' NEXT_PUBLIC_SITE_ID=pornvideodownloaders.com SITE_ID=pornvideodownloaders.com next dev --webpack --port ${PORT:-3005}",
     "lint": "biome lint .",
     "lint:fix": "biome check --write .",
-    "preview:worker": "opennextjs-cloudflare preview --config ../../wrangler.pornvideodownloaders.local.jsonc --persist-to ${HARNESS_D1_STATE_DIRECTORY:-../../.wrangler/state} --port ${PORT:-8787}",
+    "preview:worker": "opennextjs-cloudflare preview --config ../../configs/wrangler/pornvideodownloaders.com/local.jsonc --persist-to ${HARNESS_D1_STATE_DIRECTORY:-../../.wrangler/state} --port ${PORT:-8787}",
     "start": "next start",
     "typecheck": "NEXT_PUBLIC_SITE_ID=pornvideodownloaders.com SITE_ID=pornvideodownloaders.com tsc --noEmit --emitDeclarationOnly false"
   },

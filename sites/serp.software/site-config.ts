@@ -37,8 +37,8 @@ export const serpSoftwareSiteConfig: CheckedInSiteConfig = {
     submitLabel: 'Submit Yours'
   },
   deploy: {
-    previewConfigPath: 'wrangler.preview.jsonc',
-    productionConfigPath: 'wrangler.production.jsonc',
+    previewConfigPath: 'configs/wrangler/serp.software/preview.jsonc',
+    productionConfigPath: 'configs/wrangler/serp.software/production.jsonc',
     strategy: 'opennext-cloudflare-worker'
   },
   features: {

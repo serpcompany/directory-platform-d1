@@ -129,7 +129,7 @@ workflow run URLs in the site's active ExecPlan without committing credentials.
 
 For each new site, update and verify:
 
-1. `scripts/site-targets.ts`, site-specific Wrangler configs, and synthetic local
+1. `scripts/site-targets.ts`, `configs/wrangler/<site-id>/`, and synthetic local
    identity;
 2. preview and production D1 databases, Worker names/routes, and protected GitHub
    environments;

@@ -31,7 +31,6 @@ npm-debug.log*
 # vercel
 .vercel
 .wrangler/
-.wrangler.*.generated.jsonc
 .open-next/
 
 # typescript

@@ -1,7 +1,7 @@
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
-import { dirname, resolve } from 'node:path'
+import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { resolveSiteTarget, type SiteTarget } from './site-targets'
@@ -24,6 +24,7 @@ const placeholders: Record<WorkerEnvironment, Record<string, string>> = {
 }
 
 interface WorkerConfig {
+  $schema?: string
   assets?: { binding?: string; directory?: string }
   compatibility_flags?: string[]
   d1_databases?: Array<{
@@ -36,6 +37,10 @@ interface WorkerConfig {
   name?: string
   routes?: Array<{ pattern?: string; zone_name?: string }>
   vars?: { D1_RUNTIME_ENV?: string; NEXT_PUBLIC_SITE_ID?: string; SITE_ID?: string }
+}
+
+function pathRelativeToConfig(configPath: string, targetPath: string): string {
+  return relative(dirname(configPath), targetPath).replaceAll(sep, '/')
 }
 
 interface MigrationReport {
@@ -99,10 +104,18 @@ export function validateWorkerConfig(environment: WorkerEnvironment, siteId: str
   const appPath = `apps/${target.appPackageName}/.open-next`
   const configPath =
     environment === 'preview' ? target.remote.previewConfigPath : target.remote.productionConfigPath
+  const expectedSchemaPath = pathRelativeToConfig(
+    configPath,
+    'node_modules/wrangler/config-schema.json'
+  )
+  const expectedWorkerPath = pathRelativeToConfig(configPath, `${appPath}/worker.js`)
+  const expectedAssetsPath = pathRelativeToConfig(configPath, `${appPath}/assets`)
+  const expectedMigrationsPath = pathRelativeToConfig(configPath, 'd1/migrations')
+  if (config.$schema !== expectedSchemaPath) throw new Error('Unexpected Wrangler schema path.')
   if (config.name !== expected[`CLOUDFLARE_WORKER_${upper}_NAME`])
     throw new Error('Unexpected Worker name placeholder.')
-  if (config.main !== `${appPath}/worker.js`) throw new Error('Unexpected Worker entrypoint.')
-  if (config.assets?.directory !== `${appPath}/assets` || config.assets.binding !== 'ASSETS')
+  if (config.main !== expectedWorkerPath) throw new Error('Unexpected Worker entrypoint.')
+  if (config.assets?.directory !== expectedAssetsPath || config.assets.binding !== 'ASSETS')
     throw new Error('Unexpected OpenNext assets contract.')
   if (!config.compatibility_flags?.includes('nodejs_compat'))
     throw new Error('nodejs_compat is required.')
@@ -121,7 +134,7 @@ export function validateWorkerConfig(environment: WorkerEnvironment, siteId: str
     throw new Error('Unexpected D1 ID placeholder.')
   if (binding?.database_name !== expected[`CLOUDFLARE_D1_${upper}_DATABASE_NAME`])
     throw new Error('Unexpected D1 name placeholder.')
-  if (binding?.migrations_dir !== 'd1/migrations')
+  if (binding?.migrations_dir !== expectedMigrationsPath)
     throw new Error('Unexpected D1 migrations directory.')
   if (source.toLowerCase().includes(otherEnvironment))
     throw new Error(`${configPath} references ${otherEnvironment}.`)
@@ -182,9 +195,22 @@ function materializeConfig(
     source = source.replaceAll(placeholder, value)
   }
   if (source.includes('${CLOUDFLARE_')) throw new Error('Unresolved Cloudflare placeholder.')
+  const config = JSON.parse(source) as WorkerConfig
+  const appPath = `apps/${target.appPackageName}/.open-next`
   const configPath = resolve(
-    `.wrangler.${target.siteId.replaceAll('.', '-')}.${environment}.generated.jsonc`
+    '.wrangler/generated',
+    `${target.siteId.replaceAll('.', '-')}.${environment}.jsonc`
   )
+  config.$schema = pathRelativeToConfig(
+    configPath,
+    resolve('node_modules/wrangler/config-schema.json')
+  )
+  config.main = pathRelativeToConfig(configPath, resolve(`${appPath}/worker.js`))
+  if (config.assets)
+    config.assets.directory = pathRelativeToConfig(configPath, resolve(`${appPath}/assets`))
+  const binding = config.d1_databases?.find(item => item.binding === 'DB')
+  if (binding) binding.migrations_dir = pathRelativeToConfig(configPath, resolve('d1/migrations'))
+  source = `${JSON.stringify(config, null, 2)}\n`
   mkdirSync(dirname(configPath), { recursive: true })
   writeFileSync(configPath, source)
   return {

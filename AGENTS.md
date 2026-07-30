@@ -23,6 +23,10 @@ multi-file work. Active plans live under `docs/exec-plans/active/`.
 - `apps/<site-id>/`: site-specific Next.js routes and OpenNext Worker boundary.
 - `apps/<site-id>/lib/catalog/`: server-only, tenant-bound D1 query boundary.
 - `sites/<site-id>/`: checked-in presentation and route configuration.
+- `configs/wrangler/<site-id>/`: checked-in local, preview, and production Worker
+  templates.
+- `.wrangler/generated/`: ignored, environment-specific Worker configuration
+  materialized by protected release tooling.
 - `d1/migrations/`: forward-only database schema changes.
 - `d1/publications/`: reviewed ongoing catalog mutation manifests.
 - `d1/artifacts/`: immutable initial-bootstrap and parity evidence.

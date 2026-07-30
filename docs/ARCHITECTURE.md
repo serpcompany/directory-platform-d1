@@ -36,6 +36,9 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   preview mapping.
 - `sites/<site-id>/` owns checked-in presentation, route, feature, and public site
   settings.
+- `configs/wrangler/<site-id>/` owns checked-in local, preview, and production Worker
+  templates. Ignored materialized configuration, local state, and backups remain
+  grouped by lifecycle under `.wrangler/`.
 - `packages/web-core/` owns reusable page/view behavior but never obtains a database
   binding directly.
 - `d1/migrations/` owns forward schema history.

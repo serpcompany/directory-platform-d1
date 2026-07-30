@@ -9,6 +9,7 @@ sync in either release path.
 
 - `scripts/site-targets.ts`: exhaustive executable site and release identities.
 - `sites/<site-id>/site-config.ts`: checked-in application configuration.
+- `configs/wrangler/<site-id>/*.jsonc`: checked-in Worker and D1 binding templates.
 - `packages/content/data/**/*.mdx`: file-authored documentation and legal content.
 - `d1/migrations/`: versioned D1 schema.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
@@ -32,7 +33,9 @@ The OpenNext build emits one `.open-next/worker.js` and asset set under each app
 Both sites have separate local and production Wrangler identities and bindings.
 PVD also has separate preview configuration; SERP's missing remote preview path is a
 known follow-up. Configuration validation rejects cross-environment and cross-site
-references.
+references. Release tooling materializes ignored environment-specific configuration
+under `.wrangler/generated/` and rebases Worker, asset, schema, and migration paths
+relative to that generated configuration.
 
 ## Initial production release
 

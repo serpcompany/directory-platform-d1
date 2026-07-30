@@ -22,6 +22,14 @@ interface WorkflowDefinition {
     'cancel-in-progress'?: boolean
     group?: string
   }
+  jobs?: {
+    release?: {
+      steps?: Array<{
+        name?: string
+        run?: string
+      }>
+    }
+  }
 }
 
 function loadYamlFile<T>(path: string): T {
@@ -63,6 +71,22 @@ describe('ci workflow install isolation', () => {
 
   it('keeps the changesets action configured for release runs', () => {
     expect(existsSync(resolve(process.cwd(), '.changeset/config.json'))).toBe(true)
+  })
+
+  it('builds the CLI from its checked-in registry snapshot', () => {
+    const releaseWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/release.yml')
+    const cliPackage = loadYamlFile<{ scripts?: Record<string, string> }>(
+      'packages/cli/package.json'
+    )
+    const buildStep = releaseWorkflow.jobs?.release?.steps?.find(
+      step => step.name === 'Build publishable package'
+    )
+
+    expect(buildStep?.run).toBe('pnpm --filter ./packages/cli build')
+    expect(cliPackage.scripts?.build).toBe('tsup')
+    expect(cliPackage.scripts).not.toHaveProperty('build:registry')
+    expect(existsSync(resolve(process.cwd(), 'packages/cli/data/registry.json'))).toBe(true)
+    expect(existsSync(resolve(process.cwd(), 'packages/cli/scripts/build-registry.ts'))).toBe(false)
   })
 
   it('persists app-level Next caches without caching generated artifacts', () => {

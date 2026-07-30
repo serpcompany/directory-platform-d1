@@ -5,13 +5,13 @@
   "scripts": {
     "analyze": "ANALYZE=true pnpm build",
     "build": "NODE_NO_WARNINGS=1 NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software next build",
-    "build:worker": "NODE_NO_WARNINGS=1 NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software opennextjs-cloudflare build --config ../../wrangler.jsonc",
+    "build:worker": "NODE_NO_WARNINGS=1 NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software opennextjs-cloudflare build --config ../../configs/wrangler/serp.software/local.jsonc",
     "clean": "git clean -xdf .cache .turbo .next coverage node_modules",
     "dev": "NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software next dev --webpack --port ${PORT:-3005}",
     "dev:inspect": "NODE_OPTIONS='--inspect' NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software next dev --webpack --port ${PORT:-3005}",
     "lint": "biome lint .",
     "lint:fix": "biome check --write .",
-    "preview:worker": "opennextjs-cloudflare preview --config ../../wrangler.jsonc --persist-to ${HARNESS_D1_STATE_DIRECTORY:-../../.wrangler/state} --port ${PORT:-8787}",
+    "preview:worker": "opennextjs-cloudflare preview --config ../../configs/wrangler/serp.software/local.jsonc --persist-to ${HARNESS_D1_STATE_DIRECTORY:-../../.wrangler/state} --port ${PORT:-8787}",
     "start": "next start",
     "typecheck": "NEXT_PUBLIC_SITE_ID=serp.software SITE_ID=serp.software tsc --noEmit --emitDeclarationOnly false"
   },

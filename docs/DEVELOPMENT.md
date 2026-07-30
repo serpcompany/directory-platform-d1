@@ -38,7 +38,8 @@ Use `pnpm preview:pornvideodownloaders` for the
 
 The local guard pins the local Worker name, D1 name, D1 ID, Wrangler config, and
 `--local` mode. It refuses to overwrite a catalog with a different publication
-checksum.
+checksum. Checked-in Worker templates are grouped by site under
+`configs/wrangler/<site-id>/`; generated state remains outside that source area.
 
 For code changes, run:
 
