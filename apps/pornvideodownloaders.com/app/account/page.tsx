@@ -1,5 +1,5 @@
-import { AccountPageRoute } from '@thedaviddias/web-core/account-page'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { AccountPageRoute } from '@serpdirectory/web-core/account-page'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import { redirect } from 'next/navigation'
 import type { ReactElement } from 'react'
 import { getSafeCallbackUrl, getSession } from '@/lib/auth'

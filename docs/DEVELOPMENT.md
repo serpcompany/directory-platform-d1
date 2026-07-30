@@ -48,9 +48,21 @@ pnpm harness:fast
 pnpm harness:check
 ```
 
-Add application queries to the catalog repository, not client components. Add a D1
-migration for schema changes and a reviewed publication manifest for catalog changes.
-Do not add a default site selection or a file-backed catalog path.
+Add public catalog queries once to `packages/data-ops/`, not to a site adapter or
+Client Component. Keep `apps/<site-id>/lib/catalog/repository.ts` as the server-only
+binding, site-identity, cache, observer, and request-deduplication adapter. A future
+site must instantiate the shared operations rather than copy SQL.
+
+Run the focused shared contract and scan benchmark with:
+
+```bash
+pnpm --filter @serpdirectory/data-ops test
+pnpm --filter @serpdirectory/data-ops benchmark
+```
+
+Add a D1 migration for justified schema changes and a reviewed publication manifest
+for catalog changes. Do not add a default site selection or a file-backed catalog
+path.
 
 For an agent-readable isolated runtime:
 

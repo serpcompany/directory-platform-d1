@@ -1,7 +1,7 @@
 import fs from 'node:fs'
 import path from 'node:path'
-import { logger } from '@thedaviddias/logging'
-import { resolveWorkspacePath } from '@thedaviddias/web-core/workspace-path'
+import { logger } from '@serpdirectory/logging'
+import { resolveWorkspacePath } from '@serpdirectory/web-core/workspace-path'
 import matter from 'gray-matter'
 
 /**

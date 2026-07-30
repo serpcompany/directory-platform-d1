@@ -1,5 +1,5 @@
+import { createCanonicalRobots } from '@serpdirectory/web-core/sitemaps'
 import type { MetadataRoute } from 'next'
-import { createCanonicalRobots } from '@thedaviddias/web-core/sitemaps'
 
 export const dynamic = 'force-static'
 

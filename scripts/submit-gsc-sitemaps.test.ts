@@ -1,5 +1,5 @@
-import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
-import { activeCheckedInSiteIds } from '@thedaviddias/site-contract/active-site-ids'
+import { resolveCheckedInSiteConfig } from '@serpdirectory/site-contract'
+import { activeCheckedInSiteIds } from '@serpdirectory/site-contract/active-site-ids'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { getSitemapTargets, runSubmitGscSitemaps } from './submit-gsc-sitemaps.ts'
 

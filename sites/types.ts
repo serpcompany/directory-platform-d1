@@ -1,1 +1,1 @@
-export type * from '@thedaviddias/site-contract/types';
+export type * from '@serpdirectory/site-contract/types'

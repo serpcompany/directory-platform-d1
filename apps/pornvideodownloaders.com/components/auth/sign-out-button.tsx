@@ -1,6 +1,6 @@
 'use client'
 
-import { SignOutButton as CoreSignOutButton } from '@thedaviddias/web-core/auth/sign-out-button'
+import { SignOutButton as CoreSignOutButton } from '@serpdirectory/web-core/auth/sign-out-button'
 import { signOut } from 'next-auth/react'
 import type { ReactElement } from 'react'
 

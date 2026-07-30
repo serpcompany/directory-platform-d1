@@ -1,8 +1,8 @@
 import {
   generateSearchPageMetadata,
   SearchIndexPage
-} from '@thedaviddias/web-core/search/index-page'
-import { SearchResultsRoute as SearchResults } from '@thedaviddias/web-core/search/search-results-route'
+} from '@serpdirectory/web-core/search/index-page'
+import { SearchResultsRoute as SearchResults } from '@serpdirectory/web-core/search/search-results-route'
 import type { Metadata } from 'next'
 import { getWebsites } from '@/lib/content-loader'
 

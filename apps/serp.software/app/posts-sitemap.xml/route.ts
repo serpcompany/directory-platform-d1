@@ -1,4 +1,4 @@
-import { createPostsSitemapResponse } from '@thedaviddias/web-core/sitemaps'
+import { createPostsSitemapResponse } from '@serpdirectory/web-core/sitemaps'
 import { getGuides } from '@/lib/content-loader'
 
 export const dynamic = 'force-static'

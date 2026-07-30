@@ -1,4 +1,4 @@
-import { parseError } from '@thedaviddias/observability/error'
+import { parseError } from '@serpdirectory/observability/error'
 import type { ClassValue } from 'clsx'
 import { clsx } from 'clsx'
 import { toast } from 'sonner'

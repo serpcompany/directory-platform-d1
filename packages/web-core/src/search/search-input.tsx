@@ -1,7 +1,7 @@
 'use client'
 
-import { Input } from '@thedaviddias/design-system/input'
-import { cn } from '@thedaviddias/design-system/lib/utils'
+import { Input } from '@serpdirectory/design-system/input'
+import { cn } from '@serpdirectory/design-system/lib/utils'
 import { Search } from 'lucide-react'
 import * as React from 'react'
 

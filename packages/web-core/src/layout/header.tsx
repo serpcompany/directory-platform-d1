@@ -1,15 +1,15 @@
 'use client'
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
 import {
   DirectoryApplicationActions,
   DirectoryApplicationHeader,
   DirectoryApplicationHeaderBar,
   DirectoryApplicationHeaderGroup,
   DirectoryApplicationNav
-} from '@thedaviddias/design-system/shadcnblocks/directory-application-shell'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
-import { siteCopy } from '@thedaviddias/web-core/site-copy'
+} from '@serpdirectory/design-system/shadcnblocks/directory-application-shell'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { siteConfig } from '@serpdirectory/web-core/site-config'
+import { siteCopy } from '@serpdirectory/web-core/site-copy'
 import { Menu, Plus, Search } from 'lucide-react'
 import Link from 'next/link'
 import { type ChangeEvent, type FormEvent, type ReactNode, useEffect, useState } from 'react'

@@ -1,5 +1,5 @@
 {
-  "name": "@thedaviddias/design-system",
+  "name": "@serpdirectory/design-system",
   "version": "1.0.0",
   "private": true,
   "description": "Design System for the Monorepo",
@@ -84,8 +84,8 @@
     "@radix-ui/react-toggle": "^1.1.10",
     "@radix-ui/react-toggle-group": "^1.1.11",
     "@radix-ui/react-tooltip": "^1.2.8",
+    "@serpdirectory/observability": "workspace:*",
     "@tailwindcss/typography": "^0.5.19",
-    "@thedaviddias/observability": "workspace:*",
     "@vercel/toolbar": "catalog:",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
@@ -109,8 +109,8 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@thedaviddias/config-typescript": "workspace:*",
-    "@thedaviddias/utils": "workspace:*",
+    "@serpdirectory/config-typescript": "workspace:*",
+    "@serpdirectory/utils": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "autoprefixer": "^10.4.24",

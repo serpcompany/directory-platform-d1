@@ -1,13 +1,13 @@
-import { GuideHeader } from '@thedaviddias/web-core/guides/guide-header'
+import { GuideHeader } from '@serpdirectory/web-core/guides/guide-header'
 import {
   GuideDetailPage,
   generateGuideDetailMetadata,
   generateGuideDetailStaticParams
-} from '@thedaviddias/web-core/guides/guide-page'
-import { JsonLd } from '@thedaviddias/web-core/json-ld'
-import { components } from '@thedaviddias/web-core/mdx-components'
-import { generateGuideSchema } from '@thedaviddias/web-core/schema'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
+} from '@serpdirectory/web-core/guides/guide-page'
+import { JsonLd } from '@serpdirectory/web-core/json-ld'
+import { components } from '@serpdirectory/web-core/mdx-components'
+import { generateGuideSchema } from '@serpdirectory/web-core/schema'
+import { siteConfig } from '@serpdirectory/web-core/site-config'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getGuideBySlug, getGuides } from '@/lib/content-loader'

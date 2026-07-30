@@ -1,4 +1,4 @@
-import { logger } from '@thedaviddias/logging'
+import { logger } from '@serpdirectory/logging'
 import type { SearchResult } from '../search-contract'
 
 export interface SearchWebsiteMetadata {

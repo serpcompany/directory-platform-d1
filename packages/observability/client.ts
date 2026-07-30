@@ -5,7 +5,7 @@
  */
 
 import { init, replayIntegration } from '@sentry/nextjs'
-import { IS_DEVELOPMENT } from '@thedaviddias/utils/environment'
+import { IS_DEVELOPMENT } from '@serpdirectory/utils/environment'
 import { keys } from './keys'
 
 export const initializeSentry = (): ReturnType<typeof init> =>

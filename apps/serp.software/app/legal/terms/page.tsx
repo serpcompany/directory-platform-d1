@@ -1,21 +1,21 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb';
-import type { Metadata } from 'next';
-import { getLegalContent } from '@/lib/content-loader';
-import { components } from '@thedaviddias/web-core/mdx-components';
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
+import { components } from '@serpdirectory/web-core/mdx-components'
 import {
-  LegalStaticPage,
   generateLegalPageMetadata,
-} from '@thedaviddias/web-core/static-pages/legal-page';
+  LegalStaticPage
+} from '@serpdirectory/web-core/static-pages/legal-page'
+import type { Metadata } from 'next'
+import { getLegalContent } from '@/lib/content-loader'
 
 export const metadata: Metadata = generateLegalPageMetadata({
   title: 'Terms of Service',
   description:
     'Terms of service for {{SITE_NAME}}. Read our terms and conditions for using this service.',
-  path: '/legal/terms',
-});
+  path: '/legal/terms'
+})
 
 export default async function TermsOfServicePage() {
-  const content = await getLegalContent('terms');
+  const content = await getLegalContent('terms')
 
   return (
     <LegalStaticPage
@@ -25,5 +25,5 @@ export default async function TermsOfServicePage() {
       slots={{ Breadcrumb }}
       title="Terms of Service"
     />
-  );
+  )
 }

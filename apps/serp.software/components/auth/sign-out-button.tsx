@@ -1,8 +1,8 @@
 'use client'
 
-import type { ReactElement } from 'react'
+import { SignOutButton as CoreSignOutButton } from '@serpdirectory/web-core/auth/sign-out-button'
 import { signOut } from 'next-auth/react'
-import { SignOutButton as CoreSignOutButton } from '@thedaviddias/web-core/auth/sign-out-button'
+import type { ReactElement } from 'react'
 
 type SignOutButtonProps = {
   className?: string

@@ -1,5 +1,5 @@
 {
-  "name": "@thedaviddias/web-core",
+  "name": "@serpdirectory/web-core",
   "version": "1.0.0",
   "private": true,
   "exports": {
@@ -136,11 +136,11 @@
     "@rjsf/core": "^6.4.1",
     "@rjsf/utils": "^6.4.1",
     "@rjsf/validator-ajv8": "^6.4.1",
-    "@thedaviddias/design-system": "workspace:*",
-    "@thedaviddias/hooks": "workspace:*",
-    "@thedaviddias/logging": "workspace:*",
-    "@thedaviddias/site-contract": "workspace:*",
-    "@thedaviddias/utils": "workspace:*",
+    "@serpdirectory/design-system": "workspace:*",
+    "@serpdirectory/hooks": "workspace:*",
+    "@serpdirectory/logging": "workspace:*",
+    "@serpdirectory/site-contract": "workspace:*",
+    "@serpdirectory/utils": "workspace:*",
     "lucide-react": "^0.486.0",
     "next": "catalog:",
     "next-themes": "^0.4.6",

@@ -1,6 +1,6 @@
 'use client'
 
-import { logger } from '@thedaviddias/logging'
+import { logger } from '@serpdirectory/logging'
 import { useCallback, useEffect, useMemo, useState } from 'react'
 
 // Traditional client-side pagination for static data

@@ -1,8 +1,8 @@
 'use client'
 
-import type { ReactElement } from 'react'
+import { GitHubSignInButton as CoreGitHubSignInButton } from '@serpdirectory/web-core/auth/github-sign-in-button'
 import { signIn } from 'next-auth/react'
-import { GitHubSignInButton as CoreGitHubSignInButton } from '@thedaviddias/web-core/auth/github-sign-in-button'
+import type { ReactElement } from 'react'
 
 type GitHubSignInButtonProps = {
   callbackUrl: string
@@ -11,7 +11,7 @@ type GitHubSignInButtonProps = {
 
 export function GitHubSignInButton({
   callbackUrl,
-  disabled = false,
+  disabled = false
 }: GitHubSignInButtonProps): ReactElement {
   return (
     <CoreGitHubSignInButton

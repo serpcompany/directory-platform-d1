@@ -1,4 +1,4 @@
-import { cn } from '@thedaviddias/design-system/lib/utils'
+import { cn } from '@serpdirectory/design-system/lib/utils'
 import { GeistMono } from 'geist/font/mono'
 import { GeistSans } from 'geist/font/sans'
 

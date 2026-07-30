@@ -1,8 +1,8 @@
 import {
   resolveSiteContent as resolveCheckedInSiteContent,
   resolveRuntimeSiteId
-} from '@thedaviddias/site-contract'
-import type { SiteOwnedContent } from '@thedaviddias/site-contract/types'
+} from '@serpdirectory/site-contract'
+import type { SiteOwnedContent } from '@serpdirectory/site-contract/types'
 
 export function resolveSiteContent(siteId = resolveRuntimeSiteId()): SiteOwnedContent {
   return resolveCheckedInSiteContent(siteId)

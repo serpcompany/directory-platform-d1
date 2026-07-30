@@ -1,0 +1,27 @@
+{
+  "name": "@serpdirectory/data-ops",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./cache": "./src/cache.ts",
+    "./catalog": "./src/catalog.ts",
+    "./contracts": "./src/contracts.ts"
+  },
+  "scripts": {
+    "benchmark": "vitest run src/benchmark.test.ts",
+    "test": "vitest run src/cache.test.ts src/catalog.test.ts src/benchmark.test.ts",
+    "typecheck": "tsc --noEmit --emitDeclarationOnly false"
+  },
+  "dependencies": {
+    "@serpdirectory/site-contract": "workspace:*",
+    "server-only": "catalog:"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260713.1",
+    "@serpdirectory/config-typescript": "workspace:*",
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "4.0.18"
+  }
+}

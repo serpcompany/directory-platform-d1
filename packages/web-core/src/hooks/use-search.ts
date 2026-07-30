@@ -1,10 +1,10 @@
 'use client'
 
-import { useDebounce } from '../../../hooks/src/use-debounce'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import { useRouter } from 'next/navigation'
 import type React from 'react'
 import { useCallback, useState } from 'react'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { useDebounce } from '../../../hooks/src/use-debounce'
 
 /**
  * Hook that manages search query state and navigation to search results

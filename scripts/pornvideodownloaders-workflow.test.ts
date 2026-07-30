@@ -1,5 +1,5 @@
 import { readFileSync } from 'node:fs'
-import { resolveRuntimeSiteId } from '@thedaviddias/site-contract/active-site-ids'
+import { resolveRuntimeSiteId } from '@serpdirectory/site-contract/active-site-ids'
 import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import { resolveSiteTarget, siteIds, siteTargets } from './site-targets'

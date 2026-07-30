@@ -1,4 +1,4 @@
-import { DocsRouteLayout } from '@thedaviddias/web-core/docs/layout'
+import { DocsRouteLayout } from '@serpdirectory/web-core/docs/layout'
 import type { ReactNode } from 'react'
 import { getDocs } from '@/lib/content-loader'
 

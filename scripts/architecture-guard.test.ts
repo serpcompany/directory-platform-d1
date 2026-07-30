@@ -27,6 +27,16 @@ const guardedSourceRoots = [
 ]
 
 describe('D1-only repository architecture', () => {
+  it('keeps the retired workspace package scope out of live files', () => {
+    const retiredScope = ['@', 'thedaviddias', '/'].join('')
+    const violations = trackedFiles().filter(file => {
+      if (!existsSync(resolve(file))) return false
+      return readFileSync(resolve(file), 'utf8').includes(retiredScope)
+    })
+
+    expect(violations).toEqual([])
+  })
+
   it('contains no checked-in or generated catalog files', () => {
     const files = trackedFiles()
     const forbidden = files.filter(
@@ -76,10 +86,18 @@ describe('D1-only repository architecture', () => {
       expect(repository).toContain("import 'server-only'")
       expect(repository).toContain('getCloudflareContext')
       expect(repository).toContain('env.DB')
+      expect(repository).toContain('@serpdirectory/data-ops/catalog')
+      expect(repository).toContain('readListingBySlug = cache(')
+      expect(repository).not.toMatch(/\b(?:SELECT|WITH)\b/u)
       expect(repository).not.toMatch(/node:fs|readFile|writeFile/u)
       expect(config).toContain("kind: 'd1-listings'")
       expect(config).toContain("binding: 'DB'")
     }
+    const sharedOperations = readFileSync(resolve('packages/data-ops/src/catalog.ts'), 'utf8')
+    expect(sharedOperations).toContain('createCatalogOperations')
+    expect(sharedOperations).toContain('siteId')
+    expect(sharedOperations).not.toContain('getCloudflareContext')
+    expect(sharedOperations).not.toContain('process.env')
   })
 
   it('keeps retired public static repositories out of live application links', () => {

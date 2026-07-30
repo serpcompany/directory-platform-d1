@@ -1,4 +1,4 @@
-import { createSitemapCompatibilityRedirect } from '@thedaviddias/web-core/sitemaps'
+import { createSitemapCompatibilityRedirect } from '@serpdirectory/web-core/sitemaps'
 
 export const dynamic = 'force-static'
 

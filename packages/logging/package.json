@@ -1,5 +1,5 @@
 {
-  "name": "@thedaviddias/logging",
+  "name": "@serpdirectory/logging",
   "version": "0.0.1",
   "private": true,
   "description": "Centralized logging utilities",
@@ -8,12 +8,12 @@
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {
-    "@t3-oss/env-nextjs": "catalog:",
-    "@thedaviddias/utils": "workspace:*"
+    "@serpdirectory/utils": "workspace:*",
+    "@t3-oss/env-nextjs": "catalog:"
   },
   "devDependencies": {
-    "@thedaviddias/config-next": "workspace:*",
-    "@thedaviddias/config-typescript": "workspace:*",
+    "@serpdirectory/config-next": "workspace:*",
+    "@serpdirectory/config-typescript": "workspace:*",
     "@types/node": "catalog:",
     "typescript": "catalog:"
   },

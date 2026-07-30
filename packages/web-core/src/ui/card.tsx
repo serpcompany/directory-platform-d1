@@ -1,5 +1,5 @@
-import * as DesignSystemCard from '@thedaviddias/design-system/card'
-import { cn } from '@thedaviddias/design-system/lib/utils'
+import * as DesignSystemCard from '@serpdirectory/design-system/card'
+import { cn } from '@serpdirectory/design-system/lib/utils'
 
 export function Card({ className, ...props }: React.ComponentProps<typeof DesignSystemCard.Card>) {
   return (

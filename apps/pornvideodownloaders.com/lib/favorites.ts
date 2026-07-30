@@ -1,5 +1,5 @@
 // Core favorites management logic
-import { logger } from '@thedaviddias/logging'
+import { logger } from '@serpdirectory/logging'
 
 // This helper is no longer on the active favorites runtime path. Keep its legacy key
 // unchanged until we choose to remove or migrate the older compatibility surface.

@@ -1,4 +1,4 @@
-import { DirectoryFeatureGrid } from '@thedaviddias/design-system/shadcnblocks/directory-home-section'
+import { DirectoryFeatureGrid } from '@serpdirectory/design-system/shadcnblocks/directory-home-section'
 import type { ComponentType, ReactNode } from 'react'
 import type { GuideMetadata } from '../content-query'
 import { getRoute } from '../routes'

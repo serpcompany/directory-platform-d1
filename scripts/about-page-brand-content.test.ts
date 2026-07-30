@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { activeCheckedInSiteIds } from '@thedaviddias/site-contract/active-site-ids'
+import { activeCheckedInSiteIds } from '@serpdirectory/site-contract/active-site-ids'
 import { describe, expect, it } from 'vitest'
 
 const activeSiteIds = [...activeCheckedInSiteIds]

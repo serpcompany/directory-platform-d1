@@ -1,4 +1,4 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
 import { Heart } from 'lucide-react'
 import type { Metadata } from 'next'
 import type { ComponentType, ReactNode } from 'react'

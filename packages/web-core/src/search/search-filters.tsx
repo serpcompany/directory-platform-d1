@@ -1,12 +1,12 @@
 'use client'
 
-import { Button } from '@thedaviddias/design-system/button'
-import { Checkbox } from '@thedaviddias/design-system/checkbox'
+import { Button } from '@serpdirectory/design-system/button'
+import { Checkbox } from '@serpdirectory/design-system/checkbox'
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger
-} from '@thedaviddias/design-system/dropdown-menu'
+} from '@serpdirectory/design-system/dropdown-menu'
 import { Filter, X } from 'lucide-react'
 import { useState } from 'react'
 import { getCategoryBySlug, resolveCategories } from '../categories'

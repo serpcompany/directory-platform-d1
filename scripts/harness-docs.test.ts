@@ -40,6 +40,7 @@ describe('repository harness contract', () => {
     expect(fast).toEqual([
       'documentation health',
       'D1 architecture guard',
+      'catalog data operations',
       'D1 contracts',
       'TypeScript boundaries'
     ])

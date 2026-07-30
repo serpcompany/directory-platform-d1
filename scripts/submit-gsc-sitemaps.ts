@@ -2,8 +2,8 @@ import { createSign } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
-import { activeCheckedInSiteIds } from '@thedaviddias/site-contract/active-site-ids'
+import { resolveCheckedInSiteConfig } from '@serpdirectory/site-contract'
+import { activeCheckedInSiteIds } from '@serpdirectory/site-contract/active-site-ids'
 
 type ServiceAccount = {
   client_email: string

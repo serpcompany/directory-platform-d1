@@ -1,6 +1,6 @@
 'use client'
 
-import { logger } from '@thedaviddias/logging'
+import { logger } from '@serpdirectory/logging'
 import { useEffect, useState } from 'react'
 import { SEARCH_API_PATH, searchResponseSchema } from '../search-contract'
 import type { SearchWebsiteMetadata } from './search-utils'

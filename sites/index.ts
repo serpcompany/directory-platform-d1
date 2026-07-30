@@ -3,4 +3,4 @@ export {
   resolveCheckedInSiteConfig,
   resolveSiteContent,
   siteConfigsById
-} from '@thedaviddias/site-contract'
+} from '@serpdirectory/site-contract'

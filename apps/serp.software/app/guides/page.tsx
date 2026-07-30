@@ -1,21 +1,21 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
-import type { Metadata } from 'next'
-import { type GuideMetadata, getGuides } from '@/lib/content-loader'
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
+import { EmptyState } from '@serpdirectory/web-core/empty-state'
 import {
   GuidesIndexPage,
-  generateGuidesIndexMetadata,
-} from '@thedaviddias/web-core/guides/index-page'
-import { EmptyState } from '@thedaviddias/web-core/empty-state'
-import { JsonLd } from '@thedaviddias/web-core/json-ld'
+  generateGuidesIndexMetadata
+} from '@serpdirectory/web-core/guides/index-page'
+import { JsonLd } from '@serpdirectory/web-core/json-ld'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { generateGuideSchema } from '@serpdirectory/web-core/schema'
+import { GuideCardRoute as GuideCard } from '@serpdirectory/web-core/sections/guide-card-route'
+import { SITE_PUBLIC_URL } from '@serpdirectory/web-core/seo-config'
+import type { Metadata } from 'next'
+import { type GuideMetadata, getGuides } from '@/lib/content-loader'
 import {
   generateDisabledRouteMetadata,
   isRouteFeatureEnabled,
   requireRouteFeature
 } from '@/lib/route-feature-gates'
-import { generateGuideSchema } from '@thedaviddias/web-core/schema'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { GuideCardRoute as GuideCard } from '@thedaviddias/web-core/sections/guide-card-route'
-import { SITE_PUBLIC_URL } from '@thedaviddias/web-core/seo-config'
 
 export function generateMetadata(): Metadata {
   if (!isRouteFeatureEnabled('showGuides')) {

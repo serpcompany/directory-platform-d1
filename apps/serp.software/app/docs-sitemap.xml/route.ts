@@ -1,4 +1,4 @@
-import { createDocsSitemapResponse } from '@thedaviddias/web-core/sitemaps'
+import { createDocsSitemapResponse } from '@serpdirectory/web-core/sitemaps'
 import { getDocs } from '@/lib/content-loader'
 
 export const dynamic = 'force-static'

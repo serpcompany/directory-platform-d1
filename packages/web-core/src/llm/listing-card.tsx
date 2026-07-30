@@ -1,11 +1,11 @@
 'use client'
 
-import { cn } from '@thedaviddias/design-system/lib/utils'
+import { cn } from '@serpdirectory/design-system/lib/utils'
 import {
   DirectoryProductBadge,
   DirectoryProductCard,
   DirectoryProductRow
-} from '@thedaviddias/design-system/shadcnblocks/directory-product-list'
+} from '@serpdirectory/design-system/shadcnblocks/directory-product-list'
 import Link from 'next/link'
 import type { WebsiteRelatedCardMetadata } from '../content-query'
 import { getRoute } from '../routes'

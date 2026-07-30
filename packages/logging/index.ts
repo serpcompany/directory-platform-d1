@@ -1,4 +1,4 @@
-import { IS_DEVELOPMENT } from '@thedaviddias/utils/environment'
+import { IS_DEVELOPMENT } from '@serpdirectory/utils/environment'
 import { keys } from './keys'
 
 type LogLevel = 'debug' | 'info' | 'warn' | 'error'

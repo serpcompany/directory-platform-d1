@@ -1,4 +1,4 @@
-import { Avatar, AvatarFallback, AvatarImage } from '@thedaviddias/design-system/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from '@serpdirectory/design-system/avatar'
 import type { ReactElement } from 'react'
 
 export type AccountPageUser = {
@@ -14,7 +14,7 @@ interface AccountPageRouteProps {
 
 export function AccountPageRoute({
   isStaticExportBuild = false,
-  user,
+  user
 }: AccountPageRouteProps): ReactElement {
   if (isStaticExportBuild) {
     return (

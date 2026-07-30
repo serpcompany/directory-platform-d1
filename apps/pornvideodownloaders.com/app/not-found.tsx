@@ -1,7 +1,7 @@
-import { Button } from '@thedaviddias/design-system/button'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { generateBaseMetadata } from '@thedaviddias/web-core/seo-config'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
+import { Button } from '@serpdirectory/design-system/button'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { generateBaseMetadata } from '@serpdirectory/web-core/seo-config'
+import { siteConfig } from '@serpdirectory/web-core/site-config'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 

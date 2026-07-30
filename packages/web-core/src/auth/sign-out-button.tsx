@@ -1,6 +1,6 @@
 'use client'
 
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
 import type { ReactElement } from 'react'
 
 type SignOutButtonProps = {

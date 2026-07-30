@@ -1,5 +1,5 @@
-import { DocsIndexPage, generateDocsIndexMetadata } from '@thedaviddias/web-core/docs/index-page'
-import { components } from '@thedaviddias/web-core/mdx-components'
+import { DocsIndexPage, generateDocsIndexMetadata } from '@serpdirectory/web-core/docs/index-page'
+import { components } from '@serpdirectory/web-core/mdx-components'
 import type { Metadata as NextMetadata } from 'next'
 import { notFound } from 'next/navigation'
 import { getDocBySlug } from '@/lib/content-loader'

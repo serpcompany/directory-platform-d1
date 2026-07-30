@@ -1,7 +1,7 @@
 'use client'
 
-import { cn } from '@thedaviddias/design-system/lib/utils'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { cn } from '@serpdirectory/design-system/lib/utils'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import { Heart } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

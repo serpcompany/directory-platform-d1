@@ -9,10 +9,10 @@ import {
   SiX,
   SiYoutube
 } from '@icons-pack/react-simple-icons'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { hasConfiguredPublicSocialLinks, siteConfig } from '@thedaviddias/web-core/site-config'
-import { siteContent } from '@thedaviddias/web-core/site-content'
-import { siteCopy } from '@thedaviddias/web-core/site-copy'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { hasConfiguredPublicSocialLinks, siteConfig } from '@serpdirectory/web-core/site-config'
+import { siteContent } from '@serpdirectory/web-core/site-content'
+import { siteCopy } from '@serpdirectory/web-core/site-copy'
 import { Linkedin } from 'lucide-react'
 import Link from 'next/link'
 import type { ComponentType } from 'react'

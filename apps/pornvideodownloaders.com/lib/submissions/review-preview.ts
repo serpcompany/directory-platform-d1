@@ -1,5 +1,5 @@
-import type { WebsiteDetailMetadata } from '@thedaviddias/web-core/content-query'
-import { websiteEntrySchema } from '@thedaviddias/web-core/website-schema'
+import type { WebsiteDetailMetadata } from '@serpdirectory/web-core/content-query'
+import { websiteEntrySchema } from '@serpdirectory/web-core/website-schema'
 import { z } from 'zod'
 
 const reviewPreviewTokenPattern = /^[A-Za-z0-9_-]{43}$/

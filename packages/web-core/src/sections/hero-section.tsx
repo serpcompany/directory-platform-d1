@@ -1,8 +1,8 @@
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
 import {
   DirectoryHero,
   DirectoryHeroContainer
-} from '@thedaviddias/design-system/shadcnblocks/directory-home-section'
+} from '@serpdirectory/design-system/shadcnblocks/directory-home-section'
 import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import { getRoute } from '../routes'

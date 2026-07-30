@@ -1,18 +1,18 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
 import {
   getActiveCategories,
   getFeaturedListingCount
-} from '@thedaviddias/web-core/category-navigation'
+} from '@serpdirectory/web-core/category-navigation'
 import {
   FeaturedCategoryRoutePage,
   featuredCategoryPageMetadata
-} from '@thedaviddias/web-core/category-routes/featured-page'
-import { CategoryWebsitesListRoute as CategoryWebsitesList } from '@thedaviddias/web-core/category-websites-list-route'
-import { JsonLd } from '@thedaviddias/web-core/json-ld'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@thedaviddias/web-core/sections/external-resources-section-route'
-import { FeaturedGuidesSectionRoute as FeaturedGuidesSection } from '@thedaviddias/web-core/sections/featured-guides-section-route'
-import { SITE_PUBLIC_URL } from '@thedaviddias/web-core/seo-config'
+} from '@serpdirectory/web-core/category-routes/featured-page'
+import { CategoryWebsitesListRoute as CategoryWebsitesList } from '@serpdirectory/web-core/category-websites-list-route'
+import { JsonLd } from '@serpdirectory/web-core/json-ld'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@serpdirectory/web-core/sections/external-resources-section-route'
+import { FeaturedGuidesSectionRoute as FeaturedGuidesSection } from '@serpdirectory/web-core/sections/featured-guides-section-route'
+import { SITE_PUBLIC_URL } from '@serpdirectory/web-core/seo-config'
 import { Trophy } from 'lucide-react'
 import { notFound } from 'next/navigation'
 import { getHomePageData } from '@/actions/get-home-page-data'

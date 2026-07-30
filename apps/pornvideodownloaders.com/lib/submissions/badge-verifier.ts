@@ -1,4 +1,4 @@
-import { BADGE_VERIFIER_USER_AGENT } from '@thedaviddias/web-core/forms/submission-contract'
+import { BADGE_VERIFIER_USER_AGENT } from '@serpdirectory/web-core/forms/submission-contract'
 import { validatePublicHttpUrl } from '../url-safety'
 
 const MAX_HTML_BYTES = 1_000_000

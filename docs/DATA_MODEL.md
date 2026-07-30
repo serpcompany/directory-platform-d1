@@ -24,6 +24,19 @@ a publication time that is not in the future. `serp.software` and
 tenant predicates, so an incorrect binding or site ID fails closed. PVD additionally
 has an isolated preview database. SERP does not yet have a proper preview database.
 
+Public catalog reads are implemented once in `packages/data-ops/`. Each application
+adapter supplies its validated D1 binding and checked-in site identity explicitly.
+List and card operations return lightweight summary projections; detail operations
+alone hydrate full content, media, and resource links. Stable category and featured
+counts use a site- and publication-version-keyed 60-second data cache, with live D1
+fallback on cache failure. This does not enable public full-page caching.
+
+`listings_related_name_idx` is a partial public-listing index used only to preserve
+the exact `name, slug` related-card ranking while seeking through eligible rows.
+Draft, inactive, and unpublished rows are omitted from that index. Its additional
+write/storage cost is accepted for publication-time changes; it is not evidence of
+ongoing public-site writes.
+
 Creating or badge-verifying a submission never satisfies those public predicates.
 Only the protected submission approval workflow can promote a verified row into the
 public tables, and that operation records publication provenance.

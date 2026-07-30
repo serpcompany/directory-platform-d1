@@ -1,18 +1,18 @@
-import type { Metadata } from 'next'
-import { notFound } from 'next/navigation'
-import { getDocBySlug, getDocs } from '@/lib/content-loader'
 import {
   DocDetailPage,
   generateDocDetailMetadata,
-  generateDocDetailStaticParams,
-} from '@thedaviddias/web-core/docs/doc-page'
-import { components } from '@thedaviddias/web-core/mdx-components'
+  generateDocDetailStaticParams
+} from '@serpdirectory/web-core/docs/doc-page'
+import { components } from '@serpdirectory/web-core/mdx-components'
+import { siteConfig } from '@serpdirectory/web-core/site-config'
+import type { Metadata } from 'next'
+import { notFound } from 'next/navigation'
+import { getDocBySlug, getDocs } from '@/lib/content-loader'
 import {
   generateDisabledRouteMetadata,
   isRouteFeatureEnabled,
   requireRouteFeature
 } from '@/lib/route-feature-gates'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
 
 interface DocPageProps {
   params: Promise<{

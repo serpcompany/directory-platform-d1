@@ -1,9 +1,9 @@
-import type { ReactElement } from 'react'
+import { AccountPageRoute } from '@serpdirectory/web-core/account-page'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import { redirect } from 'next/navigation'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { AccountPageRoute } from '@thedaviddias/web-core/account-page'
-import { requireRouteFeature } from '@/lib/route-feature-gates'
+import type { ReactElement } from 'react'
 import { getSafeCallbackUrl, getSession } from '@/lib/auth'
+import { requireRouteFeature } from '@/lib/route-feature-gates'
 import { isStaticExportBuild } from '@/lib/runtime-mode'
 
 export default async function AccountPage(): Promise<ReactElement> {
@@ -16,7 +16,9 @@ export default async function AccountPage(): Promise<ReactElement> {
   const session = await getSession()
 
   if (!session?.user) {
-    redirect(`${getRoute('login')}?callbackUrl=${encodeURIComponent(getSafeCallbackUrl('/account'))}`)
+    redirect(
+      `${getRoute('login')}?callbackUrl=${encodeURIComponent(getSafeCallbackUrl('/account'))}`
+    )
   }
 
   return <AccountPageRoute user={session.user} />

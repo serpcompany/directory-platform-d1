@@ -1,11 +1,11 @@
 'use client'
 
-import { ScrollArea } from '@thedaviddias/design-system/scroll-area'
+import { ScrollArea } from '@serpdirectory/design-system/scroll-area'
 import {
   DirectoryNavigationItem,
   DirectoryNavigationSection,
   directoryNavigationInteractiveClassName
-} from '@thedaviddias/design-system/shadcnblocks/directory-navigation'
+} from '@serpdirectory/design-system/shadcnblocks/directory-navigation'
 import { ExternalLink, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { resolveCategories } from '../categories'

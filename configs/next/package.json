@@ -1,5 +1,5 @@
 {
-  "name": "@thedaviddias/config-next",
+  "name": "@serpdirectory/config-next",
   "version": "1.0.0",
   "private": true,
   "scripts": {
@@ -13,7 +13,7 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@thedaviddias/config-typescript": "workspace:*",
+    "@serpdirectory/config-typescript": "workspace:*",
     "next": "catalog:"
   }
 }

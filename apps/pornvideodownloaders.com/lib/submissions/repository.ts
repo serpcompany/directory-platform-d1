@@ -1,9 +1,9 @@
 import 'server-only'
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { resolveRuntimeSiteId } from '@thedaviddias/site-contract'
-import type { SubmissionRequest } from '@thedaviddias/web-core/forms/submission-contract'
-import { submissionSlug } from '@thedaviddias/web-core/forms/submission-contract'
+import { resolveRuntimeSiteId } from '@serpdirectory/site-contract'
+import type { SubmissionRequest } from '@serpdirectory/web-core/forms/submission-contract'
+import { submissionSlug } from '@serpdirectory/web-core/forms/submission-contract'
 import { validatePublicHttpUrl } from '../url-safety'
 import type { BadgeVerificationResult } from './badge-verifier'
 

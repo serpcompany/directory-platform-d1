@@ -1,4 +1,4 @@
-import { logger } from '@thedaviddias/logging'
+import { logger } from '@serpdirectory/logging'
 
 interface RateLimitInfo {
   remaining: number
