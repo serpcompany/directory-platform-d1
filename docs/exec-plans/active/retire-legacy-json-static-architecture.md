@@ -81,7 +81,7 @@ tokens, private D1 exports, or sensitive DNS material. The committed plan record
 redacted identities, hashes, counts, response status, timestamps, and local evidence
 paths.
 
-The supplied retirement decision requires separate explicit approval for:
+The retirement plan identified the following approval-gated actions:
 
 - protected preview or production Worker deployments;
 - a merge that deploys remaining static sites or publishes packages;
@@ -91,8 +91,8 @@ The supplied retirement decision requires separate explicit approval for:
 - disabling GitHub Actions, Pages, or Issues;
 - repository visibility changes and archival.
 
-No ExecPlan checkbox or local test grants those approvals. Record the approver,
-timestamp, exact target, and approved action immediately before each mutation.
+The owner explicitly approved all of them on 2026-07-30. The action log records the
+approval, timestamp, exact target, mutation, and rollback point.
 
 ## Progress
 
@@ -108,10 +108,15 @@ timestamp, exact target, and approved action immediately before each mutation.
 - [x] 2026-07-30 13:08 JST — Removed live public-repository links in the D1
   applications, added an architecture guard, and passed focused tests,
   `pnpm docs:check`, and `pnpm typecheck`.
-- [ ] Prove D1 publication versions, checksums, and public counts are unchanged
-  before and after any approved Worker deployment.
-- [ ] Prove the D1 sitemap workflow has usable credential authority and successful
-  canonical sitemap resolution for both sites.
+- [x] 2026-07-30 14:46 JST — Deployed PVD preview and both production applications
+  through protected workflows in `worker-only` mode. Every D1 backup, migration,
+  import, publication, and verification step was skipped. Before/after read-only
+  fingerprints retained publication v1, the exact recorded checksums and public
+  counts, and `rows_written: 0`.
+- [x] 2026-07-30 14:11 JST — Transferred the four existing GSC OAuth/quota secrets
+  through one-time legacy workflow run `30515079205`, configured the two canonical
+  domain-property mappings, removed the relay workflow, and passed read-only D1
+  credential verification run `30515839263` without a Search Console mutation.
 - [x] 2026-07-30 13:20 JST — Implemented the combined legacy cleanup from
   `0326c8a`, including removed-site tombstones, fail-closed manual dispatch,
   reusable badge/submission allow-lists, and architecture regression tests.
@@ -119,28 +124,47 @@ timestamp, exact target, and approved action immediately before each mutation.
   `cba2b172bdf00d7d38d83d59cd11bbb4bdaf2144` and the combined legacy cleanup as
   `fedba3fe67786d6c78bf9a18ef2b28601aca7607`. Neither commit was pushed, merged,
   or deployed.
-- [ ] Validate every remaining active static site, exact cleanup-diff target
-  resolution, Changesets behavior, and all affected workflows without deploying.
+- [x] 2026-07-30 14:50 JST — Validated every remaining active static site, exact
+  cleanup-diff target resolution, Changesets behavior, and affected workflows
+  without deploying.
   Repository tests, typechecking, validate/build, and deploy dry-runs pass.
   `serp.ai` sitemap audit passes; the other three retain identical pre-existing
-  sitemap-audit failures on untouched `main`. The exact cleanup diff resolves all
-  four remaining sites and therefore requires production approval before merge.
+  sitemap-audit failures on untouched `main`.
   `pnpm test:repo` reports 236 passing tests with 7 skipped; `pnpm typecheck`,
   all four validates/builds, and all four deploy dry-runs pass. An empty Changeset
-  makes package publication intentionally empty.
-- [ ] Obtain and record the required approval before any protected Worker deployment,
-  merge/redeploy, credential change, Search Console mutation, DNS/rule change, or
-  GitHub repository setting mutation.
-- [ ] Narrow legacy `GH_PAT` authority and prove historical reruns cannot write either
-  retired target.
-- [ ] Replace GitHub-backed DNS with proxied originless records and add `www` to apex
-  redirects, one domain at a time, without changing Worker routes.
-- [ ] Disable target Actions, Pages, and Issues; make repositories private; observe
-  production for 14 days while leaving them unarchived.
-- [ ] After the observation window, obtain archival approval, archive both private
-  repositories, complete the reference inventory, and move this plan to
-  `completed/`.
-- [ ] Retain mirror, metadata, zone, D1-fingerprint, and HTTP evidence for 90 days.
+  made package publication intentionally empty. Legacy PR `#149` was squash-merged
+  as `4e7d83473b8db6f160e93982027872464423a115`; Build & Deploy run `30517647317`
+  was skipped, Release run `30517647313` reported “All changesets are empty,” and
+  no release PR, package publish, or remaining-site deployment occurred.
+- [x] 2026-07-30 15:10 JST — The owner explicitly approved all remaining production,
+  Search Console, DNS, GitHub repository-setting, observation, and post-observation
+  archival actions.
+- [x] 2026-07-30 15:02 JST — The owner explicitly accepted continued use of the
+  existing legacy `GH_PAT`; no credential rotation or scope change was performed.
+  Actions/Pages disablement and target repository privatization remain the controls
+  that will prevent historical reruns from publishing the retired sites.
+- [x] 2026-07-30 15:23 JST — Replaced both zones' eight GitHub Pages apex records
+  and GitHub-backed `www` CNAME with one proxied originless `A 192.0.2.0` per
+  hostname, one domain at a time. The account lacked Redirect Rules/Page Rules
+  authority, so merged SERP PR `#1358` added two explicit `www/*` routes to
+  `brands-page`; both hosts now return Cloudflare-owned 301 redirects preserving
+  path/query. Existing apex Worker route IDs are unchanged; Wrangler recreated the
+  two `/brands*` route IDs while preserving their patterns, scripts, precedence,
+  and bindings.
+- [x] 2026-07-30 15:25 JST — Disabled target Actions, Pages/custom domain, and
+  Issues, then made both repositories private. They remain unarchived for the
+  14-day observation window ending no earlier than 2026-08-13.
+- [x] 2026-07-30 15:37 JST — Added read-only sitemap inventory mode in D1 PR `#20`.
+  Inventory run `30519870789` compared registered URLs with live D1 sitemap
+  indexes. Mutation run `30520108154` removed only SERP's redirecting
+  `/sitemap.xml` and PVD's two singular 404 sitemap URLs, then submitted both
+  canonical `/sitemap-index.xml` URLs. Post-mutation inventory run `30520216679`
+  succeeded and confirmed only the canonical indexes and valid D1 child sitemaps
+  remain.
+- [ ] After the observation window, archive both private repositories, complete the
+  final reference inventory, and move this plan to `completed/`.
+- [x] Retain mirror, metadata, zone, D1-fingerprint, and HTTP evidence through at
+  least 2026-10-28.
 
 ## Surprises and discoveries
 
@@ -200,6 +224,40 @@ timestamp, exact target, and approved action immediately before each mutation.
   not in `test:repo`; remaining valid coverage was preserved rather than deleting
   the file to conceal the baseline.
 
+- Observation: the first production verification exposed that every legal route on
+  both D1 Workers returned 500. Worker tail identified `next-mdx-remote` as an
+  external module unavailable to Workerd; bundling it then exposed its use of
+  string code generation, which Workerd prohibits. D1 PR `#18` replaced the runtime
+  MDX compiler with the existing `react-markdown`/GFM renderer across legal, docs,
+  and guide pages and removed `next-mdx-remote`. Seeded local Worker checks, full
+  CI, PVD preview, and both production Workers now return 200 for legal routes.
+  This repair changed Worker versions only and did not change D1.
+
+- Observation: the final approved production Worker versions are
+  `b13dcdde-bd70-4fdc-a47e-0d145ed05a55` for SERP and
+  `f8c932f0-9867-4e09-87bd-489c0bfade4d` for PVD; PVD preview is
+  `def0057b-3cfb-44b8-9876-e8785df29027`. Home, products, featured category,
+  search, RSS, sitemap index, submit, and legal checks pass; `/build-info.json`
+  remains a Worker-owned 404 and no checked response has GitHub Pages provenance.
+
+- Observation: SERP PR `#1357` merged the `/brands*` origin repair as
+  `51efcbbe008fd3854aba295e7fec9e3107a133d1`. The shared `brands-page` Worker now
+  has explicit service bindings to `serp-software-production` and
+  `pornvideodownloaders-production`; 46 tests, typechecking, and Wrangler dry-run
+  passed. It was deployed as version `162fb079-dcea-4fa6-ad3f-11fba40f6b82`.
+  Because the account could not create Redirect Rules or legacy Page Rules, SERP
+  PR `#1358` then added two tested canonical `www/*` routes and was deployed as
+  version `d431c523-b63f-48fc-8292-efe148aaa933`. All tested `/brands/` consumers
+  return 200.
+
+- Observation: Wrangler preserves route patterns and scripts but recreated the
+  `/brands*` route records during the approved shared Worker deployment. The apex
+  routes retain IDs `f032ba43f0324fe59ceba4eb37714552` and
+  `7ea81204a85d41358fcb3c1d3c593f33`; the new `/brands*` IDs are
+  `438ef9a1fed1490b83108e367cc33b00` and
+  `c51042a51a52456d87eb62456a60e0a4`. This is a control-plane identity change,
+  not a route pattern, script, precedence, binding, or D1 change.
+
 - Observation: GitHub exposes the legacy `GH_PAT` secret name and update time but
   not the stored token's principal, kind, expiry, scopes, or repository allow-list.
   Those properties cannot be inferred safely from the secret value because GitHub
@@ -208,11 +266,11 @@ timestamp, exact target, and approved action immediately before each mutation.
 
 ## Decision log
 
-- Decision: treat the current user request as authority for local implementation,
-  read-only evidence collection, backups, and dry-run validation, but not as the
-  fresh explicit approvals enumerated above.
-  Rationale: the supplied plan deliberately makes those actions approval-gated and
-  the repository runbooks say an ExecPlan does not authorize external effects.
+- Decision: initial work was limited to local implementation, read-only evidence,
+  backups, and dry-run validation until the owner supplied explicit approvals. The
+  owner approved every enumerated mutation on 2026-07-30 before those mutations ran.
+  Rationale: the repository runbooks say an ExecPlan alone does not authorize
+  external effects; the later owner approval did.
   Date: 2026-07-30.
 
 - Decision: keep `783724e` unchanged in the controlling checkout and reimplement the
@@ -225,6 +283,15 @@ timestamp, exact target, and approved action immediately before each mutation.
   `/brands*` route, as protected invariants.
   Rationale: the task retires legacy publication authority, not the live D1
   architecture or brand-page routing.
+  Date: 2026-07-30.
+
+- Decision: use two explicit `www/*` routes on the existing `brands-page` Worker
+  after both the connected API and authenticated dashboard proved unable to create
+  Redirect Rules or Page Rules. The Worker returns 301 to the HTTPS apex while
+  preserving path and query.
+  Rationale: this removes GitHub as origin and satisfies the canonical redirect
+  requirement using existing Cloudflare-owned compute and recoverable source,
+  without modifying either apex application route or D1.
   Date: 2026-07-30.
 
 - Decision: do not remove the migrated domains from legacy GSC ownership until the
@@ -279,7 +346,8 @@ public static repositories as superseded while keeping genuine history.
 
 Confirm `/submit` remains D1-native and badge assets remain Worker/R2-owned. Validate
 PVD locally and prepare its existing preview release. Validate SERP locally and record
-the missing preview path as a follow-up. Any protected deployment waits for approval.
+the missing preview path as a follow-up. Protected deployments ran only after the
+recorded owner approval.
 
 ### Milestone 3: retire both IDs from the legacy pipeline
 
@@ -303,19 +371,19 @@ Run repository checks and the validate/build/sitemap-audit/deploy-dry-run sequen
 every remaining active static site. Run the exact cleanup diff through the workflow
 target resolver. Inspect Changesets output and every workflow affected by the merge.
 If shared paths resolve remaining targets, document the exact production redeploy set
-and request approval before merge.
+before merge and apply the recorded approval only to that reviewed set.
 
 ### Milestone 5: narrow credentials
 
-Record the legacy `GH_PAT` principal, kind, expiry, scopes, repository allow-list, and
-consumer graph without exposing the token. After explicit approval, replace it with a
-fine-grained credential that can write only the source and valid remaining targets,
-explicitly excluding the retired repositories. Keep the prior credential recoverable
-only until valid dry-run and permission proofs pass.
+Record every `GH_PAT` property GitHub exposes without revealing the token and document
+its consumer graph. GitHub does not expose its principal, kind, expiry, scopes, or
+repository allow-list. The owner directed this retirement to retain and use the
+existing credential; target Actions/Pages disablement, privatization, and removal
+from active source mappings prevent it from publishing the retired sites.
 
 ### Milestone 6: change DNS one domain at a time
 
-After explicit approval and a same-moment export, create the `www` redirect rule,
+After the recorded approval and a same-moment export, create the `www` redirect,
 replace `www` GitHub CNAME with proxied `A 192.0.2.0`, and replace the eight GitHub
 Pages apex A/AAAA records with one proxied `A 192.0.2.0`. Preserve record comments,
 unrelated DNS, email, validation, nameservers, DNSSEC, CAA, Workers, D1, and both
@@ -326,8 +394,8 @@ Worker routes. Validate SERP fully before repeating for PVD.
 After approved D1 releases remove live issue links and approved DNS changes pass,
 verify both mirrors, disable Actions, disable Pages/custom-domain binding, disable
 Issues, verify no deploy authority remains, then make the repositories private.
-Keep them unarchived for the 14-day observation window. After that window and fresh
-approval, archive them.
+Keep them unarchived for the 14-day observation window. The owner has already
+approved archival after that window; archive them no earlier than 2026-08-13.
 
 Confirm canonical D1 sitemap submission, remove only obsolete static sitemap entries
 from Search Console after approval, classify all residual references, and preserve
@@ -390,8 +458,8 @@ Acceptance requires authoritative evidence for every item:
 - target repositories have no Actions, Pages, custom domain, deploy credentials,
   public visibility, or Issues after the approved retirement; after 14 days they are
   private and archived;
-- narrowed legacy credentials cannot write either retired repository, including
-  through historical reruns;
+- the owner's accepted legacy `GH_PAT` remains unchanged; disabled Actions and Pages
+  prevent historical workflow reruns from publishing either retired site;
 - both apexes return `x-opennext: 1`; both `www` hosts permanently redirect to apex;
 - tested responses have no GitHub/Fastly provenance and `/build-info.json` is a
   Worker-owned 404;
@@ -399,13 +467,17 @@ Acceptance requires authoritative evidence for every item:
   the general Worker route;
 - representative home, product, category, search, RSS, sitemap, submit, badge,
   canonical, redirect, and TLS checks pass for both sites;
-- Worker routes/bindings and D1 IDs/publication versions/checksums/counts are
-  unchanged;
+- apex Worker routes, Worker bindings, and D1
+  IDs/publication versions/checksums/counts are unchanged; two `www/*` redirect
+  routes were added and Wrangler recreated the `/brands*` route record IDs without
+  changing their behavior;
 - `pornvideodownloaders-preview` remains isolated and missing SERP preview is recorded
   only as a follow-up;
 - Pages is absent across all 13 connected Cloudflare accounts;
 - unrelated and mail DNS records are byte-for-byte unchanged;
-- Search Console retains both properties and only canonical D1 sitemap indexes;
+- Search Console retains both properties, canonical D1 sitemap indexes, and valid
+  D1 child sitemaps; obsolete redirecting/404 static sitemap registrations are
+  absent;
 - every residual reference has a reviewed classification.
 
 ## Idempotence and recovery
@@ -441,7 +513,8 @@ deletion, Worker-route removal, repository deletion, or history rewriting.
 
 ## Prepared approval batches
 
-No batch below has been approved or executed.
+All batches were approved on 2026-07-30. Batches 1-7 are complete; batch 8 must
+wait for the observation window.
 
 1. **D1 application releases — approved 2026-07-30.** Deploy the link-removal change to
    `pornvideodownloaders-preview`, verify it, then deploy the protected PVD
@@ -450,8 +523,8 @@ No batch below has been approved or executed.
    fingerprints before and after each release.
 2. **D1 GSC credential authority — approved 2026-07-30.** Provision the existing four OAuth/quota
    credential names and the two domain mappings in the D1 repository, then run a
-   protected canonical dry/proof submission. This credential change and Search
-   Console submission need explicit approval.
+   protected canonical dry/proof submission. Both actions ran under the recorded
+   owner approval.
 3. **Legacy cleanup merge.** Merge the reviewed cleanup only after batch 2 passes.
    Squash-merge it with `[skip static deploy]` in the commit title so the resolver
    job is skipped; the empty Changeset proves no package publication is requested.
@@ -465,8 +538,9 @@ No batch below has been approved or executed.
    domain, and Issues; make each target private; keep both unarchived for 14 days.
 7. **Search Console cleanup.** After D1 canonical submission is proven, remove only
    obsolete static sitemap URLs while retaining properties and verification.
-8. **Archival after observation.** After 14 successful days and a fresh approval,
-   archive both private repositories and begin the 90-day evidence-retention clock.
+8. **Archival after observation — approved, time-gated.** After 14 successful days,
+   archive both private repositories. Evidence retention already runs through at
+   least 2026-10-28.
 
 ## Important artifacts
 
@@ -520,10 +594,13 @@ Reviewed current classifications:
   cookie-policy issue-tracker link. No replacement contact channel was invented.
 
 The final organization-wide search and per-reference attachment remain pending
-until local branches are reviewed and all approval-gated mutations are complete.
+until the observation window closes and the repositories are archived.
 
 ## Outcomes and retrospective
 
-Incomplete. Populate only after all local checks, approvals, external mutations,
-14-day observation, archival, Search Console closure, and final reference
-classification have authoritative evidence.
+Production retirement is active: GitHub-backed DNS is gone, both target repositories
+are private with Actions/Pages/Issues disabled, D1 and apex Worker routes remain
+healthy, `/brands/` and `www` canonicalization are Cloudflare-owned, and Search
+Console retains the canonical D1 sitemap surfaces. The only time-gated work is the
+14-day observation, private archival on or after 2026-08-13, the final reference
+inventory, and moving this plan to `completed/`.
