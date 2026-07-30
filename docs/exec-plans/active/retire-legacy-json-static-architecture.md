@@ -192,6 +192,12 @@ timestamp, exact target, and approved action immediately before each mutation.
   not in `test:repo`; remaining valid coverage was preserved rather than deleting
   the file to conceal the baseline.
 
+- Observation: GitHub exposes the legacy `GH_PAT` secret name and update time but
+  not the stored token's principal, kind, expiry, scopes, or repository allow-list.
+  Those properties cannot be inferred safely from the secret value because GitHub
+  does not return it. Credential narrowing therefore needs the credential owner's
+  explicit inventory or an approved replacement-token creation flow.
+
 ## Decision log
 
 - Decision: treat the current user request as authority for local implementation,
