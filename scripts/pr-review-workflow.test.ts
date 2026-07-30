@@ -73,8 +73,10 @@ describe('pr-review workflow', () => {
     expect(stepRuns).toContain('pnpm worker:config:validate')
     expect(stepRuns).toContain('pnpm test:repo')
     expect(stepRuns).toContain('pnpm lint:forbidden-links')
-    expect(stepRuns).toContain(
-      'pnpm exec biome check --changed --since=origin/main --no-errors-on-unmatched'
+    const biomeStep = stepRuns.find(run => run.includes('pnpm exec biome check'))
+    expect(biomeStep).toContain('git diff --name-only --diff-filter=ACMR -z origin/main...HEAD')
+    expect(biomeStep).toContain(
+      'pnpm exec biome check --no-errors-on-unmatched "${changed_files[@]}"'
     )
     expect(stepRuns).not.toContain('pnpm d1:local:migrate')
     expect(stepRuns).not.toContain('pnpm worker:deploy:production')
