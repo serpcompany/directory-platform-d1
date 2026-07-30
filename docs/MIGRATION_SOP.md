@@ -1,34 +1,41 @@
 # JSON-directory to D1 migration SOP
 
-Status: approved process; no additional site migration is authorized or in progress  
+Status: approved reusable process; no additional site migration is authorized or in progress
+
 Responsible area: platform and catalog data  
 Last verified: 2026-07-30  
 Validation: `pnpm docs:check` and `pnpm migration:preflight`
 
-This procedure describes how a future maintainer can migrate one legacy site from an
-external `json-directory` checkout into the D1 architecture while preserving its
-public behavior. It captures the lessons from the `serp.software` cutover without
-turning legacy files into a supported runtime source.
+This procedure describes how a maintainer can migrate one legacy site from an
+external `json-directory` checkout into this multisite D1 architecture while
+preserving its public behavior. It incorporates the completed `serp.software` and
+`pornvideodownloaders.com` cutovers without turning legacy files into a supported
+runtime source.
 
 This document prepares future work. Do not import another site merely because this
 SOP exists.
 
 ## Scope and support boundary
 
-The current repository deploys one application and one tenant: `serp.software`.
-Several boundaries still encode that identity:
+The current repository deploys two explicitly registered tenants:
+`serp.software` and `pornvideodownloaders.com`. Each has a distinct app, Worker,
+local state, preview and production D1 database, protected environments, initial
+artifact, parity report, and browser coverage. Shared publication, submission, and
+release tools require an explicit site ID from `scripts/site-targets.ts`.
 
-- `apps/serp.software/lib/catalog/repository.ts`;
-- `sites/serp.software/site-config.ts`;
-- the D1 publisher’s manifest schema and local database identity;
-- Wrangler preview and production configurations;
-- protected build, publish, and badge workflows;
-- initial import and parity artifact names.
+That working two-site baseline is reusable, but it is not an automatic site factory.
+Every additional migration must extend and prove all of these boundaries:
 
-The relational schema includes `site_id`, but that alone does not make the runtime or
-release tooling multisite. A future second-site migration must first choose and
-implement a tenancy architecture. Until then, `migration:preflight` is inventory
-only.
+- `apps/<site-id>/` and its server-only catalog/submission repositories;
+- `sites/<site-id>/site-config.ts` and presentation assets;
+- the exhaustive active-site registry and explicit command aliases;
+- site-specific initial import artifacts and parity report;
+- isolated local, preview, and production Wrangler/D1 identities;
+- protected deploy, publish, submission, notification, and backup behavior;
+- runtime, route, search, sitemap, RSS, redirect, and browser evidence.
+
+Never add only a `sites/` directory or only a `sites` table row. The relational
+`site_id` column does not by itself prove runtime or release isolation.
 
 Legacy catalog files must remain in the external source checkout. They may be read by
 the migration harness during a reviewed migration, but they must never be copied into
@@ -92,16 +99,18 @@ tenant columns are necessary but insufficient proof of safe shared tenancy. It
 requires tenant-bound queries, tenant-bound uniqueness, authorization analysis,
 backup/restore impact analysis, and cross-tenant tests.
 
-### Required platformization before Option B
+### Required platform extension for Option B
 
-The platformization ExecPlan must, at minimum:
+The platform already satisfies this contract for its two active sites. A new-site
+ExecPlan must extend it without weakening any item:
 
-1. replace application and publisher `SITE_ID` literals with a parsed server-side
-   site identity;
+1. add the site to the exhaustive registry and every required workflow choice or
+   matrix;
 2. make site configuration selection explicit and exhaustive—never default/fallback;
 3. parameterize local, preview, and production Worker/D1 identities;
 4. preserve one protected production environment and confirmation phrase per site;
-5. parameterize bootstrap artifacts and parity reports without weakening checks;
+5. register site-specific bootstrap artifacts and parity reports without weakening
+   checks;
 6. make publisher schemas bind a reviewed site ID rather than accepting arbitrary
    caller input;
 7. test that every query, redirect, publication, and verification is tenant-bound;
@@ -200,12 +209,13 @@ those types into D1 rows. Domain transformation code must not repeatedly accept
 
 ## Phase 3: construct deterministic D1 artifacts
 
-Only begin after Phase 0 platform support exists and the source/field map is approved.
+Only begin after the Phase 0 extension design and source/field map are approved.
 
 1. Add any required forward-only schema migration.
-2. Build a one-time migration generator that reads only the explicit external source
-   path.
-3. Emit deterministic SQL and bounded import batches directly into a site-specific
+2. Extend the external-only source adapter, active-site registry, and reusable
+   `scripts/migration/generate-initial-artifact.ts` boundary for the reviewed legacy
+   shape. Do not add a runtime adapter.
+3. Generate deterministic SQL and bounded import batches directly into a site-specific
    artifact directory.
 4. Emit a parity report containing source commit, source hashes, mapping version,
    listing/category counts, exact slug set, row-level checksums, batch count, and
@@ -213,8 +223,17 @@ Only begin after Phase 0 platform support exists and the source/field map is app
 5. Run the generator twice from the same source commit and compare byte-for-byte
    outputs.
 6. Commit generated SQL and parity evidence, not an intermediate catalog file.
-7. Remove the generator after cutover unless it remains a general, external-only,
-   tested migration tool with no runtime imports.
+7. Keep the generator external-only and tested. Isolate every source- or site-specific
+   normalization rule, preserve it when reproducibility requires it, and document its
+   evidence instead of turning it into runtime behavior.
+
+Run the generator only after the new site is registered:
+
+```bash
+pnpm migration:generate -- \
+  --source-root /absolute/path/to/json-directory \
+  --site-id example.com
+```
 
 The artifact must be idempotent at the release boundary. The importer may initialize
 an empty publication state or no-op on the exact checksum. It must refuse to overwrite
@@ -231,18 +250,20 @@ Use small batches that fit D1 limits. Preserve foreign-key ordering:
 
 ## Phase 4: prove local parity
 
-Use an isolated worktree and local D1 state:
+Use an isolated worktree and local D1 state. Create the worktree from its controlling
+checkout:
 
 ```bash
-pnpm worktree:init -- example-com-migration
+pnpm worktree:new -- example-com-migration
+cd ../directory-platform-d1-worktrees/example-com-migration
 pnpm worktree:doctor
-pnpm d1:local:migrate
-pnpm d1:local:import
-pnpm d1:local:verify
+pnpm tsx scripts/d1-local-guard.ts migrate --site example.com
+pnpm tsx scripts/d1-local-guard.ts import --site example.com
+pnpm tsx scripts/d1-local-guard.ts verify --site example.com
 ```
 
-The site-specific implementation must parameterize these commands safely before use;
-the current commands intentionally target only `serp.software`.
+The registry and local guard must recognize the new site before these commands run.
+Root aliases are conveniences for existing sites, not a default-tenant mechanism.
 
 Parity proof must cover:
 
@@ -260,6 +281,8 @@ Parity proof must cover:
 - legacy redirects and canonical URLs;
 - site configuration, branding, navigation, analytics, and submission behavior;
 - representative desktop and mobile browser journeys;
+- viewport containment for mobile hero, navigation, cards, forms, and long labels
+  using element bounding boxes—not only `document.scrollWidth`;
 - missing D1 binding and wrong-environment fail-closed behavior.
 
 Run:
@@ -281,7 +304,9 @@ Provisioning requires explicit Cloudflare and repository authority.
 2. Record real IDs only in the intended Wrangler configuration; never in templates or
    public docs.
 3. Create a site-specific Worker name, route/domain, and protected GitHub environment.
-4. Configure scoped Cloudflare credentials as environment secrets.
+4. Configure scoped Cloudflare credentials as environment secrets. Verify the
+   authenticated principal can read the intended account and only the required
+   Worker/D1 resources before the first mutation.
 5. Add exact confirmation phrases for preview/production mutations.
 6. Validate that local config contains only the synthetic local D1 ID.
 7. Add remote plan commands that reveal target names/IDs without mutating them.
@@ -291,17 +316,27 @@ Provisioning requires explicit Cloudflare and repository authority.
 Never copy `serp.software` production IDs to another site. Never use a local Wrangler
 command as a substitute for the protected workflow.
 
+Cloudflare displays the account identifier and API token in nearby UI/API contexts.
+Treat them as distinct values: confirm the account ID against the authenticated
+account endpoint, then verify the token with a read-only request. Do not infer either
+value from its label, length, clipboard order, or a successful login. Record only
+redacted identity evidence in the ExecPlan.
+
 ## Phase 6: rehearse and release
 
 ### Preview rehearsal
 
-1. retain a preview backup if preview contains meaningful data;
+1. use a newly provisioned, empty preview database or retain a backup if preview
+   already contains meaningful data;
 2. apply migrations;
 3. import only into empty expected publication state;
 4. run exact remote parity verification;
 5. deploy the preview Worker;
-6. execute the route and browser checklist;
-7. rehearse restoration or document the tested recovery mechanism.
+6. execute the route and browser checklist, including real mobile screenshots and
+   element-containment assertions;
+7. run the same protected preview release a second time against the populated
+   database and prove the identical publication checksum produces an import no-op;
+8. rehearse restoration or document the tested recovery mechanism.
 
 ### Production release
 
@@ -317,6 +352,7 @@ command as a substitute for the protected workflow.
    URLs, and redirects over the public domain;
 10. monitor errors and preserve the legacy deployment during the agreed observation
     window.
+11. record the final workflow runs, public evidence, and exact deployed commit.
 
 Every step must be visible in a protected workflow. A database verification failure
 must stop Worker deployment.
@@ -337,6 +373,9 @@ After production parity and the observation window:
 8. rebuild and repeat the search;
 9. archive the legacy repository as read-only or clearly mark it superseded;
 10. move the completed ExecPlan with final evidence into `docs/exec-plans/completed/`.
+11. from the controlling checkout, remove the registered migration worktree with
+    `pnpm worktree:destroy -- <name>`; after merge and recovery review, delete the
+    merged migration branch if it is no longer needed.
 
 Deletion is not parity proof. Remove the old path only after D1 and public runtime
 evidence are independently established. Git history remains the recovery path for
@@ -397,8 +436,10 @@ and how to recover safely.
 ### Release and recovery
 
 - [ ] Preview rehearsal and recovery procedure succeeded.
+- [ ] A second populated preview release proved checksum-idempotent import behavior.
 - [ ] Protected production backup, migration, import, verify, and deploy steps exist.
 - [ ] Post-release checks passed on the public domain.
+- [ ] Mobile screenshots and element-containment assertions show no viewport escape.
 - [ ] Rollback decision points and retained artifacts are recorded.
 
 ### Cleanup and knowledge
@@ -407,3 +448,4 @@ and how to recover safely.
 - [ ] Architecture guards prevent regression.
 - [ ] Docs, skills, and the completed ExecPlan reflect the final system.
 - [ ] `pnpm harness:check` and relevant runtime checks pass from the release commit.
+- [ ] The merged migration worktree and unneeded branch were cleaned safely.

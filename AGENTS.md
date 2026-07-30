@@ -1,7 +1,8 @@
 # Repository contract for coding agents
 
-This repository operates the production `serp.software` directory as a Next.js
-OpenNext Worker backed by Cloudflare D1. D1 is the only catalog database.
+This repository operates the production `serp.software` and
+`pornvideodownloaders.com` directories as isolated Next.js OpenNext Workers backed
+by distinct Cloudflare D1 databases. D1 is the only catalog database.
 
 ## Start here
 
@@ -19,15 +20,16 @@ multi-file work. Active plans live under `docs/exec-plans/active/`.
 
 ## Repository map
 
-- `apps/serp.software/`: Next.js routes and the OpenNext Worker application.
-- `apps/serp.software/lib/catalog/`: server-only D1 query boundary.
-- `sites/serp.software/`: checked-in presentation and route configuration.
+- `apps/<site-id>/`: site-specific Next.js routes and OpenNext Worker boundary.
+- `apps/<site-id>/lib/catalog/`: server-only, tenant-bound D1 query boundary.
+- `sites/<site-id>/`: checked-in presentation and route configuration.
 - `d1/migrations/`: forward-only database schema changes.
 - `d1/publications/`: reviewed ongoing catalog mutation manifests.
 - `d1/artifacts/`: immutable initial-bootstrap and parity evidence.
 - `packages/web-core/`: shared page, navigation, search, sitemap, and RSS behavior.
 - `scripts/harness/`: deterministic agent feedback and runtime tooling.
 - `scripts/migration/`: read-only legacy source inspection.
+- `scripts/site-targets.ts`: exhaustive active-site identities and release targets.
 - `.agents/skills/`: progressively disclosed repeatable agent workflows.
 - `docs/`: repository-local source of truth and operating procedures.
 
@@ -41,8 +43,14 @@ Closer `AGENTS.md` files add local rules without replacing this contract.
 - `pnpm agent:manifest`: machine-readable local runtime and binding information.
 - `pnpm agent:doctor`: prerequisite and isolation diagnostics.
 - `pnpm agent:dev`: logged, isolated local D1 Worker preview.
+- `pnpm agent:pornvideodownloaders:dev`: second-site local Worker preview.
 - `pnpm worktree:new -- <name>`: create an isolated `codex/<name>` worktree.
+- `pnpm worktree:destroy -- <name>`: safely remove a registered harness worktree.
 - `pnpm migration:preflight -- ...`: read-only legacy site inventory.
+
+Default root aliases select `serp.software` explicitly. Named
+`*:pornvideodownloaders*` aliases select `pornvideodownloaders.com`; lower-level
+multisite commands require `--site <site-id>` and reject missing or unknown sites.
 
 ## When an ExecPlan is required
 
@@ -56,7 +64,8 @@ exact commands, observable acceptance, idempotence, and recovery—not intended 
 
 ## Non-negotiable architecture
 
-- Read listings and categories through `apps/serp.software/lib/catalog/repository.ts`.
+- Read listings and categories through `apps/<site-id>/lib/catalog/repository.ts`.
+- Add every executable site to `scripts/site-targets.ts`; never infer a default.
 - Obtain the database only through the server-only OpenNext `DB` binding.
 - Fail closed when the D1 binding or `D1_RUNTIME_ENV` is missing or invalid.
 - Parse untrusted input at its boundary and pass precise values inward.

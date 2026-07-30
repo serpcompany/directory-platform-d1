@@ -70,9 +70,9 @@ review capability, and fails closed with the same runtime-environment checks as 
 other D1 boundaries.
 
 Every executable site selection is explicit and checked against the active-site
-registry. Each tenant has its own app package, local state subdirectory, Wrangler
-templates, preview and production D1 resources, Worker name, route, confirmation
-strings, and protected GitHub environments. Shared publication and submission tools
-bind their SQL to the selected site and reject mismatches. Adding a third site still
-requires the full tenancy and isolation work in
+registry in `scripts/site-targets.ts`. Each tenant has its own app package, local
+state subdirectory, Wrangler templates, preview and production D1 resources, Worker
+name, route, confirmation strings, and protected GitHub environments. Shared
+publication and submission tools bind their SQL to the selected site and reject
+mismatches. Adding a third site still requires the full tenancy and isolation work in
 [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/` directory.

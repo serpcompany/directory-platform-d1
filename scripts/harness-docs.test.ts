@@ -1,12 +1,37 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkDocumentation } from './harness/docs-health.ts'
+import { checkDocumentation, validateMultisiteDocumentation } from './harness/docs-health.ts'
 import { stepsForProfile } from './harness/runner.ts'
 
 describe('repository harness contract', () => {
   it('keeps documentation, indexes, skills, links, and commands healthy', () => {
     expect(checkDocumentation(resolve('.'))).toEqual([])
+  })
+
+  it('rejects a registered site omitted from core multisite guidance', () => {
+    expect(
+      validateMultisiteDocumentation(
+        {
+          'docs/ONBOARDING.md': 'The active sites are serp.software.'
+        },
+        ['serp.software', 'example.com']
+      )
+    ).toContain('docs/ONBOARDING.md: active site "example.com" is missing from multisite guidance')
+  })
+
+  it('rejects retired single-site assertions', () => {
+    expect(
+      validateMultisiteDocumentation(
+        {
+          'docs/MIGRATION_SOP.md':
+            'The current repository deploys one application and one tenant: serp.software.'
+        },
+        ['serp.software']
+      )
+    ).toContain(
+      'docs/MIGRATION_SOP.md: retired single-site assertion "The current repository deploys one application and one tenant"'
+    )
   })
 
   it('makes the full loop a strict superset of the fast loop', () => {

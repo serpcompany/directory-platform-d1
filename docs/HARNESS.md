@@ -59,6 +59,8 @@ The checker enforces:
 - the root agent map remains concise;
 - local Markdown links resolve;
 - migration SOP phase headings remain intact;
+- every active registry site appears in the core multisite operating documents;
+- retired single-site assertions do not return;
 - skill frontmatter supports progressive disclosure;
 - lint commands are read-only;
 - the root harness command surface remains available.
@@ -165,6 +167,10 @@ enough to map; it does not activate or deploy a site.
 
 Follow [the migration SOP](./MIGRATION_SOP.md) and the
 [migration skill](../.agents/skills/migrate-json-directory-site/SKILL.md).
+After a site is registered, use only its explicit local aliases or the canonical
+`--site <site-id>` commands. When the migration is merged and evidenced, remove its
+registered worktree with `pnpm worktree:destroy -- <name>` and delete the merged
+branch when no recovery work remains.
 
 ## Execution plans and review
 
