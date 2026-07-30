@@ -29,8 +29,9 @@ pnpm worker:build
 ```
 
 The OpenNext build emits one `.open-next/worker.js` and asset set under each app.
-Local, preview, and production Wrangler configurations use separate identities and
-bindings per site. Configuration validation rejects cross-environment and cross-site
+Both sites have separate local and production Wrangler identities and bindings.
+PVD also has separate preview configuration; SERP's missing remote preview path is a
+known follow-up. Configuration validation rejects cross-environment and cross-site
 references.
 
 ## Initial production release

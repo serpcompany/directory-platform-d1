@@ -1,11 +1,12 @@
 # Site configuration
 
-`serp.software` is the only active site.
+This repository has two active sites:
 
-- `serp.software/site-config.ts` defines presentation, routes, features, social
-  targets, and the OpenNext Worker deployment strategy.
-- `serp.software/site-content.ts` defines optional site-owned presentation content.
-- `serp.software/content/` contains site-authored non-catalog pages.
+- `serp.software/`
+- `pornvideodownloaders.com/`
+
+Each directory defines presentation, routes, features, social targets, optional
+site-owned content, and its OpenNext Worker deployment strategy.
 
 Catalog records and taxonomy do not belong under `sites/`. They are read from the D1
 `DB` binding and changed through migrations or reviewed publication manifests.

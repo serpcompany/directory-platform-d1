@@ -2,8 +2,10 @@
 
 This repository currently operates two deployable D1-backed sites:
 `serp.software` and `pornvideodownloaders.com`. Each has a separate app, Worker,
-local state, preview and production database, protected environments, and release
-workflow. `scripts/site-targets.ts` is the exhaustive executable-site registry.
+local state, production database, production environment, and release workflow.
+PVD also has isolated preview Worker/D1/environment resources. SERP does not yet
+have a proper preview environment; that remains a separate platform follow-up.
+`scripts/site-targets.ts` is the exhaustive executable-site registry.
 
 Start with [`AGENTS.md`](../AGENTS.md), then use the
 [documentation index](./README.md). Read [Architecture](./ARCHITECTURE.md),

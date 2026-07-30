@@ -1,8 +1,12 @@
 # serp.software
 
-`serp.software` is the only active deployable directory in this repository. Its public
-listing and category data is read at request time from the `DB` Cloudflare D1 binding.
-Public product detail pages remain under `/products/[slug]/`.
+`serp.software` is one of two active deployable directories in this repository. Its
+public listing and category data is read at request time from the `DB` Cloudflare D1
+binding. Public product detail pages remain under `/products/[slug]/`.
+
+SERP has local and production identities but no proper remote preview
+Worker/D1/protected environment. Do not treat the local `worker:preview` command as
+that missing platform environment.
 
 ## Data ownership
 
