@@ -108,10 +108,15 @@ timestamp, exact target, and approved action immediately before each mutation.
 - [x] 2026-07-30 13:08 JST — Removed live public-repository links in the D1
   applications, added an architecture guard, and passed focused tests,
   `pnpm docs:check`, and `pnpm typecheck`.
-- [ ] Prove D1 publication versions, checksums, and public counts are unchanged
-  before and after any approved Worker deployment.
-- [ ] Prove the D1 sitemap workflow has usable credential authority and successful
-  canonical sitemap resolution for both sites.
+- [x] 2026-07-30 14:46 JST — Deployed PVD preview and both production applications
+  through protected workflows in `worker-only` mode. Every D1 backup, migration,
+  import, publication, and verification step was skipped. Before/after read-only
+  fingerprints retained publication v1, the exact recorded checksums and public
+  counts, and `rows_written: 0`.
+- [x] 2026-07-30 14:11 JST — Transferred the four existing GSC OAuth/quota secrets
+  through one-time legacy workflow run `30515079205`, configured the two canonical
+  domain-property mappings, removed the relay workflow, and passed read-only D1
+  credential verification run `30515839263` without a Search Console mutation.
 - [x] 2026-07-30 13:20 JST — Implemented the combined legacy cleanup from
   `0326c8a`, including removed-site tombstones, fail-closed manual dispatch,
   reusable badge/submission allow-lists, and architecture regression tests.
@@ -119,20 +124,25 @@ timestamp, exact target, and approved action immediately before each mutation.
   `cba2b172bdf00d7d38d83d59cd11bbb4bdaf2144` and the combined legacy cleanup as
   `fedba3fe67786d6c78bf9a18ef2b28601aca7607`. Neither commit was pushed, merged,
   or deployed.
-- [ ] Validate every remaining active static site, exact cleanup-diff target
-  resolution, Changesets behavior, and all affected workflows without deploying.
+- [x] 2026-07-30 14:50 JST — Validated every remaining active static site, exact
+  cleanup-diff target resolution, Changesets behavior, and affected workflows
+  without deploying.
   Repository tests, typechecking, validate/build, and deploy dry-runs pass.
   `serp.ai` sitemap audit passes; the other three retain identical pre-existing
-  sitemap-audit failures on untouched `main`. The exact cleanup diff resolves all
-  four remaining sites and therefore requires production approval before merge.
+  sitemap-audit failures on untouched `main`.
   `pnpm test:repo` reports 236 passing tests with 7 skipped; `pnpm typecheck`,
   all four validates/builds, and all four deploy dry-runs pass. An empty Changeset
-  makes package publication intentionally empty.
-- [ ] Obtain and record the required approval before any protected Worker deployment,
-  merge/redeploy, credential change, Search Console mutation, DNS/rule change, or
-  GitHub repository setting mutation.
-- [ ] Narrow legacy `GH_PAT` authority and prove historical reruns cannot write either
-  retired target.
+  made package publication intentionally empty. Legacy PR `#149` was squash-merged
+  as `4e7d83473b8db6f160e93982027872464423a115`; Build & Deploy run `30517647317`
+  was skipped, Release run `30517647313` reported “All changesets are empty,” and
+  no release PR, package publish, or remaining-site deployment occurred.
+- [x] 2026-07-30 14:46 JST — Used the owner's explicit approval for protected D1
+  Worker releases and credential transfer. Search Console sitemap mutation,
+  DNS/rule changes, and GitHub repository-setting changes remain approval-gated.
+- [x] 2026-07-30 15:02 JST — The owner explicitly accepted continued use of the
+  existing legacy `GH_PAT`; no credential rotation or scope change was performed.
+  Actions/Pages disablement and target repository privatization remain the controls
+  that will prevent historical reruns from publishing the retired sites.
 - [ ] Replace GitHub-backed DNS with proxied originless records and add `www` to apex
   redirects, one domain at a time, without changing Worker routes.
 - [ ] Disable target Actions, Pages, and Issues; make repositories private; observe
@@ -199,6 +209,30 @@ timestamp, exact target, and approved action immediately before each mutation.
   product-page expectation, and a missing Patreon related-link expectation). It is
   not in `test:repo`; remaining valid coverage was preserved rather than deleting
   the file to conceal the baseline.
+
+- Observation: the first production verification exposed that every legal route on
+  both D1 Workers returned 500. Worker tail identified `next-mdx-remote` as an
+  external module unavailable to Workerd; bundling it then exposed its use of
+  string code generation, which Workerd prohibits. D1 PR `#18` replaced the runtime
+  MDX compiler with the existing `react-markdown`/GFM renderer across legal, docs,
+  and guide pages and removed `next-mdx-remote`. Seeded local Worker checks, full
+  CI, PVD preview, and both production Workers now return 200 for legal routes.
+  This repair changed Worker versions only and did not change D1.
+
+- Observation: the final approved production Worker versions are
+  `b13dcdde-bd70-4fdc-a47e-0d145ed05a55` for SERP and
+  `f8c932f0-9867-4e09-87bd-489c0bfade4d` for PVD; PVD preview is
+  `def0057b-3cfb-44b8-9876-e8785df29027`. Home, products, featured category,
+  search, RSS, sitemap index, submit, and legal checks pass; `/build-info.json`
+  remains a Worker-owned 404 and no checked response has GitHub Pages provenance.
+
+- Observation: SERP PR `#1357` merged the `/brands*` origin repair as
+  `51efcbbe008fd3854aba295e7fec9e3107a133d1`. The shared `brands-page` Worker now
+  has explicit service bindings to `serp-software-production` and
+  `pornvideodownloaders-production`; 46 tests, typechecking, and Wrangler dry-run
+  pass. The production Worker has not yet been deployed because the same Worker
+  serves `/brands*` routes on roughly 60 domains, so its deployment is retained as
+  a separate approval-gated production action.
 
 - Observation: GitHub exposes the legacy `GH_PAT` secret name and update time but
   not the stored token's principal, kind, expiry, scopes, or repository allow-list.
