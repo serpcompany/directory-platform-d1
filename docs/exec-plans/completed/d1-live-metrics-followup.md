@@ -1,9 +1,10 @@
 # Reduce deployed catalog reads using live D1 evidence
 
-Status: active
+Status: completed
 Owner: shared catalog data operations
 Created: 2026-07-31
 Last updated: 2026-07-31
+Completed: 2026-07-31
 
 ## Purpose and big picture
 
@@ -44,8 +45,17 @@ No D1 schema change is planned.
 - [x] 2026-07-31 00:41 JST Ran targeted tests, PVD browser QA, the full harness, and
   the repository review workflow. PVD E2E passed 4 tests; the full harness passed 10
   gates, including 234 repository tests and both OpenNext builds.
-- [ ] Publish through normal GitHub review, deploy only the PVD preview Worker, and
-  compare real Cloudflare query analytics and route results.
+- [x] 2026-07-31 00:51 JST Published and merged PR #26 through normal branch
+  protection after all required checks passed. A runner-specific benchmark
+  assertion was corrected without weakening scan thresholds; the fresh Ubuntu
+  unit-test run then passed.
+- [x] 2026-07-31 00:53 JST Deployed merge commit `2c07dfe` to the PVD preview
+  Worker with workflow run `30558735415` in Worker-only mode. Migration, import,
+  backup, and production jobs were skipped.
+- [x] 2026-07-31 00:58 JST Verified deployed home, category, and detail responses
+  from NRT and compared the exact QA window in Cloudflare D1 analytics. The new
+  related seek read 25 rows per execution, and a nine-request warm sample issued
+  only nine one-row publication-version queries with zero writes.
 
 ## Surprises and discoveries
 
@@ -70,6 +80,18 @@ No D1 schema change is planned.
   materially improve cold reads.
   Evidence: live D1 measured 2,188 rows across seven chunked statements, so this
   plan prefers publication-version invalidation and bounded data caching.
+- Observation: the deployed Cache API entries eliminate stable D1 work after the
+  initial per-colo fill.
+  Evidence: in the controlled 2026-07-30 15:57:00–15:58:00 UTC window, Cloudflare
+  ingested nine warm home/category/detail requests as nine publication-version
+  queries reading nine rows total. No summary, shell, detail, related, media, or
+  navigation query shape appeared, and rows written remained zero.
+- Observation: the optimized related query preserved the application contract in
+  the deployed Worker.
+  Evidence: Cloudflare recorded two `related-ranked-seek` executions reading 50
+  rows total. Read-only route QA returned HTTP 200 and the existing UI displayed
+  the same first three related cards in order; the operation's fourth deterministic
+  candidate remains intentionally hidden by the existing `slice(0, 3)` UI contract.
 
 ## Decision log
 
@@ -179,6 +201,10 @@ part of this plan.
 - Prior benchmark: `docs/DATA_OPS_BENCHMARK.md`
 - Preview workflow baseline:
   `https://github.com/serpcompany/directory-platform-d1/actions/runs/30554865211`
+- Implemented PR:
+  `https://github.com/serpcompany/directory-platform-d1/pull/26`
+- Protected preview deployment:
+  `https://github.com/serpcompany/directory-platform-d1/actions/runs/30558735415`
 - Cloudflare documentation:
   `https://developers.cloudflare.com/d1/observability/metrics-analytics/`,
   `https://developers.cloudflare.com/d1/best-practices/use-indexes/`, and
@@ -186,4 +212,21 @@ part of this plan.
 
 ## Outcomes and retrospective
 
-Pending implementation and deployed evidence.
+The shared `@serpdirectory/data-ops` package now owns the fix for both current sites
+and future adapters: validated public summary/detail caches are explicitly keyed by
+site and publication version, derived list operations reuse the summary DTOs, and
+multi-category related ranking uses the existing partial index without a migration.
+
+The real preview result matched the benchmark rather than merely the local query
+plan. The legacy completed related operation read 1,053 rows; the deployed
+replacement read 25 rows, a 97.6% reduction. After the NRT cache filled, the
+controlled warm sample read one D1 row per route for invalidation and performed no
+stable catalog hydration or aggregate work. All sampled routes returned HTTP 200
+with correct titles and related-card ordering. No D1 rows were written, no remote
+schema operation ran, and production remained untouched.
+
+The cold fill can briefly repeat across concurrent requests or Cloudflare colos
+because Cache API storage is per data center and is not a distributed request lock.
+That is an explicit bounded tradeoff: publication-version keys preserve immediate
+logical invalidation, the one-hour TTL bounds abandoned entries, and ordinary warm
+traffic no longer pays the broad-query cost.
