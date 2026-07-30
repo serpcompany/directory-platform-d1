@@ -157,8 +157,12 @@ timestamp, exact target, and approved action immediately before each mutation.
   Evidence: read-only `gh secret list`, `gh variable list`, environment inspection,
   and workflow-run inspection on 2026-07-30. This must be rechecked by the primary
   implementation agent and captured under `.runtime/retirement/2026-07-30/github/`.
-  Until credential authority and a successful protected proof exist, removing the
-  migrated domains from the legacy GSC scheduler is blocked.
+  GitHub never returns stored secret values, and the four values are not present in
+  this workstation environment. The approved transfer will therefore use a
+  one-time, confirmation-gated legacy Actions relay that injects the existing
+  secrets and writes them directly to the D1 repository without logging them.
+  Removing the migrated domains from the legacy scheduler remains blocked until
+  the relay and destination proof pass.
 
 - Observation: `serp.software` still has no proper preview environment in the D1
   repository.
@@ -172,14 +176,18 @@ timestamp, exact target, and approved action immediately before each mutation.
 - Observation: `serp.software/brands*` remains routed ahead of the general Worker,
   but the live `/brands/` response currently falls back to GitHub and returns 404.
   `pornvideodownloaders.com/brands*` returns the expected KV-backed response.
-  Evidence: fresh route exports and HTTP snapshots. DNS retirement must preserve
-  route ownership; changing `brands-page` behavior is outside this cleanup.
+  Evidence: fresh route exports and HTTP snapshots. The canonical source was found
+  in `serpcompany/serp/workers/brands-page`; the approved fix uses direct service
+  bindings to both D1 Workers so neither retired GitHub origin supplies a shell.
 
-- Observation: the exact legacy cleanup diff resolves to
-  `browserextensions.io`, `serp.ai`, `serp.co`, and `serpdownloaders.com`.
-  Evidence: `resolvePushSiteInputFromChangedPaths()` over the 367-path
-  `git diff --name-only origin/main` result. Merging is a four-site production
-  deployment and remains approval-gated.
+- Observation: the initial exact legacy cleanup diff resolved to all four remaining
+  sites because broad `sites/**` and `scripts/**` push filters matched deletions and
+  maintenance files. The workflow now excludes both retired site trees, tests, and
+  source-only maintenance scripts changed by this cleanup. A changed shared
+  badge-score registry still correctly matches the workflow, so the squash merge
+  commit must include the tested `[skip static deploy]` marker. `Build & Deploy`
+  will be recorded as skipped and no site will build or deploy; normal active
+  app/site/shared-runtime changes continue to deploy.
 
 - Observation: sitemap audits on untouched legacy `main` and the cleanup branch
   match exactly: `browserextensions.io` has 10 errors, `serp.co` has 6, and
@@ -195,8 +203,8 @@ timestamp, exact target, and approved action immediately before each mutation.
 - Observation: GitHub exposes the legacy `GH_PAT` secret name and update time but
   not the stored token's principal, kind, expiry, scopes, or repository allow-list.
   Those properties cannot be inferred safely from the secret value because GitHub
-  does not return it. Credential narrowing therefore needs the credential owner's
-  explicit inventory or an approved replacement-token creation flow.
+  does not return it. The owner explicitly accepted continued use of this existing
+  credential for remaining legacy targets; no rotation is part of this retirement.
 
 ## Decision log
 
@@ -229,6 +237,27 @@ timestamp, exact target, and approved action immediately before each mutation.
   Rationale: Cloudflare documents that reserved address for proxied originless
   redirect and Worker-routing setups; requests are intercepted at the edge.
   Date: 2026-07-30.
+
+- Decision: the user explicitly approved the D1 application releases and GSC
+  credential transfer on 2026-07-30. Release workflows must use the new
+  `worker-only` mode; migration, import, publication, and restoration remain
+  prohibited.
+
+- Decision: do not redeploy remaining static sites for this cleanup. Negative path
+  filters exclude deletion-only retired trees and maintenance files, while the
+  required `[skip static deploy]` squash-merge marker safely covers the legitimate
+  shared registry cleanup without weakening future shared-runtime deployments.
+
+- Decision: accept the identical pre-existing sitemap-audit failures as baseline
+  evidence rather than retirement regressions.
+
+- Decision: retain and use the existing legacy `GH_PAT`; the owner accepts its
+  pre-existing authority as irrelevant to this retirement once target Actions,
+  Pages, public visibility, and active source mappings are removed.
+
+- Decision: fix both D1 sites' `brands-page` shell lookup with Worker service
+  bindings before originless DNS changes. This removes the hidden GitHub-origin
+  dependency while preserving the existing `/brands*` routes.
 
 ## Plan of work
 
@@ -414,23 +443,20 @@ deletion, Worker-route removal, repository deletion, or history rewriting.
 
 No batch below has been approved or executed.
 
-1. **D1 application releases.** Deploy the link-removal change to
+1. **D1 application releases — approved 2026-07-30.** Deploy the link-removal change to
    `pornvideodownloaders-preview`, verify it, then deploy the protected PVD
    production Worker. Deploy the SERP change through its protected production
    workflow without inventing a preview environment. Recheck the recorded D1
    fingerprints before and after each release.
-2. **D1 GSC credential authority.** Provision the existing four OAuth/quota
+2. **D1 GSC credential authority — approved 2026-07-30.** Provision the existing four OAuth/quota
    credential names and the two domain mappings in the D1 repository, then run a
    protected canonical dry/proof submission. This credential change and Search
    Console submission need explicit approval.
 3. **Legacy cleanup merge.** Merge the reviewed cleanup only after batch 2 passes.
-   The exact diff resolves all four remaining static targets:
-   `browserextensions.io`, `serp.ai`, `serp.co`, and `serpdownloaders.com`.
-   The empty Changeset proves no package version publication is requested.
-4. **Legacy credential narrowing.** Replace `GH_PAT` with a fine-grained credential
-   limited to the source repository and valid remaining targets, explicitly
-   excluding both retired repositories. Retain rollback access to the prior
-   credential only through verification.
+   Squash-merge it with `[skip static deploy]` in the commit title so the resolver
+   job is skipped; the empty Changeset proves no package publication is requested.
+4. **Legacy credential decision — closed 2026-07-30.** Retain the existing `GH_PAT`
+   by owner direction; do not rotate or broaden it.
 5. **Cloudflare DNS, one zone at a time.** First `serp.software`, then PVD:
    create the `www` permanent redirect, replace the GitHub-backed records with
    proxied `A 192.0.2.0`, preserve both route IDs and all unrelated/email records,

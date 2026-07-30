@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 
 interface Step {
   env?: Record<string, string>
+  if?: string
   name?: string
   run?: string
 }
@@ -37,9 +38,33 @@ describe('production Worker workflow', () => {
     expect(workflow.on.push).toBeUndefined()
     expect(workflow.on.workflow_dispatch.inputs.site_id.options).toEqual(['serp.software'])
     expect(workflow.on.workflow_dispatch.inputs.confirmation.required).toBe(true)
+    expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(expect.objectContaining({
+      default: 'worker-only',
+      options: ['worker-only', 'database-and-worker'],
+      required: true
+    }))
     expect(workflow.permissions).toEqual({ contents: 'read' })
     expect(workflow.jobs.deploy.environment?.name).toBe('production')
     expect(workflow.jobs.deploy.if).toContain("github.ref == 'refs/heads/main'")
+  })
+
+  it('makes every D1 operation opt-in while leaving Worker deployment unconditional', () => {
+    const { workflow } = loadWorkflow()
+    const d1StepNames = new Set([
+      'Plan production migration without remote execution',
+      'Plan production verification without remote execution',
+      'Back up production D1',
+      'Retain production D1 backup',
+      'Apply production D1 migrations',
+      'Import deterministic production catalog',
+      'Verify production D1'
+    ])
+    const steps = workflow.jobs.deploy.steps ?? []
+
+    for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
+      expect(step.if).toBe("inputs.release_mode == 'database-and-worker'")
+    }
+    expect(steps.find(step => step.name === 'Deploy production Worker')?.if).toBeUndefined()
   })
 
   it('orders backup, migration, verification, and guarded OpenNext deployment', () => {

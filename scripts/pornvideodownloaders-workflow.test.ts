@@ -25,6 +25,7 @@ interface Workflow {
       inputs: {
         confirmation: { required: boolean }
         environment: { options: string[] }
+        release_mode: { default: string; options: string[]; required: boolean }
       }
     }
   }
@@ -89,6 +90,11 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       'production'
     ])
     expect(workflow.on.workflow_dispatch.inputs.confirmation.required).toBe(true)
+    expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(expect.objectContaining({
+      default: 'worker-only',
+      options: ['worker-only', 'database-and-worker'],
+      required: true
+    }))
     expect(workflow.permissions).toEqual({ contents: 'read' })
     expect(workflow.jobs.preview.environment.name).toBe('pornvideodownloaders-preview')
     expect(workflow.jobs.production.environment.name).toBe('pornvideodownloaders-production')
@@ -121,6 +127,24 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       const indexes = orderedCommands.map(command => mutationSource.indexOf(command))
       expect(indexes.every(index => index >= 0)).toBe(true)
       expect(indexes).toEqual([...indexes].sort((left, right) => left - right))
+    }
+  )
+
+  it.each(['preview', 'production'] as const)(
+    'makes every %s D1 operation opt-in while leaving Worker deployment unconditional',
+    environment => {
+      const steps = workflow.jobs[environment].steps
+      const d1StepNames = new Set([
+        'Plan remote migration and verification',
+        `Back up ${environment} D1`,
+        `Retain ${environment} D1 backup`,
+        `Apply migrations, import, and verify ${environment} D1`
+      ])
+
+      for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
+        expect(step.if).toBe("inputs.release_mode == 'database-and-worker'")
+      }
+      expect(steps.find(step => step.name === `Deploy ${environment} Worker`)?.if).toBeUndefined()
     }
   )
 
