@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest'
 import { resolveSiteTarget, siteIds, siteTargets } from './site-targets'
 
 interface Step {
+  'continue-on-error'?: boolean
   env?: Record<string, string>
+  if?: string
   name?: string
   run?: string
   uses?: string
@@ -116,7 +118,9 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       const mutationIndex = steps.findIndex(
         step => step.name === `Apply migrations, import, and verify ${environment} D1`
       )
-      const deployIndex = steps.findIndex(step => step.name === `Deploy ${environment} Worker`)
+      const deployIndex = steps.findIndex(
+        step => step.name === `Verify schema compatibility and deploy ${environment} Worker`
+      )
       expect([backupIndex, mutationIndex, deployIndex]).toEqual(
         [...[backupIndex, mutationIndex, deployIndex]].sort((left, right) => left - right)
       )
@@ -146,7 +150,28 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
         expect(step.if).toBe("inputs.release_mode == 'database-and-worker'")
       }
-      expect(steps.find(step => step.name === `Deploy ${environment} Worker`)?.if).toBeUndefined()
+      expect(
+        steps.find(
+          step => step.name === `Verify schema compatibility and deploy ${environment} Worker`
+        )?.if
+      ).toBeUndefined()
+    }
+  )
+
+  it.each(['preview', 'production'] as const)(
+    'stops the %s deploy command when schema compatibility fails',
+    environment => {
+      const step = workflow.jobs[environment].steps.find(
+        candidate =>
+          candidate.name === `Verify schema compatibility and deploy ${environment} Worker`
+      )
+      const run = step?.run ?? ''
+      expect(step?.['continue-on-error']).toBeUndefined()
+      expect(run.startsWith('set -euo pipefail\n')).toBe(true)
+      expect(run.indexOf(`check-schema ${environment}`)).toBeGreaterThan(0)
+      expect(run.indexOf(`deploy ${environment}`)).toBeGreaterThan(
+        run.indexOf(`check-schema ${environment}`)
+      )
     }
   )
 
@@ -158,7 +183,7 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       expect(secretSteps.map(step => step.name)).toEqual([
         `Back up ${environment} D1`,
         `Apply migrations, import, and verify ${environment} D1`,
-        `Deploy ${environment} Worker`
+        `Verify schema compatibility and deploy ${environment} Worker`
       ])
       expect(
         steps

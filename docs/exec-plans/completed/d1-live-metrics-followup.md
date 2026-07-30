@@ -230,3 +230,32 @@ because Cache API storage is per data center and is not a distributed request lo
 That is an explicit bounded tradeoff: publication-version keys preserve immediate
 logical invalidation, the one-hour TTL bounds abandoned entries, and ordinary warm
 traffic no longer pays the broad-query cost.
+
+## Post-completion production follow-up (2026-07-31)
+
+This addendum records a separately authorized rollout after the preview-scoped plan
+above had completed. It does not retroactively expand the original plan's authority:
+the statements that production was out of scope and untouched describe the plan at
+its completion.
+
+The protected PVD production workflow run
+`https://github.com/serpcompany/directory-platform-d1/actions/runs/30560826641`
+retained backup artifact `8766845035` through 2026-08-29, applied
+`0009_related_listing_name_index.sql`, found the deterministic import checksum already
+matched, verified the 286-listing catalog, and deployed the optimized Worker.
+
+The protected SERP production workflow run
+`https://github.com/serpcompany/directory-platform-d1/actions/runs/30561183257`
+retained backup artifact `8766961810` through 2026-08-29, applied the same migration,
+found the deterministic import checksum already matched, verified the 339-listing
+catalog, and deployed the optimized Worker. Cloudflare attributed 680 rows written to
+SERP's one-time `CREATE INDEX` operation; that was migration/index maintenance, not
+ongoing application traffic.
+
+Read-only production checks then confirmed the partial index existed in both
+databases, representative related seeks read 25 rows on PVD and 30 on SERP, and live
+home, category, and detail routes returned HTTP 200 with the expected titles and
+ordering. In the controlled UTC window from 2026-07-30 16:26:25 through 16:27:00,
+nine warm requests per site produced only nine one-row publication-version queries
+per database and zero writes. No stable summary/detail hydration, aggregate, related,
+media, or navigation query shape appeared in that bounded sample.

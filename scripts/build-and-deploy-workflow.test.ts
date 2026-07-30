@@ -3,6 +3,7 @@ import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 
 interface Step {
+  'continue-on-error'?: boolean
   env?: Record<string, string>
   if?: string
   name?: string
@@ -66,7 +67,10 @@ describe('production Worker workflow', () => {
     for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
       expect(step.if).toBe("inputs.release_mode == 'database-and-worker'")
     }
-    expect(steps.find(step => step.name === 'Deploy production Worker')?.if).toBeUndefined()
+    expect(
+      steps.find(step => step.name === 'Verify schema compatibility and deploy production Worker')
+        ?.if
+    ).toBeUndefined()
   })
 
   it('orders backup, migration, verification, and guarded OpenNext deployment', () => {
@@ -83,8 +87,24 @@ describe('production Worker workflow', () => {
       'pnpm worker:d1:migrate:production',
       'pnpm worker:d1:import:production',
       'pnpm worker:d1:verify:production',
-      'pnpm worker:deploy:production'
+      'set -euo pipefail\n' +
+        'pnpm tsx scripts/worker-release.ts check-schema production --site serp.software\n' +
+        'pnpm worker:deploy:production\n'
     ])
+  })
+
+  it('stops the deploy command when schema compatibility fails', () => {
+    const { workflow } = loadWorkflow()
+    const step = workflow.jobs.deploy.steps?.find(
+      candidate => candidate.name === 'Verify schema compatibility and deploy production Worker'
+    )
+    const run = step?.run ?? ''
+    expect(step?.['continue-on-error']).toBeUndefined()
+    expect(run.startsWith('set -euo pipefail\n')).toBe(true)
+    expect(run.indexOf('check-schema production')).toBeGreaterThan(0)
+    expect(run.indexOf('worker:deploy:production')).toBeGreaterThan(
+      run.indexOf('check-schema production')
+    )
   })
 
   it('scopes production secrets and operator confirmation only to production execution steps', () => {
@@ -96,7 +116,7 @@ describe('production Worker workflow', () => {
       'Apply production D1 migrations',
       'Import deterministic production catalog',
       'Verify production D1',
-      'Deploy production Worker'
+      'Verify schema compatibility and deploy production Worker'
     ])
     for (const step of steps.filter(step => !productionStepNames.has(step.name ?? ''))) {
       expect(step.env?.CLOUDFLARE_API_TOKEN).toBeUndefined()

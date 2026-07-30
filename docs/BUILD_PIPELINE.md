@@ -15,7 +15,11 @@ sync in either release path.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
 - `listing_submissions` and child tables: private, badge-gated public intake.
 - `d1/publications/`: approved, versioned mutation manifests.
-- `apps/<site-id>/lib/catalog/`: server-only, tenant-bound D1 repository.
+- `packages/data-ops/`: shared catalog DTOs, query SQL, hydration, caching contracts,
+  and safe query telemetry for every current and future site.
+- `apps/<site-id>/lib/catalog/`: thin server-only adapter that validates and supplies
+  the site's explicit D1 binding and identity to `packages/data-ops/`; it owns no
+  catalog SQL.
 
 No catalog JSON inputs exist. Runtime, build, search, sitemap, RSS, and writer paths
 must remain D1-only.
@@ -37,24 +41,33 @@ references. Release tooling materializes ignored environment-specific configurat
 under `.wrangler/generated/` and rebases Worker, asset, schema, and migration paths
 relative to that generated configuration.
 
-## Initial production release
+## Protected production release
 
-Initial releases use the site-specific manual workflow from `main`:
+Production release is manual after merge; updating `main` does not deploy a Worker.
+Use the site-specific protected workflow from the reviewed `main` commit:
 
 | Site | Workflow | Protected production environment |
 | --- | --- | --- |
 | `serp.software` | `.github/workflows/build-and-deploy.yml` | `production` |
 | `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-production` |
 
-After the selected site's exact confirmation, the workflow:
+The dispatcher chooses:
 
-1. validates configuration, tests, types, and the Worker build;
-2. retains a production D1 export as a workflow artifact;
-3. applies D1 migrations;
-4. idempotently imports the deterministic initial catalog when publication state is
-   empty;
-5. verifies exact publication checksum, version, count, and slug set;
-6. deploys the OpenNext Worker.
+- `worker-only` only when the reviewed commit requires no unapplied migration; or
+- `database-and-worker` for a new migration, a possibly lagging database, or any case
+  where compatibility cannot be established.
+
+Both modes validate configuration, tests, types, and the Worker build. Immediately
+before deployment, the guarded `check-schema` command reads applied migration names
+from the exact remote target and fails closed if every checked-in migration cannot be
+proven present. A Worker-only run performs no D1 mutation.
+
+The database-and-Worker mode retains a D1 export, applies migrations, idempotently
+imports the initial catalog only when publication state is empty, verifies exact
+publication checksum/version/count/slug parity, verifies schema compatibility, and
+only then deploys the OpenNext Worker. See
+[the deploy runbook](./DEPLOY_RUNBOOK.md) for release-mode selection, smoke coverage,
+D1 analytics evidence, and rollback thresholds.
 
 No production command is authorized from a dirty local worktree.
 

@@ -8,7 +8,14 @@ import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
 const environments = ['preview', 'production'] as const
 type WorkerEnvironment = (typeof environments)[number]
-type ReleaseCommand = 'backup' | 'deploy' | 'import' | 'migrate' | 'upload' | 'verify'
+type ReleaseCommand =
+  | 'backup'
+  | 'check-schema'
+  | 'deploy'
+  | 'import'
+  | 'migrate'
+  | 'upload'
+  | 'verify'
 
 const placeholders: Record<WorkerEnvironment, Record<string, string>> = {
   preview: {
@@ -238,13 +245,60 @@ function runChecked(
 }
 
 function parseD1Rows(output: string): Array<Record<string, unknown>> {
-  const payload = JSON.parse(output) as Array<{
-    results?: Array<Record<string, unknown>>
-    success?: boolean
-  }>
-  if (!Array.isArray(payload) || payload.some(result => result.success === false))
-    throw new Error('D1 command returned an unsuccessful result.')
-  return payload.flatMap(result => result.results ?? [])
+  const payload: unknown = JSON.parse(output)
+  if (
+    !Array.isArray(payload) ||
+    payload.length === 0 ||
+    payload.some(
+      result =>
+        typeof result !== 'object' ||
+        result === null ||
+        !('success' in result) ||
+        result.success !== true ||
+        !('results' in result) ||
+        !Array.isArray(result.results)
+    )
+  )
+    throw new Error('D1 command returned an unsuccessful or malformed result.')
+  return payload.flatMap(result => result.results as Array<Record<string, unknown>>)
+}
+
+export function requiredMigrationNames(migrationsDirectory = resolve('d1/migrations')): string[] {
+  const names: string[] = []
+
+  function visit(directory: string): void {
+    for (const entry of readdirSync(directory, { withFileTypes: true })) {
+      const path = resolve(directory, entry.name)
+      if (entry.isDirectory()) visit(path)
+      else if (entry.isFile() && entry.name.endsWith('.sql')) {
+        names.push(relative(migrationsDirectory, path).replaceAll(sep, '/'))
+      }
+    }
+  }
+
+  visit(migrationsDirectory)
+  return names.sort()
+}
+
+export function assertSchemaCompatible(
+  requiredNames: readonly string[],
+  appliedRows: ReadonlyArray<Record<string, unknown>>
+): void {
+  if (requiredNames.length === 0 || new Set(requiredNames).size !== requiredNames.length)
+    throw new Error('Repository migration requirements are empty or duplicated.')
+
+  const appliedNames = appliedRows.map(row => row.name)
+  if (
+    appliedNames.length === 0 ||
+    appliedNames.some(name => typeof name !== 'string' || !name.endsWith('.sql')) ||
+    new Set(appliedNames).size !== appliedNames.length
+  )
+    throw new Error('Remote D1 migration evidence is empty, malformed, or duplicated.')
+
+  const applied = new Set(appliedNames as string[])
+  const missing = requiredNames.filter(name => !applied.has(name))
+  if (missing.length > 0)
+    throw new Error(`Remote D1 is missing required migrations: ${missing.join(', ')}.`)
 }
 
 function readMigrationReport(target: SiteTarget): MigrationReport {
@@ -343,6 +397,54 @@ function runRemote(
         checksum: createHash('sha256').update(dependencies.readFile(backupPath)).digest('hex')
       })
     )
+    return
+  }
+  if (command === 'check-schema') {
+    try {
+      const result = runChecked(
+        dependencies,
+        'pnpm',
+        [
+          'exec',
+          'wrangler',
+          'd1',
+          'execute',
+          databaseName,
+          '--remote',
+          '--config',
+          configPath,
+          '--command',
+          'SELECT name FROM d1_migrations ORDER BY name',
+          '--json'
+        ],
+        true
+      )
+      const rows = parseD1Rows(String(result.stdout ?? ''))
+      const required = requiredMigrationNames()
+      assertSchemaCompatible(required, rows)
+      console.log(
+        JSON.stringify({
+          appliedMigrationCount: rows.length,
+          environment,
+          requiredMigrationCount: required.length,
+          siteId: target.siteId,
+          status: 'compatible'
+        })
+      )
+    } catch (error) {
+      const safeDetail =
+        error instanceof Error &&
+        (error.message.startsWith('Repository migration requirements') ||
+          error.message.startsWith('Remote D1 migration evidence') ||
+          error.message.startsWith('Remote D1 is missing required migrations'))
+          ? ` Detail: ${error.message}`
+          : ''
+      throw new Error(
+        `Unable to prove that ${target.siteId} ${environment} D1 satisfies this Worker commit. ` +
+          `Do not deploy Worker-only; review pending migrations and use database-and-worker.` +
+          safeDetail
+      )
+    }
     return
   }
   if (command === 'migrate') {
@@ -502,7 +604,9 @@ export function runWorkerRelease(
     printRemotePlan(target, command === 'plan-migration' ? 'migration' : 'verify', environment, env)
     return
   }
-  if (['backup', 'deploy', 'import', 'migrate', 'upload', 'verify'].includes(command)) {
+  if (
+    ['backup', 'check-schema', 'deploy', 'import', 'migrate', 'upload', 'verify'].includes(command)
+  ) {
     runRemote(target, command as ReleaseCommand, environment, env, dependencies)
     return
   }

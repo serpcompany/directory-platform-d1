@@ -134,6 +134,53 @@ export function validateMultisiteDocumentation(
   return violations
 }
 
+export function validateReleaseDocumentation(
+  documents: Readonly<Record<string, string>>
+): string[] {
+  const violations: string[] = []
+  const requiredText = {
+    'docs/BUILD_PIPELINE.md': [
+      '`packages/data-ops/`',
+      '`worker-only`',
+      '`database-and-worker`',
+      '`check-schema`'
+    ],
+    'docs/DEPLOY_RUNBOOK.md': [
+      '`worker-only`',
+      '`database-and-worker`',
+      '`check-schema`',
+      'fails closed',
+      'Functional QA and D1 efficiency QA are separate gates'
+    ],
+    'docs/exec-plans/completed/d1-live-metrics-followup.md': [
+      '## Post-completion production follow-up (2026-07-31)',
+      'actions/runs/30560826641',
+      'actions/runs/30561183257'
+    ]
+  } as const
+
+  for (const [file, requirements] of Object.entries(requiredText)) {
+    const source = documents[file]
+    if (source === undefined) continue
+    for (const requirement of requirements) {
+      if (!source.includes(requirement))
+        violations.push(`${file}: missing release guidance "${requirement}"`)
+    }
+  }
+
+  const benchmark = documents['docs/DATA_OPS_BENCHMARK.md']
+  if (benchmark?.includes('docs/exec-plans/active/d1-live-metrics-followup.md')) {
+    violations.push(
+      'docs/DATA_OPS_BENCHMARK.md: live metrics evidence must reference the completed plan'
+    )
+  }
+  if (benchmark && !benchmark.includes('docs/exec-plans/completed/d1-live-metrics-followup.md')) {
+    violations.push('docs/DATA_OPS_BENCHMARK.md: completed live metrics plan is missing')
+  }
+
+  return violations
+}
+
 export function checkDocumentation(root = resolve('.')): string[] {
   const violations: string[] = []
   const files = repositoryFiles(root).filter(file => existsSync(resolve(root, file)))
@@ -166,6 +213,7 @@ export function checkDocumentation(root = resolve('.')): string[] {
       .map(file => [file, readFileSync(resolve(root, file), 'utf8')])
   )
   violations.push(...validateMultisiteDocumentation(documentationSources, siteIds))
+  violations.push(...validateReleaseDocumentation(documentationSources))
 
   for (const file of files.filter(candidate => extname(candidate) === '.md')) {
     const source = readFileSync(resolve(root, file), 'utf8')

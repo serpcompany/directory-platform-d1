@@ -32,7 +32,8 @@ temporary grouping tree. The catalog data cache reads the indexed publication
 version on each request; warm published-summary, detail, and shell hits avoid their
 stable query work.
 Migration `0009_related_listing_name_index.sql` adds this one evidence-backed index;
-no remote migration was applied.
+it was later applied to both production databases through their protected
+database-and-Worker workflows.
 
 A local OpenNext/Miniflare route using 339 eligible SERP listings independently
 reported genuine D1 metadata of 10 rows read for the single-category related query
@@ -44,7 +45,9 @@ multi-category grouping path: it read 1,040 rows before hydration. A read-only
 replacement query against the actual PVD preview database returned the identical
 four ranked slugs in 25 rows and used `listings_related_name_idx` with no temporary
 grouping tree. The shared implementation now uses that shape. Deployed after-evidence
-is recorded in `docs/exec-plans/active/d1-live-metrics-followup.md`, not inferred
+is recorded in
+[`docs/exec-plans/completed/d1-live-metrics-followup.md`](./exec-plans/completed/d1-live-metrics-followup.md),
+not inferred
 from this local benchmark.
 
 The representative cold detail operation executes six D1 statements and the benchmark
