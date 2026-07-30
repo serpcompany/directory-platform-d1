@@ -193,6 +193,12 @@ remain separate mechanisms.
   Evidence: the benchmark reports only `SEARCH`/`SCAN` database access and excludes
   `candidate_ids` constant rows; this remains a labeled local surrogate, not D1
   billing metadata.
+- Observation: GitHub's Ubuntu SQLite binary does not include statement scan-status
+  support even though the repository's macOS development SQLite does.
+  Evidence: PR #25's first Unit Tests run printed `.scanstats not available`, making
+  every parsed row count zero. The portable benchmark now records unavailable row
+  counts as `null`, enforces query-plan index contracts on every runner, and retains
+  strict quantitative assertions whenever scan status exists.
 
 ## Decision log
 
@@ -250,6 +256,12 @@ remain separate mechanisms.
   shape ID rather than raw SQL.
   Rationale: operators need attribution while SQL text, bindings, content,
   credentials, and visitor data are unnecessary and unsafe.
+  Date: 2026-07-30
+- Decision: force the existing `listing_categories_category_idx` for related
+  candidate selection.
+  Rationale: SQLite planner versions made different choices for the same fixture;
+  the explicit index preserves the reviewed category-first access path without
+  adding another index.
   Date: 2026-07-30
 - Decision: add one partial `(site_id, name, slug)` index for eligible public
   related-listing ranking after local D1 metadata proved existing indexes

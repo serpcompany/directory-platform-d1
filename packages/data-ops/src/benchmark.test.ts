@@ -1,4 +1,4 @@
-import { execFileSync } from 'node:child_process'
+import { execFileSync, spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -12,10 +12,15 @@ const { createCatalogOperations } = await import('./catalog')
 
 interface ScanEvidence {
   plan: string[]
-  rows: number
+  rows: number | null
 }
 
 const benchmarkNow = () => new Date('2026-07-30T00:00:00.000Z')
+const scanStatsAvailable =
+  process.env.DATA_OPS_FORCE_SCANSTATS_UNAVAILABLE !== '1' &&
+  !spawnSync('sqlite3', ['-cmd', '.scanstats on', ':memory:', 'SELECT 1'], {
+    encoding: 'utf8'
+  }).stderr.includes('not available')
 
 function sqlLiteral(value: unknown): string {
   if (value === null) return 'NULL'
@@ -39,19 +44,27 @@ function bindSql(sql: string, bindings: unknown[]): string {
 function scan(databasePath: string, sql: string): ScanEvidence {
   const output = execFileSync(
     'sqlite3',
-    ['-cmd', '.scanstats on', '-cmd', '.eqp on', databasePath, sql],
+    [
+      ...(scanStatsAvailable ? ['-cmd', '.scanstats on'] : []),
+      '-cmd',
+      '.eqp on',
+      databasePath,
+      sql
+    ],
     { encoding: 'utf8' }
   )
-  const rows = output
-    .split('\n')
-    .filter(
-      line =>
-        /\b(?:SEARCH|SCAN)\b/u.test(line) &&
-        !line.includes('candidate_ids') &&
-        !line.includes('CONSTANT ROWS')
-    )
-    .flatMap(line => [...line.matchAll(/\brows=(\d+)\b/gu)])
-    .reduce((total, match) => total + Number(match[1]), 0)
+  const rows = scanStatsAvailable
+    ? output
+        .split('\n')
+        .filter(
+          line =>
+            /\b(?:SEARCH|SCAN)\b/u.test(line) &&
+            !line.includes('candidate_ids') &&
+            !line.includes('CONSTANT ROWS')
+        )
+        .flatMap(line => [...line.matchAll(/\brows=(\d+)\b/gu)])
+        .reduce((total, match) => total + Number(match[1]), 0)
+    : null
   return {
     plan: output
       .split('\n')
@@ -59,6 +72,11 @@ function scan(databasePath: string, sql: string): ScanEvidence {
       .map(line => line.trim()),
     rows
   }
+}
+
+function totalRows(evidence: ScanEvidence[]): number | null {
+  if (evidence.some(item => item.rows === null)) return null
+  return evidence.reduce((total, item) => total + (item.rows || 0), 0)
 }
 
 function addBenchmarkRows(sqlite: SqliteD1): void {
@@ -207,10 +225,7 @@ describe('representative D1 query benchmark', () => {
       scan(databasePath, bindSql(optimizedPrevious.sql, optimizedPrevious.bindings)),
       scan(databasePath, bindSql(optimizedNext.sql, optimizedNext.bindings))
     ]
-    const optimizedAdjacentRows = optimizedAdjacent.reduce(
-      (total, evidence) => total + evidence.rows,
-      0
-    )
+    const optimizedAdjacentRows = totalRows(optimizedAdjacent)
 
     const legacyRelated = scan(
       databasePath,
@@ -230,10 +245,7 @@ describe('representative D1 query benchmark', () => {
     const optimizedRelatedEvidence = optimizedRelatedStatements.map(statement =>
       scan(databasePath, bindSql(statement.sql, statement.bindings))
     )
-    const optimizedRelatedRows = optimizedRelatedEvidence.reduce(
-      (total, evidence) => total + evidence.rows,
-      0
-    )
+    const optimizedRelatedRows = totalRows(optimizedRelatedEvidence)
     const singleCategoryStart = sqlite.statements.length
     await catalog.getListingBySlug('bench-161')
     const singleCategoryStatements = sqlite.statements
@@ -243,10 +255,10 @@ describe('representative D1 query benchmark', () => {
           statement.sql.includes('INDEXED BY listings_related_name_idx') ||
           statement.sql.includes('FROM listing_media')
       )
-    const singleCategoryRows = singleCategoryStatements.reduce(
-      (total, statement) =>
-        total + scan(databasePath, bindSql(statement.sql, statement.bindings)).rows,
-      0
+    const singleCategoryRows = totalRows(
+      singleCategoryStatements.map(statement =>
+        scan(databasePath, bindSql(statement.sql, statement.bindings))
+      )
     )
 
     const shellStart = sqlite.statements.length
@@ -255,16 +267,20 @@ describe('representative D1 query benchmark', () => {
     const warmStart = sqlite.statements.length
     await catalog.getShellStats()
     const warmShellStatements = sqlite.statements.slice(warmStart)
-    const coldShellRows = coldShellStatements.reduce(
-      (total, statement) =>
-        total + scan(databasePath, bindSql(statement.sql, statement.bindings)).rows,
-      0
+    const coldShellRows = totalRows(
+      coldShellStatements.map(statement =>
+        scan(databasePath, bindSql(statement.sql, statement.bindings))
+      )
     )
-    const warmShellRows = warmShellStatements.reduce(
-      (total, statement) =>
-        total + scan(databasePath, bindSql(statement.sql, statement.bindings)).rows,
-      0
+    const warmShellRows = totalRows(
+      warmShellStatements.map(statement =>
+        scan(databasePath, bindSql(statement.sql, statement.bindings))
+      )
     )
+    const oneColdPlus99WarmAverage =
+      coldShellRows === null || warmShellRows === null
+        ? null
+        : (coldShellRows + warmShellRows * 99) / 100
 
     const report = {
       fixture: {
@@ -292,17 +308,38 @@ describe('representative D1 query benchmark', () => {
       shell: {
         coldScanRows: coldShellRows,
         warmScanRows: warmShellRows,
-        oneColdPlus99WarmAverage: (coldShellRows + warmShellRows * 99) / 100
-      }
+        oneColdPlus99WarmAverage
+      },
+      scanStatus: scanStatsAvailable ? 'available' : 'unavailable'
     }
     console.info(`DATA_OPS_BENCHMARK ${JSON.stringify(report)}`)
 
-    expect(legacyAdjacent.rows).toBeGreaterThan(optimizedAdjacentRows)
-    expect(optimizedAdjacentRows).toBeLessThanOrEqual(100)
-    expect(optimizedRelatedRows).toBeLessThanOrEqual(700)
-    expect(singleCategoryRows).toBeLessThanOrEqual(100)
-    expect(warmShellRows).toBeLessThanOrEqual(10)
-    expect(report.shell.oneColdPlus99WarmAverage).toBeLessThanOrEqual(25)
+    expect(optimizedAdjacent.flatMap(evidence => evidence.plan).join('\n')).toContain(
+      'listings_publication_idx'
+    )
+    expect(optimizedRelatedEvidence.flatMap(evidence => evidence.plan).join('\n')).toContain(
+      'listing_categories_category_idx'
+    )
+    if (scanStatsAvailable) {
+      expect(legacyAdjacent.rows).not.toBeNull()
+      expect(optimizedAdjacentRows).not.toBeNull()
+      expect(legacyAdjacent.rows as number).toBeGreaterThan(optimizedAdjacentRows as number)
+      expect(optimizedAdjacentRows as number).toBeLessThanOrEqual(100)
+      expect(optimizedRelatedRows as number).toBeLessThanOrEqual(700)
+      expect(singleCategoryRows as number).toBeLessThanOrEqual(100)
+      expect(warmShellRows as number).toBeLessThanOrEqual(10)
+      expect(oneColdPlus99WarmAverage as number).toBeLessThanOrEqual(25)
+    } else {
+      expect([
+        legacyAdjacent.rows,
+        optimizedAdjacentRows,
+        optimizedRelatedRows,
+        singleCategoryRows,
+        coldShellRows,
+        warmShellRows,
+        oneColdPlus99WarmAverage
+      ]).toEqual(Array(7).fill(null))
+    }
     expect(detailStatements.length).toBeLessThanOrEqual(10)
     expect(events.every(event => event.siteId === 'serp.software')).toBe(true)
   })

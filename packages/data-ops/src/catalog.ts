@@ -582,7 +582,7 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
         'listing-detail',
         'related-candidates',
         `SELECT shared.listing_id
-         FROM listing_categories shared
+          FROM listing_categories shared INDEXED BY listing_categories_category_idx
          WHERE shared.category_id IN (
            SELECT current.category_id
            FROM listing_categories current
