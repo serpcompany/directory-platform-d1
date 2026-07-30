@@ -76,8 +76,10 @@ describe('pr-review workflow', () => {
     const biomeStep = stepRuns.find(run => run.includes('pnpm exec biome check'))
     expect(biomeStep).toContain('git diff --name-only --diff-filter=ACMR -z origin/main...HEAD')
     expect(biomeStep).toContain(
-      'pnpm exec biome check --no-errors-on-unmatched "${changed_files[@]}"'
+      `pnpm exec biome check --no-errors-on-unmatched "\${changed_files[@]}"`
     )
+    expect(biomeStep).toContain(`if ((\${#changed_files[@]} == 0)); then`)
+    expect(biomeStep).toContain('No Biome-supported files changed; skipping.')
     expect(stepRuns).not.toContain('pnpm d1:local:migrate')
     expect(stepRuns).not.toContain('pnpm worker:deploy:production')
     expect(stepRuns).not.toContain('pnpm typecheck')

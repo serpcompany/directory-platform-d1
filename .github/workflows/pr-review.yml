@@ -37,6 +37,10 @@ jobs:
             git diff --name-only --diff-filter=ACMR -z origin/main...HEAD -- \
               '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.jsonc' '*.css'
           )
+          if ((${#changed_files[@]} == 0)); then
+            echo "No Biome-supported files changed; skipping."
+            exit 0
+          fi
           pnpm exec biome check --no-errors-on-unmatched "${changed_files[@]}"
 
       - name: Run forbidden listing link guard
