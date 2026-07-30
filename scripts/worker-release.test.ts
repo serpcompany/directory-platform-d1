@@ -162,9 +162,7 @@ describe('Worker release guard', () => {
       }
       expect(generated.$schema).toBe('../../node_modules/wrangler/config-schema.json')
       expect(generated.main).toBe('../../apps/serp.software/.open-next/worker.js')
-      expect(generated.assets?.directory).toBe(
-        '../../apps/serp.software/.open-next/assets'
-      )
+      expect(generated.assets?.directory).toBe('../../apps/serp.software/.open-next/assets')
       expect(
         generated.d1_databases?.find(binding => binding.binding === 'DB')?.migrations_dir
       ).toBe('../../d1/migrations')

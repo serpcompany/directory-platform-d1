@@ -209,8 +209,7 @@ function materializeConfig(
   if (config.assets)
     config.assets.directory = pathRelativeToConfig(configPath, resolve(`${appPath}/assets`))
   const binding = config.d1_databases?.find(item => item.binding === 'DB')
-  if (binding)
-    binding.migrations_dir = pathRelativeToConfig(configPath, resolve('d1/migrations'))
+  if (binding) binding.migrations_dir = pathRelativeToConfig(configPath, resolve('d1/migrations'))
   source = `${JSON.stringify(config, null, 2)}\n`
   mkdirSync(dirname(configPath), { recursive: true })
   writeFileSync(configPath, source)
