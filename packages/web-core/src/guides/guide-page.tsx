@@ -1,12 +1,12 @@
 import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
 import type { MDXComponents } from 'mdx/types'
 import type { Metadata } from 'next'
-import { MDXRemote } from 'next-mdx-remote/rsc'
-import remarkGfm from 'remark-gfm'
 import type { ReactNode } from 'react'
+import ReactMarkdown, { type Components } from 'react-markdown'
+import remarkGfm from 'remark-gfm'
 import type { GuideMetadata } from '../content-query'
 import { getRoute } from '../routes'
-import { SITE_PUBLIC_URL, generateDynamicMetadata } from '../seo-config'
+import { generateDynamicMetadata, SITE_PUBLIC_URL } from '../seo-config'
 
 interface GuideDetailPageProps {
   guide: GuideMetadata
@@ -38,7 +38,7 @@ export function GuideDetailPage({
   guideHeader,
   jsonLd,
   mdxComponents,
-  slug,
+  slug
 }: GuideDetailPageProps) {
   const breadcrumbItems = [
     { name: 'Posts', href: getRoute('guides.list') },
@@ -51,15 +51,9 @@ export function GuideDetailPage({
       <Breadcrumb items={breadcrumbItems} baseUrl={SITE_PUBLIC_URL} />
       {guideHeader}
       <div className="prose dark:prose-invert max-w-none">
-        <MDXRemote
-          source={guide.content || ''}
-          components={mdxComponents}
-          options={{
-            mdxOptions: {
-              remarkPlugins: [remarkGfm]
-            }
-          }}
-        />
+        <ReactMarkdown components={mdxComponents as Components} remarkPlugins={[remarkGfm]}>
+          {guide.content || ''}
+        </ReactMarkdown>
       </div>
     </article>
   )

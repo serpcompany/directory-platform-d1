@@ -1,11 +1,11 @@
 import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
 import type { MDXComponents } from 'mdx/types'
 import type { Metadata } from 'next'
-import { MDXRemote } from 'next-mdx-remote/rsc'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { DocMetadata } from '../content-query'
 import { getRoute } from '../routes'
-import { SITE_PUBLIC_URL, generateDynamicMetadata } from '../seo-config'
+import { generateDynamicMetadata, SITE_PUBLIC_URL } from '../seo-config'
 import { siteCopy } from '../site-copy'
 
 interface DocDetailPageProps {
@@ -32,11 +32,7 @@ export function generateDocDetailStaticParams(docs: DocMetadata[]): Array<{ slug
     }))
 }
 
-export function DocDetailPage({
-  doc,
-  mdxComponents,
-  slug,
-}: DocDetailPageProps) {
+export function DocDetailPage({ doc, mdxComponents, slug }: DocDetailPageProps) {
   const breadcrumbItems = [
     { name: siteCopy.docsLabel, href: getRoute('docs.list') },
     { name: doc.title, href: getRoute('docs.doc', { slug }) }
@@ -50,15 +46,9 @@ export function DocDetailPage({
         <p className="text-lg text-muted-foreground">{doc.description}</p>
       </div>
       <div className="prose dark:prose-invert max-w-none">
-        <MDXRemote
-          source={doc.content || ''}
-          components={mdxComponents}
-          options={{
-            mdxOptions: {
-              remarkPlugins: [remarkGfm]
-            }
-          }}
-        />
+        <ReactMarkdown components={mdxComponents as Components} remarkPlugins={[remarkGfm]}>
+          {doc.content || ''}
+        </ReactMarkdown>
       </div>
     </article>
   )

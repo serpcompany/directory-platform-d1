@@ -44,6 +44,19 @@ describe('Worker release guard', () => {
     )
   })
 
+  it('uses a workerd-compatible Markdown renderer in both Workers', () => {
+    for (const siteId of ['serp.software', 'pornvideodownloaders.com']) {
+      const config = readFileSync(`apps/${siteId}/next.config.ts`, 'utf8')
+      const packageJson = readFileSync(`apps/${siteId}/package.json`, 'utf8')
+      expect(config).not.toContain('next-mdx-remote')
+      expect(packageJson).not.toContain('next-mdx-remote')
+    }
+    expect(readFileSync('packages/web-core/package.json', 'utf8')).not.toContain('next-mdx-remote')
+    expect(readFileSync('packages/web-core/src/static-pages/legal-page.tsx', 'utf8')).toContain(
+      'ReactMarkdown'
+    )
+  })
+
   it('requires explicit confirmation for credential-free remote plans', () => {
     expect(() =>
       runWorkerRelease(['plan-migration', 'production', '--site', 'serp.software'], {})
