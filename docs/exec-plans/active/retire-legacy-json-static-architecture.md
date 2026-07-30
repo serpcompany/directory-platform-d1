@@ -115,12 +115,19 @@ timestamp, exact target, and approved action immediately before each mutation.
 - [x] 2026-07-30 13:20 JST — Implemented the combined legacy cleanup from
   `0326c8a`, including removed-site tombstones, fail-closed manual dispatch,
   reusable badge/submission allow-lists, and architecture regression tests.
+- [x] 2026-07-30 13:29 JST — Committed the locally validated D1 preparation as
+  `cba2b172bdf00d7d38d83d59cd11bbb4bdaf2144` and the combined legacy cleanup as
+  `fedba3fe67786d6c78bf9a18ef2b28601aca7607`. Neither commit was pushed, merged,
+  or deployed.
 - [ ] Validate every remaining active static site, exact cleanup-diff target
   resolution, Changesets behavior, and all affected workflows without deploying.
   Repository tests, typechecking, validate/build, and deploy dry-runs pass.
   `serp.ai` sitemap audit passes; the other three retain identical pre-existing
   sitemap-audit failures on untouched `main`. The exact cleanup diff resolves all
   four remaining sites and therefore requires production approval before merge.
+  `pnpm test:repo` reports 236 passing tests with 7 skipped; `pnpm typecheck`,
+  all four validates/builds, and all four deploy dry-runs pass. An empty Changeset
+  makes package publication intentionally empty.
 - [ ] Obtain and record the required approval before any protected Worker deployment,
   merge/redeploy, credential change, Search Console mutation, DNS/rule change, or
   GitHub repository setting mutation.
