@@ -1,8 +1,8 @@
 /**
  * Console Logs Validator
  *
- * Shared validation logic for detecting console.log statements
- * Used by both standalone scripts and ESLint plugin
+ * Validation logic for detecting console.log statements.
+ * Used by the active pre-commit validation script.
  *
  * Automatically skips validation for Next.js projects that have
  * console removal configured in next.config.js

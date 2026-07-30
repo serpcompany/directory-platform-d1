@@ -41,8 +41,12 @@ pnpm harness:check
 pnpm validate
 ```
 
-The full loop adds read-only lint, repository tests, Wrangler identity validation,
-and the OpenNext Worker build. It never deploys or accesses a remote D1 database.
+The full loop adds a read-only Biome check over committed branch changes plus staged,
+unstaged, and untracked local files, followed by repository lint, repository tests,
+Wrangler identity validation, and the OpenNext Worker build. The changed-file check
+matches the file classes enforced by pull-request CI without requiring unrelated
+legacy files to be reformatted. The full loop never deploys or accesses a remote D1
+database.
 
 Run a focused test while implementing, the fast loop at milestone boundaries, and the
 full loop before a substantial completion claim.

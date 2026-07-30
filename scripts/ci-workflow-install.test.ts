@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
@@ -21,14 +21,6 @@ interface WorkflowDefinition {
   concurrency?: {
     'cancel-in-progress'?: boolean
     group?: string
-  }
-  jobs?: {
-    release?: {
-      steps?: Array<{
-        name?: string
-        run?: string
-      }>
-    }
   }
 }
 
@@ -57,36 +49,11 @@ describe('ci workflow install isolation', () => {
     expect(actionUses).not.toContain('pnpm/action-setup@v4')
   })
 
-  it('keeps release and production Worker runs non-canceling in their own concurrency groups', () => {
-    const releaseWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/release.yml')
+  it('keeps production Worker runs non-canceling in their isolated concurrency group', () => {
     const buildWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/build-and-deploy.yml')
 
-    expect(releaseWorkflow.concurrency?.group).toBe(
-      `main-ci-${githubExpression('{{ github.ref }}')}`
-    )
     expect(buildWorkflow.concurrency?.group).toBe('serp-software-production-worker')
-    expect(releaseWorkflow.concurrency?.['cancel-in-progress']).toBe(false)
     expect(buildWorkflow.concurrency?.['cancel-in-progress']).toBe(false)
-  })
-
-  it('keeps the changesets action configured for release runs', () => {
-    expect(existsSync(resolve(process.cwd(), '.changeset/config.json'))).toBe(true)
-  })
-
-  it('builds the CLI from its checked-in registry snapshot', () => {
-    const releaseWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/release.yml')
-    const cliPackage = loadYamlFile<{ scripts?: Record<string, string> }>(
-      'packages/cli/package.json'
-    )
-    const buildStep = releaseWorkflow.jobs?.release?.steps?.find(
-      step => step.name === 'Build publishable package'
-    )
-
-    expect(buildStep?.run).toBe('pnpm --filter ./packages/cli build')
-    expect(cliPackage.scripts?.build).toBe('tsup')
-    expect(cliPackage.scripts).not.toHaveProperty('build:registry')
-    expect(existsSync(resolve(process.cwd(), 'packages/cli/data/registry.json'))).toBe(true)
-    expect(existsSync(resolve(process.cwd(), 'packages/cli/scripts/build-registry.ts'))).toBe(false)
   })
 
   it('persists app-level Next caches without caching generated artifacts', () => {

@@ -10,26 +10,14 @@
         "CLERK_WEBHOOK_SECRET",
         "FLAGS_SECRET",
         "GITHUB_TOKEN",
-        "KV_REST_API_READ_ONLY_TOKEN",
-        "KV_REST_API_TOKEN",
-        "KV_REST_API_URL",
-        "KV_URL",
-        "MAILERLITE_API_KEY",
-        "MAILERLITE_GROUP_IDS",
         "NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY",
         "NEXT_PUBLIC_OPENPANEL_CLIENT_ID",
         "OPENPANEL_SECRET_ID",
         "OPENPANEL_CLIENT_SECRET",
-        "REDIS_URL",
         "RSS_FEED_URL",
         "SENTRY_AUTH_TOKEN",
         "SENTRY_ORG",
-        "SENTRY_PROJECT",
-        "STORAGE_KV_REST_API_READ_ONLY_TOKEN",
-        "STORAGE_KV_REST_API_TOKEN",
-        "STORAGE_KV_REST_API_URL",
-        "STORAGE_KV_URL",
-        "STORAGE_REDIS_URL"
+        "SENTRY_PROJECT"
       ]
     },
     "clean": {

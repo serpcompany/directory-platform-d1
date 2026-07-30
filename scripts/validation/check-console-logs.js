@@ -17,7 +17,7 @@ const path = require('node:path')
 // CONFIGURATION - Customize these settings for your project
 // ============================================================================
 
-// Use shared validator
+// Use the validation rule owned by this active script boundary
 const {
   CONSOLE_PATTERNS,
   ALLOWED_PATTERNS,
@@ -25,7 +25,7 @@ const {
   findConsoleLogs,
   isAllowedConsoleUsage,
   checkNextJsConfig
-} = require('../../packages/validators/src/console-logs.js')
+} = require('./console-log-rules.js')
 
 const INCLUDE_EXTENSIONS = ['.js', '.jsx', '.ts', '.tsx', '.vue', '.svelte']
 

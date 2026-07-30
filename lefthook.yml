@@ -41,10 +41,6 @@ pre-commit:
         - "**/*.spec.*"
         - "scripts/**"
         - "**/scripts/**"
-        - "packages/validators/**"
-        - "**/packages/validators/**"
-        - "packages/cli/**"
-        - "**/packages/cli/**"
       run: node scripts/validation/check-console-logs.js {staged_files}
 
     # Directory structure validation
