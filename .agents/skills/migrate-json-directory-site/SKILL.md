@@ -41,18 +41,27 @@ and catalog schema in place. Do not copy catalog files into this repository.
    - an independent site repository based on this platform; or
    - another app/tenant in this monorepo.
 6. If it is another app/tenant, audit hard-coded site, Worker, D1, artifact, and
-   workflow boundaries. Treat the existing tenant columns as insufficient proof of
-   multisite safety.
+   workflow boundaries. Extend `scripts/site-targets.ts` exhaustively and treat the
+   existing tenant columns or two-site implementation as insufficient proof that a
+   new site is isolated.
 7. Create a self-contained ExecPlan from `docs/exec-plans/template.md`.
 8. Build a field map and evidence checklist before a generator or SQL artifact.
 9. Parse external data into precise types at the migration boundary.
-10. Generate deterministic SQL and parity evidence without retaining intermediate
-    catalog files.
+10. Extend and run `pnpm migration:generate` to produce deterministic SQL and parity
+    evidence without retaining intermediate catalog files or adding runtime adapters.
 11. Prove local D1 parity and public-route behavior independently.
-12. Provision and mutate Cloudflare only with explicit authority through protected
+12. Before the first Cloudflare mutation, verify the scoped credential and account
+    identity through read-only calls; never confuse the account ID with the API
+    token.
+13. Provision and mutate Cloudflare only with explicit authority through protected
     workflows.
-13. Remove legacy runtime paths only after parity and the observation window.
-14. Run the full harness, review the diff, and update the ExecPlan outcome.
+14. Run the protected preview release from empty state, then repeat it from populated
+    state to prove the matching publication checksum produces an import no-op.
+15. Capture desktop and real mobile route evidence, including element containment
+    rather than relying only on document-level scroll width.
+16. Remove legacy runtime paths only after parity and the observation window.
+17. Run the full harness, review the diff, update the ExecPlan outcome, and safely
+    remove the registered migration worktree after merge.
 
 ## Stop conditions
 
@@ -63,6 +72,8 @@ Stop and request a decision when:
 - records would be dropped or merged without an approved rule;
 - production credentials, confirmation, or protected environment approval is absent;
 - rollback evidence or a retained backup is missing.
+- the authenticated Cloudflare account or scoped resource identity cannot be proven
+  before mutation.
 
 Do not stop merely because source data has correctable validation errors. Report them
 and continue with non-mutating analysis.

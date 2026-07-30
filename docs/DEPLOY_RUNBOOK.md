@@ -39,9 +39,12 @@ verification stops the release before Worker deployment.
 
 Do not run production Wrangler or D1 commands from a local worktree.
 
-For `pornvideodownloaders.com`, rehearse the same sequence first with the `preview`
-target and `deploy-pornvideodownloaders.com-preview`. The preview job uses a separate
-Worker, D1 database, protected environment, backup, and exact parity verification.
+For every newly onboarded site, rehearse the same sequence first with its `preview`
+target and exact `deploy-<site-id>-preview` confirmation. The preview job uses a
+separate Worker, D1 database, protected environment, backup, and exact parity
+verification. Run it once from empty publication state, then repeat it after the
+catalog is populated to prove the identical checksum produces an import no-op before
+authorizing production.
 
 ## Verified public submissions
 
@@ -113,8 +116,24 @@ After an authorized production run:
 - retain the workflow backup for the required recovery window.
 
 Provisioning a new site's Cloudflare databases, Worker names, route, environment
-secrets, and GitHub environment protection is a one-time prerequisite. Record the
-resource IDs and workflow run URLs in the site's active ExecPlan without committing
-credentials.
+secrets, and GitHub environment protection is a one-time prerequisite. Before the
+first mutation, use read-only calls to verify that the credential belongs to the
+intended account and can see the exact resources. An account ID and API token are
+different values even when the dashboard presents them together; never infer them
+from clipboard order or labels. Record redacted identity evidence, resource IDs, and
+workflow run URLs in the site's active ExecPlan without committing credentials.
+
+For each new site, update and verify:
+
+1. `scripts/site-targets.ts`, site-specific Wrangler configs, and synthetic local
+   identity;
+2. preview and production D1 databases, Worker names/routes, and protected GitHub
+   environments;
+3. deploy workflow site choices, confirmation phrases, backup paths, and artifact
+   retention;
+4. shared publication, notification, submission approval, and sitemap workflow
+   choices or matrices;
+5. empty-state and populated-state preview releases, exact parity, public route
+   checks, mobile screenshots, and element-containment assertions.
 
 See [BUILD_PIPELINE.md](./BUILD_PIPELINE.md) for ownership and release architecture.

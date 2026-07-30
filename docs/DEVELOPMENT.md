@@ -18,6 +18,15 @@ pnpm d1:pornvideodownloaders:local:import
 pnpm d1:pornvideodownloaders:local:verify
 ```
 
+The aliases call the canonical guard with an explicit registered site:
+
+```bash
+pnpm tsx scripts/d1-local-guard.ts <migrate|import|verify|publish> \
+  --site <site-id>
+```
+
+The underlying command has no default tenant and rejects unknown site IDs.
+
 Start the local OpenNext Worker:
 
 ```bash
