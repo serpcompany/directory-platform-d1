@@ -18,6 +18,7 @@ type SitemapTarget = {
 type SubmitGscArgs = {
   deleteSitemapUrls: string[]
   dryRun: boolean
+  listSitemaps: boolean
   siteIds: string[]
   submitCanonical: boolean
   verifyCredentials: boolean
@@ -50,6 +51,7 @@ function parseArgs(argv: string[]): SubmitGscArgs {
   const args: SubmitGscArgs = {
     deleteSitemapUrls: [],
     dryRun: false,
+    listSitemaps: false,
     siteIds: [],
     submitCanonical: true,
     verifyCredentials: false
@@ -78,6 +80,12 @@ function parseArgs(argv: string[]): SubmitGscArgs {
       continue
     }
 
+    if (arg === '--list-sitemaps') {
+      args.submitCanonical = false
+      args.listSitemaps = true
+      continue
+    }
+
     if (arg === '--site' && argv[index + 1]) {
       args.siteIds.push(argv[index + 1])
       index += 1
@@ -93,7 +101,12 @@ function parseArgs(argv: string[]): SubmitGscArgs {
     throw new Error(`Unknown argument: ${arg}`)
   }
 
-  if (!args.submitCanonical && !args.verifyCredentials && args.deleteSitemapUrls.length === 0) {
+  if (
+    !args.submitCanonical &&
+    !args.verifyCredentials &&
+    !args.listSitemaps &&
+    args.deleteSitemapUrls.length === 0
+  ) {
     throw new Error('Nothing to do. Remove --no-submit or pass --delete-sitemap <url>.')
   }
 
@@ -286,6 +299,46 @@ async function submitSitemap(
   }
 }
 
+async function listSitemaps(
+  accessToken: string,
+  siteUrl: string,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
+  const endpoint = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
+    siteUrl
+  )}/sitemaps`
+  const response = await fetch(endpoint, {
+    headers: authorizationHeaders(accessToken, env)
+  })
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to list registered sitemaps for ${siteUrl}: ${response.status} ${await response.text()}`
+    )
+  }
+
+  const body = (await response.json()) as {
+    sitemap?: Array<{
+      isPending?: boolean
+      isSitemapsIndex?: boolean
+      lastSubmitted?: string
+      path?: string
+    }>
+  }
+
+  for (const sitemap of body.sitemap ?? []) {
+    if (!sitemap.path) {
+      continue
+    }
+
+    console.log(
+      `SITEMAP ${siteUrl} -> ${sitemap.path} ` +
+        `(index=${sitemap.isSitemapsIndex ?? false}, pending=${sitemap.isPending ?? false}, ` +
+        `lastSubmitted=${sitemap.lastSubmitted ?? 'unknown'})`
+    )
+  }
+}
+
 async function deleteSitemap(
   accessToken: string,
   siteUrl: string,
@@ -334,6 +387,7 @@ export async function runSubmitGscSitemaps(
     ...parseDeleteSitemapUrls(env.GSC_DELETE_SITEMAP_URLS)
   ]
   const submitTargets = args.submitCanonical ? getSitemapTargets(siteIds) : []
+  const listTargets = args.listSitemaps ? getSitemapTargets(siteIds) : []
   const deleteTargets = deleteTargetsForSitemapUrls([...new Set(deleteSitemapUrls)])
 
   if (args.dryRun) {
@@ -342,6 +396,9 @@ export async function runSubmitGscSitemaps(
     }
     for (const target of submitTargets) {
       console.log(`SUBMIT ${siteUrlFor(target.domain, env)} -> ${target.sitemapUrl}`)
+    }
+    for (const target of listTargets) {
+      console.log(`LIST ${siteUrlFor(target.domain, env)}`)
     }
     return
   }
@@ -352,6 +409,10 @@ export async function runSubmitGscSitemaps(
     await verifyCredentialAuthority(accessToken, env)
     console.log('Verified Search Console credential authority without mutation.')
     return
+  }
+
+  for (const target of listTargets) {
+    await listSitemaps(accessToken, siteUrlFor(target.domain, env), env)
   }
 
   for (const target of deleteTargets) {

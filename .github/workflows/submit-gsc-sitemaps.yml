@@ -4,12 +4,13 @@ on:
   workflow_dispatch:
     inputs:
       mode:
-        description: 'Verify credentials without mutation, or submit canonical sitemaps'
+        description: 'Verify credentials, list registered sitemaps, or submit canonical sitemaps'
         required: true
         default: verify-credentials
         type: choice
         options:
           - verify-credentials
+          - list-sitemaps
           - submit
       site_ids:
         description: 'Optional newline or comma separated checked-in site ids to submit'
@@ -67,6 +68,8 @@ jobs:
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.mode }}" = "verify-credentials" ]; then
             pnpm tsx scripts/submit-gsc-sitemaps.ts --verify-credentials
+          elif [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.mode }}" = "list-sitemaps" ]; then
+            pnpm tsx scripts/submit-gsc-sitemaps.ts --list-sitemaps
           else
             pnpm tsx scripts/submit-gsc-sitemaps.ts
           fi

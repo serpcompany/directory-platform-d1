@@ -96,6 +96,48 @@ describe('runSubmitGscSitemaps', () => {
     )
   })
 
+  it('lists registered sitemaps without mutation', async () => {
+    const calls: Array<{ method: string; url: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({
+          method: init?.method ?? 'GET',
+          url
+        })
+        return new Response(
+          JSON.stringify({
+            sitemap: [
+              {
+                isPending: false,
+                isSitemapsIndex: true,
+                lastSubmitted: '2026-07-30T00:00:00Z',
+                path: 'https://serp.software/sitemap-index.xml'
+              }
+            ]
+          }),
+          { status: 200 }
+        )
+      })
+    )
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    await runSubmitGscSitemaps(['--list-sitemaps', '--site', 'serp.software'], {
+      GSC_ACCESS_TOKEN: 'token'
+    })
+
+    expect(calls).toEqual([
+      {
+        method: 'GET',
+        url: 'https://www.googleapis.com/webmasters/v3/sites/https%3A%2F%2Fserp.software%2F/sitemaps'
+      }
+    ])
+    expect(log).toHaveBeenCalledWith(
+      'SITEMAP https://serp.software/ -> https://serp.software/sitemap-index.xml ' +
+        '(index=true, pending=false, lastSubmitted=2026-07-30T00:00:00Z)'
+    )
+  })
+
   it('prints delete operations for stale sitemap URLs during dry-run', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
