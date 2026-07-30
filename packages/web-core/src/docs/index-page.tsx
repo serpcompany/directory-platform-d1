@@ -1,13 +1,13 @@
 import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
 import type { MDXComponents } from 'mdx/types'
 import type { Metadata } from 'next'
-import { MDXRemote } from 'next-mdx-remote/rsc'
+import ReactMarkdown, { type Components } from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import type { DocMetadata } from '../content-query'
 import { getRoute } from '../routes'
-import { SITE_PUBLIC_URL, generateBaseMetadata } from '../seo-config'
-import { siteCopy } from '../site-copy'
+import { generateBaseMetadata, SITE_PUBLIC_URL } from '../seo-config'
 import { siteConfig } from '../site-config'
+import { siteCopy } from '../site-copy'
 
 interface DocsIndexPageProps {
   doc: DocMetadata
@@ -41,15 +41,9 @@ export function DocsIndexPage({ doc, mdxComponents }: DocsIndexPageProps) {
         <p className="text-lg text-muted-foreground">{doc.description}</p>
       </div>
       <div className="prose dark:prose-invert max-w-none">
-        <MDXRemote
-          source={doc.content || ''}
-          components={mdxComponents}
-          options={{
-            mdxOptions: {
-              remarkPlugins: [remarkGfm]
-            }
-          }}
-        />
+        <ReactMarkdown components={mdxComponents as Components} remarkPlugins={[remarkGfm]}>
+          {doc.content || ''}
+        </ReactMarkdown>
       </div>
     </article>
   )
