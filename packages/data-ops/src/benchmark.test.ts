@@ -338,9 +338,9 @@ describe('representative D1 query benchmark', () => {
         optimizedRelatedRows,
         singleCategoryRows,
         coldShellRows,
-        warmShellRows,
         oneColdPlus99WarmAverage
-      ]).toEqual(Array(7).fill(null))
+      ]).toEqual(Array(6).fill(null))
+      expect(warmShellRows).toBe(0)
     }
     expect(detailStatements.length).toBeLessThanOrEqual(10)
     expect(events.every(event => event.siteId === 'serp.software')).toBe(true)
