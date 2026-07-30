@@ -5,14 +5,16 @@ import type { CatalogDataCache } from './contracts'
 type SqlPrimitive = null | number | string
 
 export class MemoryCatalogCache implements CatalogDataCache {
+  readonly ttlSeconds = new Map<string, number>()
   readonly values = new Map<string, unknown>()
 
   async get(key: string): Promise<unknown | null> {
     return this.values.get(key) ?? null
   }
 
-  async put(key: string, value: unknown): Promise<void> {
+  async put(key: string, value: unknown, ttlSeconds: number): Promise<void> {
     this.values.set(key, structuredClone(value))
+    this.ttlSeconds.set(key, ttlSeconds)
   }
 }
 

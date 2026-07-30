@@ -27,9 +27,8 @@ export type CatalogQueryShape =
   | 'navigation-previous-slug'
   | 'publication-version'
   | 'published-summaries'
-  | 'related-candidates'
-  | 'related-hydration'
   | 'related-logos'
+  | 'related-ranked-seek'
   | 'related-single-category'
   | 'search-summaries'
   | 'shell-stats'
@@ -49,7 +48,7 @@ export interface CatalogQueryEvent {
 
 export interface CatalogCacheEvent {
   event: 'catalog_cache'
-  operation: 'shell-stats'
+  operation: 'listing-detail' | 'published-summaries' | 'shell-stats'
   siteId: ActiveCheckedInSiteId
   state: 'corrupt' | 'error' | 'hit' | 'miss' | 'write-error' | 'written'
 }

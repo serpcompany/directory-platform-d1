@@ -50,7 +50,7 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   binding directly.
 - `packages/data-ops/` owns public catalog DTOs, eligibility SQL, projection-specific
   hydration, pagination, redirects, related ranking, indexed adjacency, bounded
-  shell-count caching contracts, and safe per-statement D1 telemetry. It receives
+  publication-versioned caching contracts, and safe per-statement D1 telemetry. It receives
   the database, site identity, clock, cache, and observer explicitly; it never
   imports OpenNext or selects a site from global authority.
 - `d1/migrations/` owns forward schema history.
@@ -82,8 +82,11 @@ Every current and future site uses the same `packages/data-ops/` implementation.
 Adding a site requires a thin binding adapter and an explicit checked-in site
 identity, not a copied repository or copied SQL. Summary/card routes use the summary
 projection; only detail routes may hydrate content, full media, and resource links.
-Request-local detail deduplication, bounded cross-request shell-data caching, and
-full-page HTTP caching are separate mechanisms.
+Request-local operation deduplication, publication-version-keyed cross-request
+catalog data caching, and full-page HTTP caching are separate mechanisms. Public
+summary arrays, completed details, and shell counts may be cached because their keys
+include the explicit site and current publication version; authenticated page
+responses are never inserted into that data cache.
 
 The private admin preview route reuses the public listing-detail renderer but not its
 public catalog lookup or structured-data slot. Its server-only repository reads the
