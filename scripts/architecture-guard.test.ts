@@ -91,7 +91,10 @@ describe('D1-only repository architecture', () => {
       resolve('apps/pornvideodownloaders.com/app/not-found.tsx'),
       'utf8'
     )
-    const serpCookiePolicy = readFileSync(resolve('packages/content/data/legal/cookies.mdx'), 'utf8')
+    const serpCookiePolicy = readFileSync(
+      resolve('packages/content/data/legal/cookies.mdx'),
+      'utf8'
+    )
 
     expect(pornVideoDownloadersConfig).toContain('githubIssueOwner: null')
     expect(pornVideoDownloadersConfig).toContain('githubIssueRepo: null')
