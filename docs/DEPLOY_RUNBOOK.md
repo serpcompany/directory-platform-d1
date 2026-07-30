@@ -5,7 +5,7 @@ database. GitHub Pages repo sync and local remote deploys are not supported.
 
 | Site | Deployment workflow | Preview environment | Production environment |
 | --- | --- | --- | --- |
-| `serp.software` | `build-and-deploy.yml` | `preview` | `production` |
+| `serp.software` | `build-and-deploy.yml` | Not provisioned; use local validation only | `production` |
 | `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 ## Local verification
@@ -45,6 +45,10 @@ separate Worker, D1 database, protected environment, backup, and exact parity
 verification. Run it once from empty publication state, then repeat it after the
 catalog is populated to prove the identical checksum produces an import no-op before
 authorizing production.
+
+Existing exception: `serp.software` predates that requirement and currently has no
+proper preview Worker/D1/protected environment. Do not infer or provision one during
+unrelated maintenance; track it as explicit platform work.
 
 ## Verified public submissions
 

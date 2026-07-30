@@ -5,6 +5,13 @@ Owner: platform and catalog data
 Created: 2026-07-30  
 Last updated: 2026-07-30
 
+> Superseded source-state note: this completed plan records the migration-time
+> baseline. The later retirement removed both migrated sites from the legacy
+> repository, replaced GitHub-backed DNS, and made the output repositories private
+> with Actions, Pages, and Issues disabled. Use
+> `docs/exec-plans/active/retire-legacy-json-static-architecture.md` for current
+> operational state.
+
 ## Purpose and big picture
 
 Add `pornvideodownloaders.com` as the second independently deployable site in this
@@ -25,10 +32,12 @@ The original application is `apps/serp.software`; this work adds the independent
 `apps/pornvideodownloaders.com` Worker and activates its checked-in site contract.
 The shared runtime and release tools now require an explicit active site.
 
-The authoritative legacy source is the `main` branch of
+At migration time, the authoritative legacy source was the `main` branch of
 `https://github.com/serpcompany/json-directory-template.git` at commit
-`0326c8acd129b10625ee31c2700d11161f60e21f`. It is frozen in the detached checkout
-`/Users/devin/dev/repos/json-directory-worktrees/pornvideodownloaders-main`.
+`0326c8acd129b10625ee31c2700d11161f60e21f`. It was frozen in the detached checkout
+`/Users/devin/dev/repos/json-directory-worktrees/pornvideodownloaders-main` during
+the migration. That temporary checkout was removed during migration/retirement
+worktree cleanup; the source commit remains identified above.
 The source site is `sites/pornvideodownloaders.com`. Legacy catalog files remain
 external evidence and must never be copied into this repository or used at runtime.
 

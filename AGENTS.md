@@ -73,7 +73,9 @@ exact commands, observable acceptance, idempotence, and recovery—not intended 
 - Add schema changes under `d1/migrations/`.
 - Add reviewed data changes as YAML manifests under `d1/publications/`.
 - Keep search, taxonomy, RSS, sitemap, and submission options derived from D1.
-- Preserve separate local, preview, and production identities.
+- Preserve each site's separate local and production identities. Preserve PVD's
+  preview identity; SERP's missing preview environment is a known follow-up and must
+  not be invented during unrelated work.
 - Route production mutations through protected GitHub Actions only.
 
 ## Forbidden patterns

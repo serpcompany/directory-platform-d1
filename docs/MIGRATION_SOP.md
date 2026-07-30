@@ -19,9 +19,11 @@ SOP exists.
 
 The current repository deploys two explicitly registered tenants:
 `serp.software` and `pornvideodownloaders.com`. Each has a distinct app, Worker,
-local state, preview and production D1 database, protected environments, initial
-artifact, parity report, and browser coverage. Shared publication, submission, and
-release tools require an explicit site ID from `scripts/site-targets.ts`.
+local state, production D1 database, protected production environment, initial
+artifact, parity report, and browser coverage. PVD also has an isolated preview
+Worker/D1/environment. SERP's missing preview path is a known platform follow-up,
+not a pattern for future migrations. Shared publication, submission, and release
+tools require an explicit site ID from `scripts/site-targets.ts`.
 
 That working two-site baseline is reusable, but it is not an automatic site factory.
 Every additional migration must extend and prove all of these boundaries:

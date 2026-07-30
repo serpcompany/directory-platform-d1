@@ -20,8 +20,9 @@ The schema is versioned in `d1/migrations/`.
 
 Public queries require the Worker-selected site ID, approved status, active rows, and
 a publication time that is not in the future. `serp.software` and
-`pornvideodownloaders.com` use separate D1 databases in every environment as well as
-tenant predicates, so an incorrect binding or site ID fails closed.
+`pornvideodownloaders.com` use separate local and production D1 databases as well as
+tenant predicates, so an incorrect binding or site ID fails closed. PVD additionally
+has an isolated preview database. SERP does not yet have a proper preview database.
 
 Creating or badge-verifying a submission never satisfies those public predicates.
 Only the protected submission approval workflow can promote a verified row into the

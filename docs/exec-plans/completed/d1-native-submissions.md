@@ -5,6 +5,12 @@ Owner: serp.software application and D1 release pipeline
 Created: 2026-07-30  
 Last updated: 2026-07-30
 
+> Superseded repository-state note: this completed plan records the state at the
+> D1-submission milestone. The later legacy-retirement plan made
+> `serpcompany/serp.software` private with Actions, Pages, and Issues disabled.
+> The current operational summary is authoritative in
+> `docs/exec-plans/active/retire-legacy-json-static-architecture.md`.
+
 ## Purpose and big picture
 
 The public `https://serp.software/submit` experience must create a private, normalized
@@ -67,9 +73,10 @@ Repository constraints:
   339-listing catalog, and deployed Worker commit `ba0ff72`.
 - [x] 2026-07-30 02:34 JST Protected run `30475792701` exercised the reject path and
   closed the production test row without publishing it.
-- [x] 2026-07-30 02:35 JST Disabled Issues and GitHub Pages on the old public
-  `serpcompany/serp.software` repository; the repository remains public and unarchived
-  as historical source.
+- [x] 2026-07-30 02:35 JST Disabled Issues and GitHub Pages on the then-public
+  `serpcompany/serp.software` repository. It remained public and unarchived at this
+  milestone; the later retirement made it private and began the 14-day
+  pre-archival observation window.
 
 ## Surprises and discoveries
 
@@ -239,8 +246,8 @@ bounded successful dofollow badge check before review. Creation and verification
 cannot alter public catalog eligibility. Protected review can approve only verified
 rows or reject pending/verified rows, retaining backups and audit evidence.
 
-All GitHub Issues intake code, reusable badge workflows, templates, active
-configuration, and documentation were removed from the production repository. The
-old public repository remains readable for history, but its Issues feature and Pages
-deployment are disabled. Production continues to serve 339 pre-existing listings
-from D1, and the new Worker/API/UI are live.
+At this milestone, all GitHub Issues intake code, reusable badge workflows,
+templates, active configuration, and documentation were removed from the production
+repository. The old public repository remained readable for history, but its Issues
+feature and Pages deployment were disabled. Production continued to serve 339
+pre-existing listings from D1, and the new Worker/API/UI were live.

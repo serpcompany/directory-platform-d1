@@ -22,10 +22,12 @@ The observable end state is:
 - the two static-output repositories have no enabled Actions, Pages, deploy
   credential path, public issue dependency, or public visibility and are archived
   only after a 14-day observation window;
-- D1 identities, publication versions, checksums, public counts, Workers, Worker
-  bindings, and Worker routes are unchanged except for explicitly approved Worker
-  deployments that remove live issue-tracker links;
-- recovery evidence is retained for 90 days.
+- D1 identities, publication versions, checksums, public counts, apex application
+  routes, and Worker bindings are unchanged; approved Worker deployments removed
+  live issue links, repaired `/brands/`, and added two `www/*` redirect routes, while
+  Wrangler recreated the two `/brands*` route record IDs;
+- the surviving repository recovery bundles and recaptured current-state summary are
+  retained for 90 days.
 
 “Retired” is reversible operational retirement. Private archived Git history is
 recovery evidence; repository deletion and history rewriting are out of scope.
@@ -38,48 +40,43 @@ is `serpcompany/json-directory-template`, checked out locally as `json-directory
 It must continue to serve `browserextensions.io`, `serp.ai`, `serp.co`,
 `serpdownloaders.com`, and every other valid registered static site.
 
-The source checkouts and implementation worktrees are:
+The surviving source checkouts are:
 
 - D1 controlling checkout:
   `/Users/devin/dev/repos/json-project-folder/directory-platform-d1`
-- D1 implementation worktree:
-  `/Users/devin/dev/repos/json-project-folder/directory-platform-d1-worktrees/retire-legacy-json-static`
 - legacy controlling checkout:
   `/Users/devin/dev/repos/json-project-folder/json-directory`
-- legacy implementation worktree:
-  `/Users/devin/dev/repos/json-project-folder/json-directory-worktrees/retire-legacy-json-static`
 
-Fresh fetch evidence on 2026-07-30 established:
+The temporary implementation, GSC-inventory, credential-transfer, and frozen-source
+worktrees were removed after their PRs merged. The post-retirement baselines before
+this documentation correction were:
 
-- D1 `main` and `origin/main` are
-  `9b6ecf992792cb374be77f51a0000e36f231991e`.
-- Legacy remote `main` is
-  `0326c8acd129b10625ee31c2700d11161f60e21f`.
-- The legacy controlling checkout remains one unpublished commit ahead at
-  `783724e81f452ccea8595466cce690f26a46870a`. That commit removes only
-  `serp.software`; it is evidence and must not be pushed or merged as the combined
-  cleanup.
-- The combined cleanup worktree was created directly from remote `main` at
-  `0326c8a`.
+- D1 `main`: `d1fbf30f6455383a63d195dfc4b4486399f7bbfd`;
+- legacy `main`: `4e7d83473b8db6f160e93982027872464423a115`.
 
-Private or high-volume evidence belongs under the ignored directory:
+The unpublished partial legacy commit
+`783724e81f452ccea8595466cce690f26a46870a` is retained as local tag
+`evidence/legacy-serp-partial-retirement-2026-07-30`; it is not on `main`.
+
+The surviving recovery evidence is outside either repository:
 
 ```text
-.runtime/retirement/2026-07-30/
-  action-log.ndjson
-  github/
-  mirrors/
-  cloudflare/
-  d1/
-  http/
-  references/
-  validation/
+/Users/devin/dev/repos/json-project-folder/retirement-evidence/2026-07-30/
+  README.md
+  MANIFEST.sha256
+  current-state.md
+  serp.software.bundle
+  serp.software.git/
+  pornvideodownloaders.com.bundle
+  pornvideodownloaders.com.git/
 ```
 
-Do not commit credentials, raw private submissions, GitHub secret values, Cloudflare
-tokens, private D1 exports, or sensitive DNS material. The committed plan records
-redacted identities, hashes, counts, response status, timestamps, and local evidence
-paths.
+The earlier ignored `.runtime/retirement/2026-07-30/` tree was removed with its
+temporary worktree. Its raw GitHub/Cloudflare/D1/HTTP snapshots and action log are
+not retained. Pre-change facts that were copied into this plan remain available, but
+the plan must not claim the missing raw files still exist. Current state was
+recaptured in `current-state.md`; pre-change raw exports cannot be recreated after
+the mutation.
 
 The retirement plan identified the following approval-gated actions:
 
@@ -91,8 +88,9 @@ The retirement plan identified the following approval-gated actions:
 - disabling GitHub Actions, Pages, or Issues;
 - repository visibility changes and archival.
 
-The owner explicitly approved all of them on 2026-07-30. The action log records the
-approval, timestamp, exact target, mutation, and rollback point.
+The owner explicitly approved all of them on 2026-07-30. Approval and mutation
+summaries remain in Progress and the Decision Log; the original raw action log was
+lost with the temporary worktree.
 
 ## Progress
 
@@ -163,30 +161,26 @@ approval, timestamp, exact target, mutation, and rollback point.
   remain.
 - [ ] After the observation window, archive both private repositories, complete the
   final reference inventory, and move this plan to `completed/`.
-- [x] Retain mirror, metadata, zone, D1-fingerprint, and HTTP evidence through at
-  least 2026-10-28.
+- [ ] Ongoing through 2026-10-28 — Retain the verified repository mirrors/bundles
+  and recaptured current-state
+  record through at least 2026-10-28. The original raw operational snapshot tree was
+  lost during temporary-worktree cleanup; this is an explicit recovery-evidence
+  deviation.
 
 ## Surprises and discoveries
 
-- Observation: the fresh legacy remote baseline is still `0326c8a`; the unpublished
+- Observation: the legacy remote baseline at implementation start was `0326c8a`;
+  the unpublished
   `783724e` patch is not a safe combined cleanup base.
   Evidence: `git fetch --prune origin`, `git rev-parse HEAD origin/main`, and the
   worktree creation transcript from 2026-07-30.
 
-- Observation: the D1 repository has an active `Submit GSC Sitemaps` workflow but no
-  repository Actions secrets, no GSC repository variables, and no historical run
-  for `submit-gsc-sitemaps.yml`. It has one unrelated repository variable,
-  `SUBMISSION_REVIEWER_GITHUB_LOGIN`; its visible environment secrets are Cloudflare
-  release credentials only.
-  Evidence: read-only `gh secret list`, `gh variable list`, environment inspection,
-  and workflow-run inspection on 2026-07-30. This must be rechecked by the primary
-  implementation agent and captured under `.runtime/retirement/2026-07-30/github/`.
-  GitHub never returns stored secret values, and the four values are not present in
-  this workstation environment. The approved transfer will therefore use a
-  one-time, confirmation-gated legacy Actions relay that injects the existing
-  secrets and writes them directly to the D1 repository without logging them.
-  Removing the migrated domains from the legacy scheduler remains blocked until
-  the relay and destination proof pass.
+- Observation: the D1 repository initially lacked GSC credentials and domain
+  mappings. Approved relay run `30515079205` copied the four OAuth/quota secrets
+  without logging them; verification run `30515839263` proved credential authority.
+  PR `#20` added read-only inventory, mutation run `30520108154` removed only three
+  obsolete sitemap registrations and submitted both canonical indexes, and
+  post-mutation inventory run `30520216679` succeeded.
 
 - Observation: `serp.software` still has no proper preview environment in the D1
   repository.
@@ -195,14 +189,13 @@ approval, timestamp, exact target, mutation, and rollback point.
 
 - Observation: the 13-account Cloudflare Pages audit paginated every connected
   account and found no project matching either retired domain or repository name.
-  Evidence: `.runtime/retirement/2026-07-30/cloudflare/`.
+  Evidence: the result was recorded in this plan before mutation; the original raw
+  account snapshots were later lost with the temporary worktree.
 
-- Observation: `serp.software/brands*` remains routed ahead of the general Worker,
-  but the live `/brands/` response currently falls back to GitHub and returns 404.
-  `pornvideodownloaders.com/brands*` returns the expected KV-backed response.
-  Evidence: fresh route exports and HTTP snapshots. The canonical source was found
-  in `serpcompany/serp/workers/brands-page`; the approved fix uses direct service
-  bindings to both D1 Workers so neither retired GitHub origin supplies a shell.
+- Observation: before the fix, `serp.software/brands*` fell back to GitHub and
+  returned 404. SERP PRs `#1357` and `#1358` added direct service bindings and
+  Cloudflare-owned `www` redirects. Both domains now return a KV-backed 200 at
+  `/brands/`; neither retired GitHub origin supplies a shell.
 
 - Observation: the initial exact legacy cleanup diff resolved to all four remaining
   sites because broad `sites/**` and `scripts/**` push filters matched deletions and
@@ -334,7 +327,9 @@ Create read-only recovery evidence before each external mutation. Capture reposi
 metadata, mirror backups, zone and route exports, Pages enumeration across the
 explicit 13-account list, Worker versions and bindings, D1 identities and public-only
 fingerprints, representative HTTP surfaces, and a classified reference inventory.
-Hash every evidence file. Never put private submission rows in this plan.
+The intended capture hashed every evidence file. Only the two bundle hashes survive;
+the raw operational evidence tree was later lost as documented above. Never put
+private submission rows in this plan.
 
 ### Milestone 2: remove live public-repository dependencies
 
@@ -362,8 +357,9 @@ both IDs with remediation-oriented errors. Add architecture tests preventing eit
 site ID, target repository, static catalog path, or Pages configuration from becoming
 active again.
 
-The GSC-specific deletion is staged but must not be merged until Milestone 2 proves
-the D1 scheduler. Preserve `SITE_ID=serpdownloaders.com` and all GSC OAuth secrets.
+The GSC-specific deletion merged only after Milestone 2 proved the D1 scheduler.
+`SITE_ID=serpdownloaders.com` and all GSC OAuth secrets for remaining consumers were
+preserved.
 
 ### Milestone 4: validate remaining legacy behavior
 
@@ -383,11 +379,12 @@ from active source mappings prevent it from publishing the retired sites.
 
 ### Milestone 6: change DNS one domain at a time
 
-After the recorded approval and a same-moment export, create the `www` redirect,
-replace `www` GitHub CNAME with proxied `A 192.0.2.0`, and replace the eight GitHub
-Pages apex A/AAAA records with one proxied `A 192.0.2.0`. Preserve record comments,
-unrelated DNS, email, validation, nameservers, DNSSEC, CAA, Workers, D1, and both
-Worker routes. Validate SERP fully before repeating for PVD.
+After the recorded approval, both domains replaced the GitHub-backed apex and `www`
+records with proxied `A 192.0.2.0`. Redirect Rules/Page Rules authority was
+unavailable, so two explicit `www/*` routes on `brands-page` provide the permanent
+redirect. Unrelated DNS, email, validation, nameservers, DNSSEC, CAA, apex Workers,
+and D1 were preserved. SERP passed verification before the sequence repeated for
+PVD.
 
 ### Milestone 7: retire target repositories and close references
 
@@ -406,7 +403,8 @@ screenshots unless they are proven stale operational authority.
 
 All commands below are read-only or local unless explicitly labeled approval-gated.
 
-From the D1 implementation worktree:
+The temporary D1 implementation worktree was removed after merge. Rerun local
+validation from a clean branch based on the D1 controlling checkout:
 
 ```bash
 pnpm docs:check
@@ -417,11 +415,13 @@ pnpm worker:pornvideodownloaders:build
 ```
 
 Use focused test commands discovered from the affected packages before the full
-harness. For local runtime behavior, use isolated harness aliases and capture actual
-responses under `.runtime/retirement/2026-07-30/http/`.
+harness. For local runtime behavior, use isolated harness aliases. New retirement
+evidence belongs under the surviving external evidence root, not an ignored
+worktree-local `.runtime` directory.
 
-From the legacy implementation worktree, first enumerate active sites from the
-checked-in registry, then for each remaining ID run:
+The temporary legacy implementation worktree was also removed after merge. From a
+clean branch based on the legacy controlling checkout, first enumerate active sites
+from the checked-in registry, then for each remaining ID run:
 
 ```bash
 pnpm validate:site -- --site <site-id>
@@ -442,18 +442,22 @@ git status --short --branch
 git diff --check
 ```
 
-Record the exact API request method/path, redacted response summary, target IDs,
-timestamps, approval, and rollback point in `action-log.ndjson`.
+For any future mutation, create a new durable evidence record outside temporary
+worktrees. Do not append references to the deleted `action-log.ndjson`.
 
 ## Validation and acceptance
 
-Acceptance requires authoritative evidence for every item:
+The following acceptance conditions were observed at cutover and summarized in this
+plan. The loss of the raw operational evidence tree is a permanent retention
+deviation; the conditions should not be read as a claim that every original response
+file still survives:
 
 - legacy source `main` has no active app, catalog, registry, deploy, dispatch, GSC,
   badge, or submission authority for either retired site;
 - every legacy entry point rejects both retired IDs;
-- all remaining static sites validate, build, audit, and dry-run to their unchanged
-  target repositories;
+- all remaining static sites validate, build, and dry-run to their unchanged target
+  repositories; `serp.ai` passes sitemap audit and the other three retain the exact
+  pre-existing sitemap-audit failures recorded before the cleanup;
 - no unexpected package publication or unapproved remaining-site deployment occurs;
 - target repositories have no Actions, Pages, custom domain, deploy credentials,
   public visibility, or Issues after the approved retirement; after 14 days they are
@@ -482,17 +486,20 @@ Acceptance requires authoritative evidence for every item:
 
 ## Idempotence and recovery
 
-Local code and tests can be rerun safely. Read-only inventories are timestamped rather
-than overwritten. Every evidence directory has a SHA-256 manifest; verify it before
-using recovery material.
+Local code and tests can be rerun safely. The surviving `MANIFEST.sha256` covers the
+two portable repository bundles only; both bundles also pass `git bundle verify`.
+The mirror directories and recaptured `current-state.md` are not included in that
+manifest.
 
-Retain repository mirrors, GitHub metadata, Cloudflare zone exports, D1 fingerprints,
-and HTTP evidence for 90 days. Before archive, re-enabling a target repository,
-Actions, or Pages requires fresh approval. DNS rollback restores the recorded zone
-state while preserving record IDs where the API supports it, followed by route and
-TLS verification. Legacy-source regressions roll back by reverting the reviewed
-source PR. Credential rollback may restore the prior credential only to valid
-remaining targets and never broaden it to the retired repositories without approval.
+Retain those repository recovery materials through at least 2026-10-28. The raw
+GitHub metadata, Cloudflare zone export, D1/HTTP snapshots, and action log are no
+longer available. Before archive, re-enabling a target repository, Actions, or Pages
+requires fresh approval. A DNS rollback can no longer preserve the exact pre-change
+record IDs from a raw export: first take a fresh current-zone export, then reconstruct
+only the documented GitHub Pages record values under explicit approval and verify
+routes and TLS. Legacy-source regressions roll back by reverting the reviewed source
+PR. Credential rollback may restore the prior credential only to valid remaining
+targets and never broaden it to the retired repositories without approval.
 
 No failure in this plan authorizes D1 restore, migration, import, publication, Worker
 deletion, Worker-route removal, repository deletion, or history rewriting.
@@ -532,8 +539,9 @@ wait for the observation window.
    by owner direction; do not rotate or broaden it.
 5. **Cloudflare DNS, one zone at a time.** First `serp.software`, then PVD:
    create the `www` permanent redirect, replace the GitHub-backed records with
-   proxied `A 192.0.2.0`, preserve both route IDs and all unrelated/email records,
-   and run the full HTTP/TLS suite before continuing.
+   proxied `A 192.0.2.0`, preserve both apex route IDs and all unrelated/email
+   records, and run the full HTTP/TLS suite before continuing. Wrangler recreated
+   the two `/brands*` route record IDs without changing their behavior.
 6. **Target repository reversible retirement.** Disable Actions, Pages/custom
    domain, and Issues; make each target private; keep both unarchived for 14 days.
 7. **Search Console cleanup.** After D1 canonical submission is proven, remove only
@@ -544,14 +552,11 @@ wait for the observation window.
 
 ## Important artifacts
 
-- Active evidence root:
-  `.runtime/retirement/2026-07-30/`
+- Surviving evidence root:
+  `/Users/devin/dev/repos/json-project-folder/retirement-evidence/2026-07-30/`
 - Legacy partial-patch evidence commit:
   `783724e81f452ccea8595466cce690f26a46870a`
-- D1 implementation branch:
-  `codex/retire-legacy-json-static`
-- Legacy implementation branch:
-  `codex/retire-legacy-json-static`
+- Temporary implementation branches/worktrees were removed after merge.
 - Cloudflare originless-routing documentation:
   `https://developers.cloudflare.com/workers/configuration/routing/custom-domains/`
 
