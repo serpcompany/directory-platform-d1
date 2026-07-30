@@ -81,4 +81,28 @@ describe('D1-only repository architecture', () => {
       expect(config).toContain("binding: 'DB'")
     }
   })
+
+  it('keeps retired public static repositories out of live application links', () => {
+    const pornVideoDownloadersConfig = readFileSync(
+      resolve('sites/pornvideodownloaders.com/site-config.ts'),
+      'utf8'
+    )
+    const pornVideoDownloadersNotFound = readFileSync(
+      resolve('apps/pornvideodownloaders.com/app/not-found.tsx'),
+      'utf8'
+    )
+    const serpCookiePolicy = readFileSync(
+      resolve('packages/content/data/legal/cookies.mdx'),
+      'utf8'
+    )
+
+    expect(pornVideoDownloadersConfig).toContain('githubIssueOwner: null')
+    expect(pornVideoDownloadersConfig).toContain('githubIssueRepo: null')
+    expect(pornVideoDownloadersConfig).toContain('githubIssuesUrl: null')
+    expect(pornVideoDownloadersConfig).not.toContain(
+      'github.com/serpcompany/pornvideodownloaders.com'
+    )
+    expect(pornVideoDownloadersNotFound).not.toMatch(/GitHub|githubIssuesUrl/u)
+    expect(serpCookiePolicy).not.toContain('github.com/serpcompany/serp.software')
+  })
 })

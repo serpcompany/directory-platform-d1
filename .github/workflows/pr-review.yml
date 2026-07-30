@@ -32,7 +32,12 @@ jobs:
         run: pnpm worker:config:validate
 
       - name: Run Biome Check
-        run: pnpm exec biome check --changed --since=origin/main --no-errors-on-unmatched
+        run: |
+          mapfile -d '' changed_files < <(
+            git diff --name-only --diff-filter=ACMR -z origin/main...HEAD -- \
+              '*.js' '*.jsx' '*.ts' '*.tsx' '*.json' '*.jsonc' '*.css'
+          )
+          pnpm exec biome check --no-errors-on-unmatched "${changed_files[@]}"
 
       - name: Run forbidden listing link guard
         run: pnpm lint:forbidden-links

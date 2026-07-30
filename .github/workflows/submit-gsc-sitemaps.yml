@@ -3,6 +3,14 @@ name: Submit GSC Sitemaps
 on:
   workflow_dispatch:
     inputs:
+      mode:
+        description: 'Verify credentials without mutation, or submit canonical sitemaps'
+        required: true
+        default: verify-credentials
+        type: choice
+        options:
+          - verify-credentials
+          - submit
       site_ids:
         description: 'Optional newline or comma separated checked-in site ids to submit'
         required: false
@@ -53,4 +61,9 @@ jobs:
           GSC_SITE_URL_MAP: ${{ vars.GSC_SITE_URL_MAP }}
           GSC_SITE_IDS: ${{ github.event.inputs.site_ids }}
           GSC_STALE_SITEMAP_URLS: ${{ github.event.inputs.stale_sitemap_urls || vars.GSC_STALE_SITEMAP_URLS }}
-        run: pnpm tsx scripts/submit-gsc-sitemaps.ts
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ] && [ "${{ inputs.mode }}" = "verify-credentials" ]; then
+            pnpm tsx scripts/submit-gsc-sitemaps.ts --verify-credentials
+          else
+            pnpm tsx scripts/submit-gsc-sitemaps.ts
+          fi

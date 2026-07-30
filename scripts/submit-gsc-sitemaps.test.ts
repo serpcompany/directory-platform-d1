@@ -32,6 +32,32 @@ describe('getSitemapTargets', () => {
 })
 
 describe('runSubmitGscSitemaps', () => {
+  it('verifies credential authority with a read-only Search Console request', async () => {
+    const calls: Array<{ method: string; url: string }> = []
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string, init?: RequestInit) => {
+        calls.push({ method: init?.method ?? 'GET', url })
+        return new Response('{"siteEntry":[]}', { status: 200 })
+      })
+    )
+    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+
+    await runSubmitGscSitemaps(['--verify-credentials'], {
+      GSC_ACCESS_TOKEN: 'token'
+    })
+
+    expect(calls).toEqual([
+      {
+        method: 'GET',
+        url: 'https://www.googleapis.com/webmasters/v3/sites'
+      }
+    ])
+    expect(log).toHaveBeenCalledWith(
+      'Verified Search Console credential authority without mutation.'
+    )
+  })
+
   it('prints canonical submit operations during dry-run without credentials', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 

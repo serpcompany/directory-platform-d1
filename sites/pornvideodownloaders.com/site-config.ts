@@ -86,9 +86,9 @@ export const pornVideoDownloadersComSiteConfig: CheckedInSiteConfig = {
     tagline: 'Adult video downloader tools in one searchable directory.'
   },
   social: {
-    githubIssueOwner: 'serpcompany',
-    githubIssueRepo: 'pornvideodownloaders.com',
-    githubIssuesUrl: 'https://github.com/serpcompany/pornvideodownloaders.com/issues',
+    githubIssueOwner: null,
+    githubIssueRepo: null,
+    githubIssuesUrl: null,
     githubRepoUrl: 'https://github.com/serpxxx',
     githubUrl: 'https://github.com/serpxxx',
     redditUrl: 'https://www.reddit.com/r/serpxxx/',
