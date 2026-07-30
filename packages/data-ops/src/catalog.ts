@@ -1,6 +1,7 @@
 import 'server-only'
 
 import type {
+  CatalogCacheEvent,
   CatalogOperation,
   CatalogOperations,
   CatalogOperationsConfig,
@@ -16,8 +17,8 @@ import type {
   RelatedListing
 } from './contracts'
 
-const SHELL_CACHE_SCHEMA = 'v1'
-const SHELL_CACHE_TTL_SECONDS = 60
+const CACHE_SCHEMA = 'v2'
+const CACHE_TTL_SECONDS = 60 * 60
 const PUBLICATION_ORDER = 'l.published_at DESC, l.display_order ASC, l.slug ASC'
 const runtimePriorities = new Set(['high', 'medium', 'low'])
 
@@ -56,10 +57,6 @@ interface NavigationRow {
   name: string
   slug: string
   website: string
-}
-
-interface RelatedCandidateRow {
-  listing_id: string
 }
 
 interface RelatedLogoRow {
@@ -166,18 +163,6 @@ function mapNavigation(row: NavigationRow | undefined): ListingNavigation | null
   }
 }
 
-function compareSqliteBinary(left: string, right: string): number {
-  const encoder = new TextEncoder()
-  const leftBytes = encoder.encode(left)
-  const rightBytes = encoder.encode(right)
-  const length = Math.min(leftBytes.length, rightBytes.length)
-  for (let index = 0; index < length; index += 1) {
-    const difference = (leftBytes[index] || 0) - (rightBytes[index] || 0)
-    if (difference !== 0) return difference
-  }
-  return leftBytes.length - rightBytes.length
-}
-
 function mapDetail(
   row: DetailRow
 ): Omit<ListingDetail, 'nextWebsite' | 'previousWebsite' | 'relatedWebsites'> {
@@ -240,8 +225,150 @@ function isShellStats(value: unknown, publicationVersion: number): value is Cata
   )
 }
 
+interface PublishedCacheEntry {
+  items: ListingSummary[]
+  publicationVersion: number
+}
+
+interface DetailCacheEntry {
+  detail: ListingDetail | null
+  publicationVersion: number
+}
+
+function isOptionalBoolean(value: unknown): boolean {
+  return value === undefined || typeof value === 'boolean'
+}
+
+function isOptionalString(value: unknown): boolean {
+  return value === undefined || (typeof value === 'string' && value.length > 0)
+}
+
+function isLogoMedia(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object') return false
+  return isOptionalString((value as { logo?: unknown }).logo)
+}
+
+function isListingSummary(value: unknown): value is ListingSummary {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<ListingSummary>
+  return (
+    typeof candidate.category === 'string' &&
+    candidate.category.length > 0 &&
+    Array.isArray(candidate.categories) &&
+    candidate.categories.every(category => typeof category === 'string' && category.length > 0) &&
+    candidate.categories.includes(candidate.category) &&
+    typeof candidate.description === 'string' &&
+    isOptionalBoolean(candidate.featured) &&
+    isOptionalBoolean(candidate.isUnofficial) &&
+    isLogoMedia(candidate.media) &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    typeof candidate.publishedAt === 'string' &&
+    candidate.publishedAt.length > 0 &&
+    typeof candidate.slug === 'string' &&
+    candidate.slug.length > 0 &&
+    typeof candidate.website === 'string' &&
+    candidate.website.length > 0
+  )
+}
+
+function isNavigation(value: unknown): value is ListingNavigation {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<ListingNavigation>
+  return (
+    isLogoMedia(candidate.media) &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    typeof candidate.slug === 'string' &&
+    candidate.slug.length > 0 &&
+    typeof candidate.website === 'string' &&
+    candidate.website.length > 0
+  )
+}
+
+function isRelatedListing(value: unknown): value is RelatedListing {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<RelatedListing>
+  return (
+    typeof candidate.description === 'string' &&
+    isOptionalBoolean(candidate.isUnofficial) &&
+    isLogoMedia(candidate.media) &&
+    typeof candidate.name === 'string' &&
+    candidate.name.length > 0 &&
+    typeof candidate.slug === 'string' &&
+    candidate.slug.length > 0 &&
+    typeof candidate.website === 'string' &&
+    candidate.website.length > 0
+  )
+}
+
+function isDetailMedia(value: unknown): boolean {
+  if (value === undefined) return true
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as { images?: unknown; logo?: unknown; video?: unknown }
+  return (
+    (candidate.images === undefined ||
+      (Array.isArray(candidate.images) &&
+        candidate.images.every(image => typeof image === 'string' && image.length > 0))) &&
+    isOptionalString(candidate.logo) &&
+    isOptionalString(candidate.video)
+  )
+}
+
+function isListingDetail(value: unknown): value is ListingDetail {
+  if (!isListingSummary(value)) return false
+  const candidate = value as ListingDetail
+  return (
+    isOptionalString(candidate.content) &&
+    isOptionalString(candidate.entityType) &&
+    isDetailMedia(candidate.media) &&
+    (candidate.nextWebsite === null || isNavigation(candidate.nextWebsite)) &&
+    (candidate.previousWebsite === null || isNavigation(candidate.previousWebsite)) &&
+    (candidate.priority === undefined || runtimePriorities.has(candidate.priority)) &&
+    Array.isArray(candidate.relatedWebsites) &&
+    candidate.relatedWebsites.every(isRelatedListing) &&
+    (candidate.resourceLinks === undefined ||
+      (Array.isArray(candidate.resourceLinks) &&
+        candidate.resourceLinks.every(
+          resource =>
+            resource &&
+            typeof resource.label === 'string' &&
+            resource.label.length > 0 &&
+            typeof resource.url === 'string' &&
+            resource.url.length > 0
+        )))
+  )
+}
+
+function isPublishedCacheEntry(
+  value: unknown,
+  publicationVersion: number
+): value is PublishedCacheEntry {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<PublishedCacheEntry>
+  return (
+    candidate.publicationVersion === publicationVersion &&
+    Array.isArray(candidate.items) &&
+    candidate.items.every(isListingSummary)
+  )
+}
+
+function isDetailCacheEntry(value: unknown, publicationVersion: number): value is DetailCacheEntry {
+  if (!value || typeof value !== 'object') return false
+  const candidate = value as Partial<DetailCacheEntry>
+  return (
+    candidate.publicationVersion === publicationVersion &&
+    (candidate.detail === null || isListingDetail(candidate.detail))
+  )
+}
+
 export function createCatalogOperations(config: CatalogOperationsConfig): CatalogOperations {
   const { cache, clock, database, observe, siteId } = config
+  let publicationVersionPromise: Promise<number> | undefined
+  let publishedListingsPromise: Promise<ListingSummary[]> | undefined
+  let shellStatsPromise: Promise<CatalogShellStats> | undefined
+  const detailPromises = new Map<string, Promise<ListingDetail | null>>()
 
   async function queryAll<T>(
     operation: CatalogOperation,
@@ -292,6 +419,41 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     }
   }
 
+  async function readCache<T>(
+    operation: CatalogCacheEvent['operation'],
+    cacheKey: string,
+    validate: (value: unknown) => value is T
+  ): Promise<T | null> {
+    try {
+      const cached = await cache.get(cacheKey)
+      if (cached === null) {
+        observe({ event: 'catalog_cache', operation, siteId, state: 'miss' })
+        return null
+      }
+      if (validate(cached)) {
+        observe({ event: 'catalog_cache', operation, siteId, state: 'hit' })
+        return cached
+      }
+      observe({ event: 'catalog_cache', operation, siteId, state: 'corrupt' })
+    } catch {
+      observe({ event: 'catalog_cache', operation, siteId, state: 'error' })
+    }
+    return null
+  }
+
+  async function writeCache(
+    operation: CatalogCacheEvent['operation'],
+    cacheKey: string,
+    value: unknown
+  ): Promise<void> {
+    try {
+      await cache.put(cacheKey, value, CACHE_TTL_SECONDS)
+      observe({ event: 'catalog_cache', operation, siteId, state: 'written' })
+    } catch {
+      observe({ event: 'catalog_cache', operation, siteId, state: 'write-error' })
+    }
+  }
+
   function operationTime(): string {
     const value = clock()
     if (Number.isNaN(value.getTime())) throw new Error('Catalog clock returned an invalid date.')
@@ -325,7 +487,7 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     return rows.map(mapSummary)
   }
 
-  async function getPublicationVersion(): Promise<number> {
+  async function queryPublicationVersion(): Promise<number> {
     const rows = await queryAll<{ version: number }>(
       'publication-version',
       'publication-version',
@@ -335,23 +497,18 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     return requireNonNegativeInteger(rows[0]?.version, `publication state for ${siteId}`)
   }
 
-  async function getShellStats(): Promise<CatalogShellStats> {
+  function getPublicationVersion(): Promise<number> {
+    publicationVersionPromise ||= queryPublicationVersion()
+    return publicationVersionPromise
+  }
+
+  async function loadShellStats(): Promise<CatalogShellStats> {
     const publicationVersion = await getPublicationVersion()
-    const cacheKey = `catalog-shell:${SHELL_CACHE_SCHEMA}:${siteId}:${publicationVersion}`
-    try {
-      const cached = await cache.get(cacheKey)
-      if (cached !== null) {
-        if (isShellStats(cached, publicationVersion)) {
-          observe({ event: 'catalog_cache', operation: 'shell-stats', siteId, state: 'hit' })
-          return cached
-        }
-        observe({ event: 'catalog_cache', operation: 'shell-stats', siteId, state: 'corrupt' })
-      } else {
-        observe({ event: 'catalog_cache', operation: 'shell-stats', siteId, state: 'miss' })
-      }
-    } catch {
-      observe({ event: 'catalog_cache', operation: 'shell-stats', siteId, state: 'error' })
-    }
+    const cacheKey = `catalog-shell:${CACHE_SCHEMA}:${siteId}:${publicationVersion}`
+    const cached = await readCache('shell-stats', cacheKey, (value): value is CatalogShellStats =>
+      isShellStats(value, publicationVersion)
+    )
+    if (cached) return cached
 
     const asOf = operationTime()
     const rows = await queryAll<ShellRow>(
@@ -411,13 +568,13 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       featuredCount: requireNonNegativeInteger(row.featured_count, 'featured count'),
       publicationVersion
     }
-    try {
-      await cache.put(cacheKey, stats, SHELL_CACHE_TTL_SECONDS)
-      observe({ event: 'catalog_cache', operation: 'shell-stats', siteId, state: 'written' })
-    } catch {
-      observe({ event: 'catalog_cache', operation: 'shell-stats', siteId, state: 'write-error' })
-    }
+    await writeCache('shell-stats', cacheKey, stats)
     return stats
+  }
+
+  function getShellStats(): Promise<CatalogShellStats> {
+    shellStatsPromise ||= loadShellStats()
+    return shellStatsPromise
   }
 
   async function navigation(
@@ -492,7 +649,7 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     return null
   }
 
-  async function getListingBySlug(slug: string): Promise<ListingDetail | null> {
+  async function queryListingBySlug(slug: string): Promise<ListingDetail | null> {
     const asOf = operationTime()
     const rows = await queryAll<DetailRow>(
       'listing-detail',
@@ -578,64 +735,40 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       sharedCategoryCount > 1 && score >= 1 && relatedRows.length < 4;
       score -= 1
     ) {
-      const candidateRows = await queryAll<RelatedCandidateRow>(
+      const scoreRows = await queryAll<SummaryRow>(
         'listing-detail',
-        'related-candidates',
-        `SELECT shared.listing_id
-          FROM listing_categories shared INDEXED BY listing_categories_category_idx
-         WHERE shared.category_id IN (
-           SELECT current.category_id
-           FROM listing_categories current
-           WHERE current.listing_id = ?
-         )
-           AND shared.listing_id != ?
-         GROUP BY shared.listing_id
-         HAVING COUNT(*) = ?`,
-        [row.id, row.id, score]
+        'related-ranked-seek',
+        `SELECT
+           l.id,
+           l.slug,
+           l.name,
+           l.description,
+           l.website,
+           l.display_order,
+           l.is_unofficial,
+           l.is_featured,
+           l.published_at,
+           '' AS category,
+           NULL AS categories,
+           NULL AS logo
+         FROM listings l INDEXED BY listings_related_name_idx
+         WHERE ${publicEligibilitySql()}
+           AND l.id != ?
+           AND (
+             SELECT COUNT(*)
+             FROM listing_categories current
+             WHERE current.listing_id = ?
+               AND EXISTS (
+                 SELECT 1
+                 FROM listing_categories shared
+                 WHERE shared.listing_id = l.id
+                   AND shared.category_id = current.category_id
+               )
+           ) = ?
+         ORDER BY l.name ASC, l.slug ASC
+         LIMIT ?`,
+        [siteId, asOf, row.id, row.id, score, 4 - relatedRows.length]
       )
-      const candidateIds = candidateRows.map(candidate =>
-        requireString(candidate.listing_id, 'related candidate id')
-      )
-      const chunks = Array.from({ length: Math.ceil(candidateIds.length / 80) }, (_, index) =>
-        candidateIds.slice(index * 80, (index + 1) * 80)
-      )
-      const scoreRows = (
-        await Promise.all(
-          chunks.map(chunk =>
-            queryAll<SummaryRow>(
-              'listing-detail',
-              'related-hydration',
-              `WITH candidate_ids(id) AS (
-                VALUES ${chunk.map(() => '(?)').join(', ')}
-              )
-              SELECT
-                l.id,
-                l.slug,
-                l.name,
-                l.description,
-                l.website,
-                l.display_order,
-                l.is_unofficial,
-                l.is_featured,
-                l.published_at,
-                '' AS category,
-                NULL AS categories,
-                NULL AS logo
-              FROM candidate_ids
-              CROSS JOIN listings l
-              WHERE l.id = candidate_ids.id
-                AND ${publicEligibilitySql()}`,
-              [...chunk, siteId, asOf]
-            )
-          )
-        )
-      )
-        .flat()
-        .sort(
-          (left, right) =>
-            compareSqliteBinary(left.name, right.name) || compareSqliteBinary(left.slug, right.slug)
-        )
-        .slice(0, 4 - relatedRows.length)
       relatedRows.push(...scoreRows)
     }
     const relatedIds = relatedRows.map(related => related.id)
@@ -675,6 +808,53 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       previousWebsite,
       relatedWebsites
     }
+  }
+
+  async function loadListingBySlug(slug: string): Promise<ListingDetail | null> {
+    const publicationVersion = await getPublicationVersion()
+    const cacheKey = `catalog-detail:${CACHE_SCHEMA}:${siteId}:${publicationVersion}:${slug}`
+    const cached = await readCache('listing-detail', cacheKey, (value): value is DetailCacheEntry =>
+      isDetailCacheEntry(value, publicationVersion)
+    )
+    if (cached) return cached.detail
+
+    const detail = await queryListingBySlug(slug)
+    await writeCache('listing-detail', cacheKey, { detail, publicationVersion })
+    return detail
+  }
+
+  function getListingBySlug(slug: string): Promise<ListingDetail | null> {
+    const existing = detailPromises.get(slug)
+    if (existing) return existing
+    const detail = loadListingBySlug(slug)
+    detailPromises.set(slug, detail)
+    return detail
+  }
+
+  async function loadPublishedListings(): Promise<ListingSummary[]> {
+    const publicationVersion = await getPublicationVersion()
+    const cacheKey = `catalog-published:${CACHE_SCHEMA}:${siteId}:${publicationVersion}`
+    const cached = await readCache(
+      'published-summaries',
+      cacheKey,
+      (value): value is PublishedCacheEntry => isPublishedCacheEntry(value, publicationVersion)
+    )
+    if (cached) return cached.items
+
+    const items = await summaries(
+      'published-summaries',
+      'published-summaries',
+      '',
+      [],
+      PUBLICATION_ORDER
+    )
+    await writeCache('published-summaries', cacheKey, { items, publicationVersion })
+    return items
+  }
+
+  function getPublishedListings(): Promise<ListingSummary[]> {
+    publishedListingsPromise ||= loadPublishedListings()
+    return publishedListingsPromise
   }
 
   async function getPublishedListingPage(page = 1, pageSize = 48): Promise<ListingPage> {
@@ -758,45 +938,22 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       return (await getShellStats()).featuredCount
     },
     async getFeaturedListings(limit = 6) {
-      return summaries(
-        'featured-summaries',
-        'featured-summaries',
-        ' AND l.is_featured = 1',
-        [],
-        PUBLICATION_ORDER,
-        Math.min(100, Math.max(1, Math.trunc(limit)))
-      )
+      const safeLimit = Math.min(100, Math.max(1, Math.trunc(limit)))
+      return (await getPublishedListings()).filter(listing => listing.featured).slice(0, safeLimit)
     },
     async getLatestListings(limit = 12) {
-      return (await getPublishedListingPage(1, limit)).items
+      const safeLimit = Math.min(100, Math.max(1, Math.trunc(limit)))
+      return (await getPublishedListings()).slice(0, safeLimit)
     },
     getListingBySlug,
     async getListingsByCategory(slug) {
-      return summaries(
-        'category-summaries',
-        'category-summaries',
-        ` AND EXISTS (
-          SELECT 1
-          FROM listing_categories category_membership
-          JOIN categories category ON category.id = category_membership.category_id
-          WHERE category_membership.listing_id = l.id
-            AND category.site_id = ?
-            AND category.slug = ?
-            AND category.is_active = 1
-        )`,
-        [siteId, slug],
-        PUBLICATION_ORDER
-      )
+      return (await getPublishedListings()).filter(listing => listing.categories?.includes(slug))
     },
     getPublicationVersion,
     getPublishedListingPage,
-    async getPublishedListings() {
-      return summaries('published-summaries', 'published-summaries', '', [], PUBLICATION_ORDER)
-    },
+    getPublishedListings,
     getShellStats,
-    async getSitemapListings() {
-      return summaries('published-summaries', 'published-summaries', '', [], PUBLICATION_ORDER)
-    },
+    getSitemapListings: getPublishedListings,
     searchListings
   }
 }

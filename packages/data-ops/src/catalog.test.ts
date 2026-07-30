@@ -80,7 +80,7 @@ describe('shared catalog data operations', () => {
       expect(sql).not.toContain('listing_faqs')
       expect(sql).not.toMatch(/\bl\.content\b/u)
     }
-    expect(statements[0]?.sql).toContain("m.kind = 'logo'")
+    expect(statements.some(statement => statement.sql.includes("m.kind = 'logo'"))).toBe(true)
   })
 
   it('loads one detail projection with deterministic related and boundary navigation', async () => {
@@ -139,7 +139,8 @@ describe('shared catalog data operations', () => {
     const shellQueriesAfterFirst = serp.events.filter(
       event => event.event === 'd1_query' && event.queryShape === 'shell-stats'
     )
-    const second = await serp.operations.getShellStats()
+    const secondCatalog = operations('serp.software', cache)
+    const second = await secondCatalog.operations.getShellStats()
 
     expect(first).toEqual(second)
     expect(first.featuredCount).toBe(2)
@@ -150,9 +151,11 @@ describe('shared catalog data operations', () => {
     ])
     expect(shellQueriesAfterFirst).toHaveLength(1)
     expect(
-      serp.events.filter(event => event.event === 'd1_query' && event.queryShape === 'shell-stats')
-    ).toHaveLength(1)
-    expect(serp.events).toContainEqual({
+      secondCatalog.events.filter(
+        event => event.event === 'd1_query' && event.queryShape === 'shell-stats'
+      )
+    ).toHaveLength(0)
+    expect(secondCatalog.events).toContainEqual({
       event: 'catalog_cache',
       operation: 'shell-stats',
       siteId: 'serp.software',
@@ -162,11 +165,14 @@ describe('shared catalog data operations', () => {
     sqlite.database
       .prepare("UPDATE publication_state SET version = 2 WHERE site_id = 'serp.software'")
       .run()
-    const versioned = await serp.operations.getShellStats()
+    const versionedCatalog = operations('serp.software', cache)
+    const versioned = await versionedCatalog.operations.getShellStats()
     expect(versioned.publicationVersion).toBe(2)
     expect(
-      serp.events.filter(event => event.event === 'd1_query' && event.queryShape === 'shell-stats')
-    ).toHaveLength(2)
+      versionedCatalog.events.filter(
+        event => event.event === 'd1_query' && event.queryShape === 'shell-stats'
+      )
+    ).toHaveLength(1)
 
     const pvd = operations('pornvideodownloaders.com', cache)
     expect((await pvd.operations.getShellStats()).publicationVersion).toBe(1)
@@ -177,7 +183,7 @@ describe('shared catalog data operations', () => {
 
   it('falls back to live D1 when cached shell data is corrupt or unavailable', async () => {
     const corrupt = new MemoryCatalogCache()
-    corrupt.values.set('catalog-shell:v1:serp.software:1', { featuredCount: 'wrong' })
+    corrupt.values.set('catalog-shell:v2:serp.software:1', { featuredCount: 'wrong' })
     const corruptCatalog = operations('serp.software', corrupt)
     expect((await corruptCatalog.operations.getShellStats()).featuredCount).toBe(2)
     expect(corruptCatalog.events).toContainEqual({
@@ -211,11 +217,116 @@ describe('shared catalog data operations', () => {
     })
   })
 
+  it('caches stable published summaries and details across operation instances', async () => {
+    const cache = new MemoryCatalogCache()
+    const cold = operations('serp.software', cache)
+    const listings = await cold.operations.getPublishedListings()
+    const detail = await cold.operations.getListingBySlug('charlie')
+
+    expect(listings).toHaveLength(5)
+    expect(detail?.relatedWebsites.map(item => item.slug)).toEqual([
+      'alpha',
+      'echo',
+      'bravo',
+      'delta'
+    ])
+    expect([...cache.ttlSeconds.values()]).toEqual([3600, 3600])
+    expect(
+      cold.events.filter(
+        event => event.event === 'd1_query' && event.queryShape === 'published-summaries'
+      )
+    ).toHaveLength(1)
+    expect(
+      cold.events.filter(
+        event => event.event === 'd1_query' && event.queryShape === 'listing-detail'
+      )
+    ).toHaveLength(1)
+
+    const warm = operations('serp.software', cache)
+    expect(await warm.operations.getPublishedListings()).toEqual(listings)
+    expect(await warm.operations.getListingBySlug('charlie')).toEqual(detail)
+    expect(
+      (await warm.operations.getPublishedListingPage(2, 2)).items.map(item => item.slug)
+    ).toEqual(['charlie', 'delta'])
+    expect(
+      (await warm.operations.getListingsByCategory('secondary')).map(item => item.slug)
+    ).toEqual(['alpha', 'charlie', 'echo'])
+    expect((await warm.operations.getFeaturedListings()).map(item => item.slug)).toEqual([
+      'alpha',
+      'bravo'
+    ])
+    expect((await warm.operations.getLatestListings(2)).map(item => item.slug)).toEqual([
+      'alpha',
+      'bravo'
+    ])
+    expect(await warm.operations.getSitemapListings()).toEqual(listings)
+    expect(
+      warm.events.filter(
+        event =>
+          event.event === 'd1_query' &&
+          (event.operation === 'published-summaries' || event.operation === 'listing-detail')
+      )
+    ).toHaveLength(0)
+    expect(warm.events).toContainEqual({
+      event: 'catalog_cache',
+      operation: 'published-summaries',
+      siteId: 'serp.software',
+      state: 'hit'
+    })
+    expect(warm.events).toContainEqual({
+      event: 'catalog_cache',
+      operation: 'listing-detail',
+      siteId: 'serp.software',
+      state: 'hit'
+    })
+  })
+
+  it('invalidates catalog caches by publication version and rejects corrupt entries', async () => {
+    const cache = new MemoryCatalogCache()
+    const cold = operations('serp.software', cache)
+    await cold.operations.getPublishedListings()
+    await cold.operations.getListingBySlug('charlie')
+
+    sqlite.database
+      .prepare("UPDATE publication_state SET version = 2 WHERE site_id = 'serp.software'")
+      .run()
+    const versioned = operations('serp.software', cache)
+    await versioned.operations.getPublishedListings()
+    await versioned.operations.getListingBySlug('charlie')
+    expect(
+      versioned.events.filter(
+        event =>
+          event.event === 'd1_query' &&
+          (event.queryShape === 'published-summaries' || event.queryShape === 'listing-detail')
+      )
+    ).toHaveLength(2)
+
+    const corrupt = new MemoryCatalogCache()
+    corrupt.values.set('catalog-published:v2:serp.software:2', { items: 'wrong' })
+    corrupt.values.set('catalog-detail:v2:serp.software:2:charlie', { detail: 'wrong' })
+    const recovered = operations('serp.software', corrupt)
+    expect(await recovered.operations.getPublishedListings()).toHaveLength(5)
+    expect((await recovered.operations.getListingBySlug('charlie'))?.slug).toBe('charlie')
+    expect(recovered.events).toContainEqual({
+      event: 'catalog_cache',
+      operation: 'published-summaries',
+      siteId: 'serp.software',
+      state: 'corrupt'
+    })
+    expect(recovered.events).toContainEqual({
+      event: 'catalog_cache',
+      operation: 'listing-detail',
+      siteId: 'serp.software',
+      state: 'corrupt'
+    })
+  })
+
   it('emits attributable query metadata without SQL, bindings, or visitor data', async () => {
     const { events, operations: catalog } = operations('serp.software')
     await catalog.getPublishedListings()
     const queryEvent = events.find(
-      (event): event is CatalogQueryEvent => event.event === 'd1_query'
+      (event): event is CatalogQueryEvent =>
+        event.event === 'd1_query' && event.queryShape === 'published-summaries'
     )
     expect(queryEvent).toMatchObject({
       event: 'd1_query',

@@ -16,13 +16,13 @@ describe('catalog data cache adapters', () => {
     } as unknown as Cache
     const adapter = createCacheApiDataCache(cache)
 
-    await adapter.put('catalog-shell:v1:serp.software:4', { featuredCount: 2 }, 60)
+    await adapter.put('catalog-published:v2:serp.software:4', { items: [] }, 3600)
 
     expect(writtenRequest?.url).toBe(
-      'https://catalog-data-ops.invalid/catalog-shell%3Av1%3Aserp.software%3A4'
+      'https://catalog-data-ops.invalid/catalog-published%3Av2%3Aserp.software%3A4'
     )
-    expect(writtenResponse?.headers.get('Cache-Control')).toBe('max-age=60')
-    expect(await writtenResponse?.json()).toEqual({ featuredCount: 2 })
+    expect(writtenResponse?.headers.get('Cache-Control')).toBe('max-age=3600')
+    expect(await writtenResponse?.json()).toEqual({ items: [] })
   })
 
   it('provides an explicit no-cache rollback adapter', async () => {

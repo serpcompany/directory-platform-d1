@@ -317,9 +317,11 @@ describe('representative D1 query benchmark', () => {
     expect(optimizedAdjacent.flatMap(evidence => evidence.plan).join('\n')).toContain(
       'listings_publication_idx'
     )
-    expect(optimizedRelatedEvidence.flatMap(evidence => evidence.plan).join('\n')).toContain(
-      'listing_categories_category_idx'
-    )
+    const optimizedRelatedPlan = optimizedRelatedEvidence
+      .flatMap(evidence => evidence.plan)
+      .join('\n')
+    expect(optimizedRelatedPlan).toContain('listings_related_name_idx')
+    expect(optimizedRelatedPlan).not.toContain('USE TEMP B-TREE')
     if (scanStatsAvailable) {
       expect(legacyAdjacent.rows).not.toBeNull()
       expect(optimizedAdjacentRows).not.toBeNull()

@@ -27,9 +27,12 @@ has an isolated preview database. SERP does not yet have a proper preview databa
 Public catalog reads are implemented once in `packages/data-ops/`. Each application
 adapter supplies its validated D1 binding and checked-in site identity explicitly.
 List and card operations return lightweight summary projections; detail operations
-alone hydrate full content, media, and resource links. Stable category and featured
-counts use a site- and publication-version-keyed 60-second data cache, with live D1
-fallback on cache failure. This does not enable public full-page caching.
+alone hydrate full content, media, and resource links. Stable published summaries,
+completed details, category counts, and featured counts use site- and
+publication-version-keyed data cache entries with one-hour retention and live D1
+fallback on cache failure. A new publication version changes the key immediately;
+the retention bound only limits orphaned entries. This does not enable public
+full-page caching.
 
 `listings_related_name_idx` is a partial public-listing index used only to preserve
 the exact `name, slug` related-card ranking while seeking through eligible rows.
