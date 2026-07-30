@@ -1,4 +1,4 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
 import type { MDXComponents } from 'mdx/types'
 import type { Metadata } from 'next'
 import type { ReactNode } from 'react'

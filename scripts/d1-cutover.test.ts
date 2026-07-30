@@ -179,10 +179,13 @@ describe('local D1 cutover contracts', () => {
 
   it('resolves old product slugs through the stable listing ID before notFound', () => {
     const repository = readFileSync(resolve('apps/serp.software/lib/catalog/repository.ts'), 'utf8')
+    const dataOperations = readFileSync(resolve('packages/data-ops/src/catalog.ts'), 'utf8')
     const route = readFileSync(resolve('apps/serp.software/app/products/[slug]/page.tsx'), 'utf8')
-    expect(repository).toContain('JOIN listings l ON l.id = r.listing_id')
-    expect(repository).toContain('r.old_slug = ?')
-    expect(repository).toContain('FROM listings l WHERE $' + '{publicEligibilitySql()} AND id IN')
+    expect(repository).toContain("from '@serpdirectory/data-ops/catalog'")
+    expect(repository).not.toMatch(/\b(?:SELECT|WITH)\b/u)
+    expect(dataOperations).toContain('JOIN listings l ON l.id = r.listing_id')
+    expect(dataOperations).toContain('r.site_id = ? AND r.old_slug = ?')
+    expect(dataOperations).toContain('[siteId, oldSlug, siteId, asOf]')
     expect(route.indexOf('permanentRedirect')).toBeLessThan(
       route.indexOf('notFound()', route.indexOf('if (!project)'))
     )
@@ -292,14 +295,23 @@ describe('local D1 cutover contracts', () => {
   })
 
   it('accepts every isolated Worker runtime and binds redirect eligibility by tenant', () => {
-    const repository = readFileSync(resolve('apps/serp.software/lib/catalog/repository.ts'), 'utf8')
+    const repositories = [
+      'apps/serp.software/lib/catalog/repository.ts',
+      'apps/pornvideodownloaders.com/lib/catalog/repository.ts'
+    ].map(file => readFileSync(resolve(file), 'utf8'))
+    const dataOperations = readFileSync(resolve('packages/data-ops/src/catalog.ts'), 'utf8')
     const environmentTypes = readFileSync(resolve('apps/serp.software/cloudflare-env.d.ts'), 'utf8')
-    expect(repository).toContain("new Set(['local', 'preview', 'production'])")
+    for (const repository of repositories) {
+      expect(repository).toContain("new Set(['local', 'preview', 'production'])")
+      expect(repository).toContain("from '@serpdirectory/data-ops/catalog'")
+      expect(repository).toContain('resolveRuntimeSiteId')
+      expect(repository).not.toMatch(/\b(?:SELECT|WITH)\b/u)
+    }
     expect(environmentTypes).toContain("'local' | 'preview' | 'production'")
-    expect(repository).toContain('.bind(SITE_ID, oldSlug, SITE_ID)')
-    expect(repository).toContain('normalized.split(/\\s+/)')
-    expect(repository).toContain('lower(l.website) LIKE ?')
-    expect(repository).toContain('l.display_order ASC')
+    expect(dataOperations).toContain('[siteId, oldSlug, siteId, asOf]')
+    expect(dataOperations).toContain('normalized.split(/\\s+/u)')
+    expect(dataOperations).toContain('lower(l.website) LIKE ?')
+    expect(dataOperations).toContain('l.display_order ASC')
   })
 
   it('keeps production exports compatible by avoiding virtual tables', () => {

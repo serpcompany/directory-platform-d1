@@ -10,7 +10,7 @@ import type {
   DocEntry,
   GuideEntry,
   LegalEntry
-} from '@thedaviddias/web-core/content-query'
+} from '@serpdirectory/web-core/content-query'
 import {
   applyLegalContentBranding,
   buildDocs,
@@ -18,8 +18,8 @@ import {
   resolveAboutPage,
   resolveDocBySlug,
   resolveGuideBySlug
-} from '@thedaviddias/web-core/content-query'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
+} from '@serpdirectory/web-core/content-query'
+import { siteConfig } from '@serpdirectory/web-core/site-config'
 import {
   getCanonicalSlugForRedirect,
   getListingBySlug,
@@ -32,7 +32,7 @@ export type {
   DocMetadata,
   GuideMetadata,
   WebsiteMetadata
-} from '@thedaviddias/web-core/content-query'
+} from '@serpdirectory/web-core/content-query'
 
 interface Resource {
   slug?: string

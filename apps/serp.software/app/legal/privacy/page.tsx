@@ -1,21 +1,21 @@
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb';
-import type { Metadata } from 'next';
-import { getLegalContent } from '@/lib/content-loader';
-import { components } from '@thedaviddias/web-core/mdx-components';
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
+import { components } from '@serpdirectory/web-core/mdx-components'
 import {
-  LegalStaticPage,
   generateLegalPageMetadata,
-} from '@thedaviddias/web-core/static-pages/legal-page';
+  LegalStaticPage
+} from '@serpdirectory/web-core/static-pages/legal-page'
+import type { Metadata } from 'next'
+import { getLegalContent } from '@/lib/content-loader'
 
 export const metadata: Metadata = generateLegalPageMetadata({
   title: 'Privacy Policy',
   description:
     'Privacy policy for {{SITE_NAME}}. Learn how we collect, use, and protect your information.',
-  path: '/legal/privacy',
-});
+  path: '/legal/privacy'
+})
 
 export default async function PrivacyPolicyPage() {
-  const content = await getLegalContent('privacy');
+  const content = await getLegalContent('privacy')
 
   return (
     <LegalStaticPage
@@ -25,5 +25,5 @@ export default async function PrivacyPolicyPage() {
       slots={{ Breadcrumb }}
       title="Privacy Policy"
     />
-  );
+  )
 }

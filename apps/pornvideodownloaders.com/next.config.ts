@@ -1,19 +1,19 @@
 import path from 'node:path'
 import { withContentCollections } from '@content-collections/next'
 import withMDX from '@next/mdx'
-import { baseConfig, withAnalyzer } from '@thedaviddias/config-next'
-import { resolveCheckedInSiteConfig, resolveRuntimeSiteId } from '@thedaviddias/site-contract'
+import { baseConfig, withAnalyzer } from '@serpdirectory/config-next'
+import { resolveCheckedInSiteConfig, resolveRuntimeSiteId } from '@serpdirectory/site-contract'
 import type { NextConfig } from 'next'
 
 export const INTERNAL_PACKAGES = [
-  '@thedaviddias/design-system',
-  '@thedaviddias/config-next',
-  '@thedaviddias/config-typescript',
-  '@thedaviddias/content',
-  '@thedaviddias/logging',
-  '@thedaviddias/site-contract',
-  '@thedaviddias/utils',
-  '@thedaviddias/web-core'
+  '@serpdirectory/design-system',
+  '@serpdirectory/config-next',
+  '@serpdirectory/config-typescript',
+  '@serpdirectory/content',
+  '@serpdirectory/logging',
+  '@serpdirectory/site-contract',
+  '@serpdirectory/utils',
+  '@serpdirectory/web-core'
 ]
 
 function normalizeBasePath(basePath: string): string {

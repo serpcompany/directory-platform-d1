@@ -1,4 +1,4 @@
-import { buildHomePageData } from '@thedaviddias/web-core/home-page'
+import { buildHomePageData } from '@serpdirectory/web-core/home-page'
 import { getGuides, getWebsites } from '@/lib/content-loader'
 
 /**

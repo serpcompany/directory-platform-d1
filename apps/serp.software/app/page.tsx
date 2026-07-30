@@ -1,13 +1,13 @@
+import { HomePageRoute, homePageMetadata } from '@serpdirectory/web-core/home-page'
+import { JsonLd } from '@serpdirectory/web-core/json-ld'
+import { CreatorProjectsSectionRoute as CreatorProjectsSection } from '@serpdirectory/web-core/sections/creator-projects-section-route'
+import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@serpdirectory/web-core/sections/external-resources-section-route'
+import { FeaturedGuidesSectionRoute as FeaturedGuidesSection } from '@serpdirectory/web-core/sections/featured-guides-section-route'
+import { FeaturedProjectsSectionRoute as FeaturedProjectsSection } from '@serpdirectory/web-core/sections/featured-projects-section-route'
+import { RecentlyAddedSectionRoute as RecentlyAddedSection } from '@serpdirectory/web-core/sections/recently-added-section-route'
+import { StaticWebsitesListRoute as StaticWebsitesList } from '@serpdirectory/web-core/sections/static-websites-list-route'
 import type { Metadata } from 'next'
 import { getHomePageData } from '@/actions/get-home-page-data'
-import { HomePageRoute, homePageMetadata } from '@thedaviddias/web-core/home-page'
-import { JsonLd } from '@thedaviddias/web-core/json-ld'
-import { CreatorProjectsSectionRoute as CreatorProjectsSection } from '@thedaviddias/web-core/sections/creator-projects-section-route'
-import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@thedaviddias/web-core/sections/external-resources-section-route'
-import { FeaturedGuidesSectionRoute as FeaturedGuidesSection } from '@thedaviddias/web-core/sections/featured-guides-section-route'
-import { FeaturedProjectsSectionRoute as FeaturedProjectsSection } from '@thedaviddias/web-core/sections/featured-projects-section-route'
-import { RecentlyAddedSectionRoute as RecentlyAddedSection } from '@thedaviddias/web-core/sections/recently-added-section-route'
-import { StaticWebsitesListRoute as StaticWebsitesList } from '@thedaviddias/web-core/sections/static-websites-list-route'
 
 export const metadata: Metadata = homePageMetadata
 
@@ -22,7 +22,7 @@ export default async function Home() {
         FeaturedProjectsSection,
         JsonLd,
         RecentlyAddedSection,
-        StaticWebsitesList,
+        StaticWebsitesList
       }}
     />
   )

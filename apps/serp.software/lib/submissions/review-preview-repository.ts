@@ -1,8 +1,8 @@
 import 'server-only'
 
 import { getCloudflareContext } from '@opennextjs/cloudflare'
-import { resolveRuntimeSiteId } from '@thedaviddias/site-contract'
-import type { WebsiteDetailMetadata } from '@thedaviddias/web-core/content-query'
+import { resolveRuntimeSiteId } from '@serpdirectory/site-contract'
+import type { WebsiteDetailMetadata } from '@serpdirectory/web-core/content-query'
 import {
   buildSubmissionReviewPreview,
   reviewPreviewAccessSchema,

@@ -1,11 +1,11 @@
-import { resolveCheckedInSiteConfig, resolveRuntimeSiteId } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig, resolveRuntimeSiteId } from '@serpdirectory/site-contract'
 import type {
   AssetSource,
   SiteBadgesConfig,
   SiteCopyConfig,
   SiteFeatureFlags,
   SiteSitemapConfig
-} from '@thedaviddias/site-contract/types'
+} from '@serpdirectory/site-contract/types'
 
 type SiteBrandingConfig = {
   appleTouchIconUrl?: string

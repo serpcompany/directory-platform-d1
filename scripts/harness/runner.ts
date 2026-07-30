@@ -23,6 +23,13 @@ const sharedSteps: HarnessStep[] = [
     remediation: 'Remove the forbidden catalog path or dependency. See docs/ARCHITECTURE.md.'
   },
   {
+    name: 'catalog data operations',
+    command: 'pnpm',
+    args: ['--filter', '@serpdirectory/data-ops', 'test'],
+    remediation:
+      'Fix the shared catalog contract, isolation, projection, cache, telemetry, or benchmark failure. See docs/DATA_MODEL.md.'
+  },
+  {
     name: 'D1 contracts',
     command: 'pnpm',
     args: ['test:d1'],

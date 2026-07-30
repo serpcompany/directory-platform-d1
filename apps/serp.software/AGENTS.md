@@ -2,7 +2,11 @@
 
 This application is a Cloudflare Worker, not a filesystem-backed Next.js site.
 
-- Keep catalog reads in `lib/catalog/repository.ts` and server-only modules.
+- Keep D1 binding acquisition and site validation in
+  `lib/catalog/repository.ts`; keep shared catalog SQL and DTOs in
+  `packages/data-ops/`.
+- Add new catalog operations to the shared package so every site receives the same
+  query behavior. Do not copy SQL into this application.
 - Client Components may consume serialized results or `/api/search`; they may not
   import D1 bindings, repositories, or Wrangler configuration.
 - New public routes must preserve D1 eligibility rules and be represented in sitemap

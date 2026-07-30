@@ -1,4 +1,4 @@
-import { submissionRequestSchema } from '@thedaviddias/web-core/forms/submission-contract'
+import { submissionRequestSchema } from '@serpdirectory/web-core/forms/submission-contract'
 import { NextResponse } from 'next/server'
 import { submissionBadgeTargets } from '@/lib/submissions/presentation'
 import {

@@ -3,8 +3,8 @@ import {
   DirectoryApplicationMobileSearchBackdrop,
   DirectoryApplicationMobileSearchPanel,
   DirectoryApplicationSearchColumn
-} from '@thedaviddias/design-system/shadcnblocks/directory-application-shell'
-import { siteCopy } from '@thedaviddias/web-core/site-copy'
+} from '@serpdirectory/design-system/shadcnblocks/directory-application-shell'
+import { siteCopy } from '@serpdirectory/web-core/site-copy'
 import { useRef } from 'react'
 import { SearchAutocomplete } from '../search/search-autocomplete'
 import { SearchInput } from '../search/search-input'

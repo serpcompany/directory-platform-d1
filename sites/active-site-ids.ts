@@ -1,1 +1,1 @@
-export * from '@thedaviddias/site-contract/active-site-ids';
+export * from '@serpdirectory/site-contract/active-site-ids'

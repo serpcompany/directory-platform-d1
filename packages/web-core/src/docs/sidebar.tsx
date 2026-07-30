@@ -1,6 +1,6 @@
 'use client'
 
-import { cn } from '@thedaviddias/design-system/lib/utils'
+import { cn } from '@serpdirectory/design-system/lib/utils'
 import { BookOpen, Bot, FileJson, Github, SwatchBook, Terminal } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

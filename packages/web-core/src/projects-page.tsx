@@ -1,22 +1,22 @@
-import { Badge } from '@thedaviddias/design-system/badge'
-import { Breadcrumb } from '@thedaviddias/design-system/breadcrumb'
-import { Button } from '@thedaviddias/design-system/button'
+import { Badge } from '@serpdirectory/design-system/badge'
+import { Breadcrumb } from '@serpdirectory/design-system/breadcrumb'
+import { Button } from '@serpdirectory/design-system/button'
 import { ArrowRight, ExternalLink, Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { networkLinks } from './network-links'
 import { getRoute } from './routes'
-import { Card, CardContent } from './ui/card'
-import { SITE_PUBLIC_URL, generateBaseMetadata } from './seo-config'
-import { siteCopy } from './site-copy'
+import { generateBaseMetadata, SITE_PUBLIC_URL } from './seo-config'
 import { siteConfig } from './site-config'
+import { siteCopy } from './site-copy'
+import { Card, CardContent } from './ui/card'
 
 export function generateProjectsPageMetadata(): Metadata {
   return generateBaseMetadata({
     title: siteConfig.copy.networkLabel,
     description: `Explore related brands, repositories, partners, and contribution links for ${siteConfig.name}.`,
     path: getRoute('projects'),
-    keywords: ['network', 'resources', 'repositories', 'partners', siteConfig.name],
+    keywords: ['network', 'resources', 'repositories', 'partners', siteConfig.name]
   })
 }
 
@@ -116,11 +116,7 @@ export function ProjectsPageRoute() {
                   <Link href={getRoute('submit')}>{siteCopy.submitLabel}</Link>
                 </Button>
                 <Button variant="outline" asChild className="rounded-none h-9 font-bold">
-                  <Link
-                    href={siteConfig.githubRepoUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                  >
+                  <Link href={siteConfig.githubRepoUrl} target="_blank" rel="noopener noreferrer">
                     View Repository
                     <ExternalLink className="ml-2 size-4" />
                   </Link>

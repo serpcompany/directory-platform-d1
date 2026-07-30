@@ -1,4 +1,4 @@
-import { SubmitPageSurface } from '@thedaviddias/web-core/forms/submit-page-surface'
+import { SubmitPageSurface } from '@serpdirectory/web-core/forms/submit-page-surface'
 import type { Metadata } from 'next'
 import { getActiveCategories } from '@/lib/catalog/repository'
 

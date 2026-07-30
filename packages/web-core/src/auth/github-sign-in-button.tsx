@@ -1,8 +1,8 @@
 'use client'
 
-import type { ReactElement } from 'react'
 import { SiGithub } from '@icons-pack/react-simple-icons'
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
+import type { ReactElement } from 'react'
 
 type GitHubSignInButtonProps = {
   callbackUrl: string
@@ -13,7 +13,7 @@ type GitHubSignInButtonProps = {
 export function GitHubSignInButton({
   callbackUrl,
   disabled = false,
-  onSignIn,
+  onSignIn
 }: GitHubSignInButtonProps): ReactElement {
   return (
     <Button

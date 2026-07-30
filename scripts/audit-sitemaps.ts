@@ -1,9 +1,9 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
-import { activeCheckedInSiteIds } from '@thedaviddias/site-contract/active-site-ids'
-import type { CheckedInSiteConfig } from '@thedaviddias/site-contract/types'
+import { resolveCheckedInSiteConfig } from '@serpdirectory/site-contract'
+import { activeCheckedInSiteIds } from '@serpdirectory/site-contract/active-site-ids'
+import type { CheckedInSiteConfig } from '@serpdirectory/site-contract/types'
 
 type AuditScope = 'artifact' | 'live'
 type AuditSeverity = 'error' | 'warning'

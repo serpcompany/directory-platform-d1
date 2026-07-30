@@ -1,5 +1,5 @@
-import { Button } from '@thedaviddias/design-system/button'
-import { DirectoryCtaBand } from '@thedaviddias/design-system/shadcnblocks/directory-home-section'
+import { Button } from '@serpdirectory/design-system/button'
+import { DirectoryCtaBand } from '@serpdirectory/design-system/shadcnblocks/directory-home-section'
 import Link from 'next/link'
 import { getRoute } from '../routes'
 import { siteCopy } from '../site-copy'

@@ -1,8 +1,8 @@
 'use client'
 
-import { cn } from '@thedaviddias/design-system/lib/utils'
+import { cn } from '@serpdirectory/design-system/lib/utils'
 import { Heart } from 'lucide-react'
-import { useState, type MouseEvent } from 'react'
+import { type MouseEvent, useState } from 'react'
 import { useFavorites } from '../root-shell-client'
 
 interface FavoriteButtonProps {
@@ -16,7 +16,7 @@ export function FavoriteButton({
   slug,
   className,
   size = 'md',
-  variant = 'default',
+  variant = 'default'
 }: FavoriteButtonProps) {
   const { isFavorite, toggleFavorite } = useFavorites()
   const [isAnimating, setIsAnimating] = useState(false)
@@ -35,13 +35,13 @@ export function FavoriteButton({
   const sizeClasses = {
     sm: 'h-8 w-8',
     md: 'h-10 w-10',
-    lg: 'h-12 w-12',
+    lg: 'h-12 w-12'
   }
 
   const iconSizeClasses = {
     sm: 'h-5 w-5',
     md: 'h-6 w-6',
-    lg: 'h-7 w-7',
+    lg: 'h-7 w-7'
   }
 
   const baseClasses = cn(
@@ -51,7 +51,7 @@ export function FavoriteButton({
     sizeClasses[size],
     {
       'bg-background border shadow-sm': variant === 'default',
-      'hover:bg-muted/50': variant === 'ghost',
+      'hover:bg-muted/50': variant === 'ghost'
     },
     variant === 'default' &&
       (favorited
@@ -79,7 +79,7 @@ export function FavoriteButton({
         )}
         style={{
           shapeRendering: 'auto',
-          vectorEffect: 'non-scaling-stroke',
+          vectorEffect: 'non-scaling-stroke'
         }}
       />
     </button>

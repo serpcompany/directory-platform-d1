@@ -1,5 +1,5 @@
-import { Button } from '@thedaviddias/design-system/button'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { Button } from '@serpdirectory/design-system/button'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { ReactElement } from 'react'

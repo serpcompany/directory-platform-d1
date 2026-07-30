@@ -1,5 +1,11 @@
 interface D1Result<T> {
   error?: string
+  meta?: {
+    duration?: number
+    rows_read?: number
+    rows_written?: number
+    [key: string]: unknown
+  }
   results: T[]
   success: boolean
 }

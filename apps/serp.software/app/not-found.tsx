@@ -1,9 +1,9 @@
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { generateBaseMetadata } from '@serpdirectory/web-core/seo-config'
+import { hasConfiguredGitHubIssueTarget, siteConfig } from '@serpdirectory/web-core/site-config'
 import type { Metadata } from 'next'
 import Link from 'next/link'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { generateBaseMetadata } from '@thedaviddias/web-core/seo-config'
-import { hasConfiguredGitHubIssueTarget, siteConfig } from '@thedaviddias/web-core/site-config'
 
 export const metadata: Metadata = generateBaseMetadata({
   title: 'Page Not Found',

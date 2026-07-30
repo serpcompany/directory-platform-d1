@@ -1,16 +1,16 @@
-import type { LucideIcon } from 'lucide-react';
-import { Chrome, Code2, Command, GitBranch, Terminal } from 'lucide-react';
-import type { SiteExternalResourceIcon } from '@thedaviddias/site-contract/types';
-import { siteContent } from './site-content';
+import type { SiteExternalResourceIcon } from '@serpdirectory/site-contract/types'
+import type { LucideIcon } from 'lucide-react'
+import { Chrome, Code2, Command, GitBranch, Terminal } from 'lucide-react'
+import { siteContent } from './site-content'
 
 export interface ExternalResource {
-  description: string;
-  icon: LucideIcon;
-  imageAlt?: string;
-  imageSrc?: string;
-  name: string;
-  slug: string;
-  url: string;
+  description: string
+  icon: LucideIcon
+  imageAlt?: string
+  imageSrc?: string
+  name: string
+  slug: string
+  url: string
 }
 
 const resourceIconsByName: Record<SiteExternalResourceIcon, LucideIcon> = {
@@ -18,17 +18,17 @@ const resourceIconsByName: Record<SiteExternalResourceIcon, LucideIcon> = {
   code2: Code2,
   command: Command,
   gitBranch: GitBranch,
-  terminal: Terminal,
-};
+  terminal: Terminal
+}
 
 export const externalResources: ExternalResource[] = siteContent.externalResources.map(
-  (resource) => ({
+  resource => ({
     description: resource.description,
     icon: resourceIconsByName[resource.icon],
     imageAlt: resource.imageAlt,
     imageSrc: resource.imageSrc,
     name: resource.name,
     slug: resource.slug,
-    url: resource.href,
+    url: resource.href
   })
-);
+)

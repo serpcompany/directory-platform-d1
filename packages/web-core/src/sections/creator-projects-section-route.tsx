@@ -1,16 +1,10 @@
 'use client'
 
-import { Badge } from '@thedaviddias/design-system/badge'
-import { Button } from '@thedaviddias/design-system/button'
+import { Badge } from '@serpdirectory/design-system/badge'
+import { Button } from '@serpdirectory/design-system/button'
 import { analytics } from '../analytics'
 import { Section } from '../layout/section'
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '../ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../ui/card'
 import { CreatorProjectsSection as SharedCreatorProjectsSection } from './creator-projects-section'
 
 export function CreatorProjectsSectionRoute() {
@@ -27,7 +21,7 @@ export function CreatorProjectsSectionRoute() {
         CardDescription,
         CardHeader,
         CardTitle,
-        Section,
+        Section
       }}
     />
   )

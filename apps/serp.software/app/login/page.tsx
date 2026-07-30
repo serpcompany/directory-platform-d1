@@ -1,11 +1,11 @@
-import type { ReactElement } from 'react'
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
-import { getRoute } from '@thedaviddias/web-core/routes'
+import type { ReactElement } from 'react'
 import { GitHubSignInButton } from '@/components/auth/github-sign-in-button'
-import { requireRouteFeature } from '@/lib/route-feature-gates'
 import { getSafeCallbackUrl, getSession, isGitHubAuthConfigured } from '@/lib/auth'
+import { requireRouteFeature } from '@/lib/route-feature-gates'
 import { isStaticExportBuild } from '@/lib/runtime-mode'
 
 type LoginPageProps = {

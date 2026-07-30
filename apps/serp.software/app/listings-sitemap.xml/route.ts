@@ -1,4 +1,4 @@
-import { createListingsSitemapResponse } from '@thedaviddias/web-core/sitemaps'
+import { createListingsSitemapResponse } from '@serpdirectory/web-core/sitemaps'
 import { getWebsites } from '@/lib/content-loader'
 
 export const dynamic = 'force-dynamic'

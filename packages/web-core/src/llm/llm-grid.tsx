@@ -1,7 +1,7 @@
 'use client'
 
-import { cn } from '@thedaviddias/design-system/lib/utils'
-import { DirectoryProductList } from '@thedaviddias/design-system/shadcnblocks/directory-product-list'
+import { cn } from '@serpdirectory/design-system/lib/utils'
+import { DirectoryProductList } from '@serpdirectory/design-system/shadcnblocks/directory-product-list'
 import type { WebsiteRelatedCardMetadata } from '../content-query'
 import { CompactListingCard, ListingCard } from './listing-card'
 

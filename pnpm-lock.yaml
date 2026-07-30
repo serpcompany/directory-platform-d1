@@ -68,10 +68,10 @@ importers:
       '@manypkg/cli':
         specifier: ^0.23.0
         version: 0.23.0
-      '@thedaviddias/site-contract':
+      '@serpdirectory/site-contract':
         specifier: workspace:*
         version: link:packages/site-contract
-      '@thedaviddias/web-core':
+      '@serpdirectory/web-core':
         specifier: workspace:*
         version: link:packages/web-core
       '@types/js-yaml':
@@ -155,33 +155,36 @@ importers:
       '@rjsf/validator-ajv8':
         specifier: ^6.4.1
         version: 6.4.1(@rjsf/utils@6.4.1(react@19.2.4))
+      '@serpdirectory/config-next':
+        specifier: workspace:*
+        version: link:../../configs/next
+      '@serpdirectory/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@serpdirectory/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@serpdirectory/data-ops':
+        specifier: workspace:*
+        version: link:../../packages/data-ops
+      '@serpdirectory/design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
+      '@serpdirectory/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@serpdirectory/site-contract':
+        specifier: workspace:*
+        version: link:../../packages/site-contract
+      '@serpdirectory/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+      '@serpdirectory/web-core':
+        specifier: workspace:*
+        version: link:../../packages/web-core
       '@tailwindcss/typography':
         specifier: ^0.5.19
         version: 0.5.19(tailwindcss@4.1.18)
-      '@thedaviddias/config-next':
-        specifier: workspace:*
-        version: link:../../configs/next
-      '@thedaviddias/config-typescript':
-        specifier: workspace:*
-        version: link:../../configs/typescript
-      '@thedaviddias/content':
-        specifier: workspace:*
-        version: link:../../packages/content
-      '@thedaviddias/design-system':
-        specifier: workspace:*
-        version: link:../../packages/design-system
-      '@thedaviddias/logging':
-        specifier: workspace:*
-        version: link:../../packages/logging
-      '@thedaviddias/site-contract':
-        specifier: workspace:*
-        version: link:../../packages/site-contract
-      '@thedaviddias/utils':
-        specifier: workspace:*
-        version: link:../../packages/utils
-      '@thedaviddias/web-core':
-        specifier: workspace:*
-        version: link:../../packages/web-core
       '@vercel/functions':
         specifier: ^3.4.3
         version: 3.4.3(@aws-sdk/credential-provider-web-identity@3.972.63)
@@ -402,33 +405,36 @@ importers:
       '@rjsf/validator-ajv8':
         specifier: ^6.4.1
         version: 6.4.1(@rjsf/utils@6.4.1(react@19.2.4))
+      '@serpdirectory/config-next':
+        specifier: workspace:*
+        version: link:../../configs/next
+      '@serpdirectory/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@serpdirectory/content':
+        specifier: workspace:*
+        version: link:../../packages/content
+      '@serpdirectory/data-ops':
+        specifier: workspace:*
+        version: link:../../packages/data-ops
+      '@serpdirectory/design-system':
+        specifier: workspace:*
+        version: link:../../packages/design-system
+      '@serpdirectory/logging':
+        specifier: workspace:*
+        version: link:../../packages/logging
+      '@serpdirectory/site-contract':
+        specifier: workspace:*
+        version: link:../../packages/site-contract
+      '@serpdirectory/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
+      '@serpdirectory/web-core':
+        specifier: workspace:*
+        version: link:../../packages/web-core
       '@tailwindcss/typography':
         specifier: ^0.5.19
         version: 0.5.19(tailwindcss@4.1.18)
-      '@thedaviddias/config-next':
-        specifier: workspace:*
-        version: link:../../configs/next
-      '@thedaviddias/config-typescript':
-        specifier: workspace:*
-        version: link:../../configs/typescript
-      '@thedaviddias/content':
-        specifier: workspace:*
-        version: link:../../packages/content
-      '@thedaviddias/design-system':
-        specifier: workspace:*
-        version: link:../../packages/design-system
-      '@thedaviddias/logging':
-        specifier: workspace:*
-        version: link:../../packages/logging
-      '@thedaviddias/site-contract':
-        specifier: workspace:*
-        version: link:../../packages/site-contract
-      '@thedaviddias/utils':
-        specifier: workspace:*
-        version: link:../../packages/utils
-      '@thedaviddias/web-core':
-        specifier: workspace:*
-        version: link:../../packages/web-core
       '@vercel/functions':
         specifier: ^3.4.3
         version: 3.4.3(@aws-sdk/credential-provider-web-identity@3.972.63)
@@ -623,7 +629,7 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
-      '@thedaviddias/config-typescript':
+      '@serpdirectory/config-typescript':
         specifier: workspace:*
         version: link:../typescript
       next:
@@ -637,6 +643,31 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 22.19.11
+
+  packages/data-ops:
+    dependencies:
+      '@serpdirectory/site-contract':
+        specifier: workspace:*
+        version: link:../site-contract
+      server-only:
+        specifier: 'catalog:'
+        version: 0.0.1
+    devDependencies:
+      '@cloudflare/workers-types':
+        specifier: ^5.20260713.1
+        version: 5.20260713.1
+      '@serpdirectory/config-typescript':
+        specifier: workspace:*
+        version: link:../../configs/typescript
+      '@types/node':
+        specifier: 'catalog:'
+        version: 22.19.11
+      typescript:
+        specifier: 'catalog:'
+        version: 5.9.3
+      vitest:
+        specifier: 4.0.18
+        version: 4.0.18(@opentelemetry/api@1.9.0)(@types/node@22.19.11)(jiti@2.6.1)(jsdom@20.0.3(bufferutil@4.0.9))(lightningcss@1.30.2)(msw@2.12.10(@types/node@22.19.11)(typescript@5.9.3))(terser@5.43.1)(tsx@4.21.0)(yaml@2.9.0)
 
   packages/design-system:
     dependencies:
@@ -727,12 +758,12 @@ importers:
       '@radix-ui/react-tooltip':
         specifier: ^1.2.8
         version: 1.2.8(@types/react-dom@19.2.3(@types/react@19.2.14))(@types/react@19.2.14)(react-dom@19.2.4(react@19.2.4))(react@19.2.4)
+      '@serpdirectory/observability':
+        specifier: workspace:*
+        version: link:../observability
       '@tailwindcss/typography':
         specifier: ^0.5.19
         version: 0.5.19(tailwindcss@4.1.18)
-      '@thedaviddias/observability':
-        specifier: workspace:*
-        version: link:../observability
       '@vercel/toolbar':
         specifier: 'catalog:'
         version: 0.1.41(next@16.1.6(@opentelemetry/api@1.9.0)(@playwright/test@1.59.1)(react-dom@19.2.4(react@19.2.4))(react@19.2.4))(react-dom@19.2.4(react@19.2.4))(react@19.2.4)(vite@7.3.1(@types/node@22.19.11)(jiti@2.6.1)(lightningcss@1.30.2)(terser@5.43.1)(tsx@4.21.0)(yaml@2.9.0))
@@ -797,10 +828,10 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
-      '@thedaviddias/config-typescript':
+      '@serpdirectory/config-typescript':
         specifier: workspace:*
         version: link:../../configs/typescript
-      '@thedaviddias/utils':
+      '@serpdirectory/utils':
         specifier: workspace:*
         version: link:../utils
       '@types/node':
@@ -836,17 +867,17 @@ importers:
 
   packages/logging:
     dependencies:
+      '@serpdirectory/utils':
+        specifier: workspace:*
+        version: link:../utils
       '@t3-oss/env-nextjs':
         specifier: 'catalog:'
         version: 0.12.0(typescript@5.9.3)(zod@3.25.76)
-      '@thedaviddias/utils':
-        specifier: workspace:*
-        version: link:../utils
     devDependencies:
-      '@thedaviddias/config-next':
+      '@serpdirectory/config-next':
         specifier: workspace:*
         version: link:../../configs/next
-      '@thedaviddias/config-typescript':
+      '@serpdirectory/config-typescript':
         specifier: workspace:*
         version: link:../../configs/typescript
       '@types/node':
@@ -875,13 +906,13 @@ importers:
         specifier: 'catalog:'
         version: 3.25.76
     devDependencies:
-      '@thedaviddias/config-typescript':
+      '@serpdirectory/config-typescript':
         specifier: workspace:*
         version: link:../../configs/typescript
-      '@thedaviddias/logging':
+      '@serpdirectory/logging':
         specifier: workspace:*
         version: link:../logging
-      '@thedaviddias/utils':
+      '@serpdirectory/utils':
         specifier: workspace:*
         version: link:../utils
       '@types/node':
@@ -929,19 +960,19 @@ importers:
       '@rjsf/validator-ajv8':
         specifier: ^6.4.1
         version: 6.4.1(@rjsf/utils@6.4.1(react@19.2.4))
-      '@thedaviddias/design-system':
+      '@serpdirectory/design-system':
         specifier: workspace:*
         version: link:../design-system
-      '@thedaviddias/hooks':
+      '@serpdirectory/hooks':
         specifier: workspace:*
         version: link:../hooks
-      '@thedaviddias/logging':
+      '@serpdirectory/logging':
         specifier: workspace:*
         version: link:../logging
-      '@thedaviddias/site-contract':
+      '@serpdirectory/site-contract':
         specifier: workspace:*
         version: link:../site-contract
-      '@thedaviddias/utils':
+      '@serpdirectory/utils':
         specifier: workspace:*
         version: link:../utils
       lucide-react:

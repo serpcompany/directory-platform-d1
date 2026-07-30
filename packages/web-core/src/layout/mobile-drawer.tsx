@@ -1,18 +1,18 @@
 'use client'
 
-import { cn } from '@thedaviddias/design-system/lib/utils'
-import { ScrollArea } from '@thedaviddias/design-system/scroll-area'
+import { cn } from '@serpdirectory/design-system/lib/utils'
+import { ScrollArea } from '@serpdirectory/design-system/scroll-area'
 import {
   DirectoryNavigationItem,
   DirectoryNavigationSection,
   directoryNavigationInteractiveClassName
-} from '@thedaviddias/design-system/shadcnblocks/directory-navigation'
-import { resolveCategories } from '@thedaviddias/web-core/categories'
-import { getCategoryDisplayName } from '@thedaviddias/web-core/category-display'
-import { externalResources } from '@thedaviddias/web-core/external-resources'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { siteConfig } from '@thedaviddias/web-core/site-config'
-import { siteCopy } from '@thedaviddias/web-core/site-copy'
+} from '@serpdirectory/design-system/shadcnblocks/directory-navigation'
+import { resolveCategories } from '@serpdirectory/web-core/categories'
+import { getCategoryDisplayName } from '@serpdirectory/web-core/category-display'
+import { externalResources } from '@serpdirectory/web-core/external-resources'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { siteConfig } from '@serpdirectory/web-core/site-config'
+import { siteCopy } from '@serpdirectory/web-core/site-copy'
 import { ExternalLink, Trophy, X } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'

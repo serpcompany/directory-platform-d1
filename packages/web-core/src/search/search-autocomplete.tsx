@@ -3,12 +3,12 @@
 import {
   DirectoryCommand,
   type DirectoryCommandItem
-} from '@thedaviddias/design-system/shadcnblocks/directory-command'
-import { logger } from '@thedaviddias/logging'
-import { resolveCategories } from '@thedaviddias/web-core/categories'
-import { getCategoryDisplayName } from '@thedaviddias/web-core/category-display'
-import { getRoute } from '@thedaviddias/web-core/routes'
-import { SEARCH_API_PATH, searchResponseSchema } from '@thedaviddias/web-core/search-contract'
+} from '@serpdirectory/design-system/shadcnblocks/directory-command'
+import { logger } from '@serpdirectory/logging'
+import { resolveCategories } from '@serpdirectory/web-core/categories'
+import { getCategoryDisplayName } from '@serpdirectory/web-core/category-display'
+import { getRoute } from '@serpdirectory/web-core/routes'
+import { SEARCH_API_PATH, searchResponseSchema } from '@serpdirectory/web-core/search-contract'
 import { ArrowRight, Clock, Search, TrendingUp } from 'lucide-react'
 import { useRouter } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'

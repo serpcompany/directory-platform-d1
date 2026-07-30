@@ -30,7 +30,8 @@ application or stack.
 pnpm harness:fast
 ```
 
-This runs documentation health, the D1-only architecture guard, D1 contract tests,
+This runs documentation health, the D1-only architecture guard, shared catalog
+data-operation contracts and scan benchmark, D1 schema/publication contract tests,
 and TypeScript checks. Each step stops on failure and prints the governing document.
 
 ### Full loop

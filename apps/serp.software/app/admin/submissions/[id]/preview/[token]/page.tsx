@@ -1,14 +1,14 @@
-import { ProjectNavigation } from '@thedaviddias/web-core/project-navigation'
-import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@thedaviddias/web-core/sections/external-resources-section-route'
-import { WebsiteContentSectionRoute as WebsiteContentSection } from '@thedaviddias/web-core/website/website-content-section-route'
-import { WebsiteDetailSidebar } from '@thedaviddias/web-core/website/website-detail-sidebar'
+import { ProjectNavigation } from '@serpdirectory/web-core/project-navigation'
+import { ExternalResourcesSectionRoute as ExternalResourcesSection } from '@serpdirectory/web-core/sections/external-resources-section-route'
+import { WebsiteContentSectionRoute as WebsiteContentSection } from '@serpdirectory/web-core/website/website-content-section-route'
+import { WebsiteDetailSidebar } from '@serpdirectory/web-core/website/website-detail-sidebar'
 import {
   WebsiteHeroRoute as WebsiteHero,
   type WebsiteHeroRouteProps
-} from '@thedaviddias/web-core/website/website-hero-route'
-import { WebsiteRelatedProjectsRoute as WebsiteRelatedProjects } from '@thedaviddias/web-core/website/website-related-projects-route'
-import { WebsiteResourcesSectionRoute as WebsiteResourcesSection } from '@thedaviddias/web-core/website/website-resources-section-route'
-import { WebsiteDetailRoutePage } from '@thedaviddias/web-core/website-routes/detail-page'
+} from '@serpdirectory/web-core/website/website-hero-route'
+import { WebsiteRelatedProjectsRoute as WebsiteRelatedProjects } from '@serpdirectory/web-core/website/website-related-projects-route'
+import { WebsiteResourcesSectionRoute as WebsiteResourcesSection } from '@serpdirectory/web-core/website/website-resources-section-route'
+import { WebsiteDetailRoutePage } from '@serpdirectory/web-core/website-routes/detail-page'
 import type { Metadata } from 'next'
 import { notFound } from 'next/navigation'
 import { reviewPreviewAccessSchema } from '@/lib/submissions/review-preview'

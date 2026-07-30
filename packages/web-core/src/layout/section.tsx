@@ -1,11 +1,11 @@
-import { Button } from '@thedaviddias/design-system/button'
+import { Button } from '@serpdirectory/design-system/button'
 import {
   DirectoryPageSection,
   DirectorySectionAction,
   DirectorySectionDescription,
   DirectorySectionHeader,
   DirectorySectionTitle
-} from '@thedaviddias/design-system/shadcnblocks/directory-home-section'
+} from '@serpdirectory/design-system/shadcnblocks/directory-home-section'
 import { ArrowRight } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'

@@ -1,4 +1,4 @@
-import { getRoute } from '@thedaviddias/web-core/routes'
+import { getRoute } from '@serpdirectory/web-core/routes'
 import { getAutocomplete } from '@/lib/catalog/repository'
 
 export const dynamic = 'force-dynamic'

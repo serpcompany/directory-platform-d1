@@ -1,5 +1,5 @@
 import { init } from '@sentry/nextjs'
-import { IS_DEVELOPMENT } from '@thedaviddias/utils/environment'
+import { IS_DEVELOPMENT } from '@serpdirectory/utils/environment'
 import { keys } from './keys'
 
 const opts = {

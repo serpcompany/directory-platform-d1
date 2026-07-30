@@ -2,7 +2,7 @@ import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateSync, inflateSync } from 'node:zlib'
-import { resolveCheckedInSiteConfig, siteConfigsById } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig, siteConfigsById } from '@serpdirectory/site-contract'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const REPO_ROOT = join(__dirname, '..')

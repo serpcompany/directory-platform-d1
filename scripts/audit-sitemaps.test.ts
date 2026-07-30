@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve } from 'node:path'
-import { resolveCheckedInSiteConfig } from '@thedaviddias/site-contract'
+import { resolveCheckedInSiteConfig } from '@serpdirectory/site-contract'
 import { afterEach, describe, expect, it } from 'vitest'
 import { auditArtifactSitemaps, parseSitemapLocs } from './audit-sitemaps.ts'
 

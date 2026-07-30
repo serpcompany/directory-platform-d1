@@ -11,11 +11,11 @@
   },
   "iconLibrary": "lucide",
   "aliases": {
-    "components": "@thedaviddias/design-system/components",
-    "utils": "@thedaviddias/design-system/lib/utils",
-    "hooks": "@thedaviddias/design-system/hooks",
-    "lib": "@thedaviddias/design-system/lib",
-    "ui": "@thedaviddias/design-system/components/shadcn"
+    "components": "@serpdirectory/design-system/components",
+    "utils": "@serpdirectory/design-system/lib/utils",
+    "hooks": "@serpdirectory/design-system/hooks",
+    "lib": "@serpdirectory/design-system/lib",
+    "ui": "@serpdirectory/design-system/components/shadcn"
   },
   "registries": {
     "@shadcnblocks": {

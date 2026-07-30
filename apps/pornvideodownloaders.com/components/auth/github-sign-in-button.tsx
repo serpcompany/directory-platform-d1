@@ -1,6 +1,6 @@
 'use client'
 
-import { GitHubSignInButton as CoreGitHubSignInButton } from '@thedaviddias/web-core/auth/github-sign-in-button'
+import { GitHubSignInButton as CoreGitHubSignInButton } from '@serpdirectory/web-core/auth/github-sign-in-button'
 import { signIn } from 'next-auth/react'
 import type { ReactElement } from 'react'
 

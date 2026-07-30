@@ -1,7 +1,7 @@
 'use client'
 
-import { Badge } from '@thedaviddias/design-system/badge'
-import { ToggleGroup, ToggleGroupItem } from '@thedaviddias/design-system/toggle-group'
+import { Badge } from '@serpdirectory/design-system/badge'
+import { ToggleGroup, ToggleGroupItem } from '@serpdirectory/design-system/toggle-group'
 import type { WebsiteBrowseCardMetadata } from './content-query'
 import { EmptyState } from './empty-state'
 import { useAnalyticsEvents } from './root-shell-client'

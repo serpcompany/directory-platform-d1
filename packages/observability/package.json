@@ -1,5 +1,5 @@
 {
-  "name": "@thedaviddias/observability",
+  "name": "@serpdirectory/observability",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -13,9 +13,9 @@
     "zod": "catalog:"
   },
   "devDependencies": {
-    "@thedaviddias/config-typescript": "workspace:*",
-    "@thedaviddias/logging": "workspace:*",
-    "@thedaviddias/utils": "workspace:*",
+    "@serpdirectory/config-typescript": "workspace:*",
+    "@serpdirectory/logging": "workspace:*",
+    "@serpdirectory/utils": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",

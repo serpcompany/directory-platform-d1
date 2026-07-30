@@ -1,7 +1,7 @@
 import {
   generateProjectsPageMetadata,
   ProjectsPageRoute
-} from '@thedaviddias/web-core/projects-page'
+} from '@serpdirectory/web-core/projects-page'
 import type { Metadata } from 'next'
 import {
   generateDisabledRouteMetadata,

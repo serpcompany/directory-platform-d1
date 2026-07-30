@@ -8,7 +8,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle
-} from '@thedaviddias/design-system/dialog'
+} from '@serpdirectory/design-system/dialog'
 import { Check, Copy, ExternalLink } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { useFieldArray, useForm } from 'react-hook-form'

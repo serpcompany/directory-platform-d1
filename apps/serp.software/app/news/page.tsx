@@ -1,1 +1,1 @@
-export { NewsRedirectPage as default } from '@thedaviddias/web-core/static-pages/news-page'
+export { NewsRedirectPage as default } from '@serpdirectory/web-core/static-pages/news-page'
