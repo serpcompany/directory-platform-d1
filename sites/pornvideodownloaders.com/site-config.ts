@@ -51,8 +51,8 @@ export const pornVideoDownloadersComSiteConfig: CheckedInSiteConfig = {
     submitLabel: 'Submit Yours'
   },
   deploy: {
-    previewConfigPath: 'wrangler.pornvideodownloaders.preview.jsonc',
-    productionConfigPath: 'wrangler.pornvideodownloaders.production.jsonc',
+    previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/preview.jsonc',
+    productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/production.jsonc',
     strategy: 'opennext-cloudflare-worker'
   },
   features: {

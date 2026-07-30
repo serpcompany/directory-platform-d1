@@ -1,5 +1,0 @@
-Read and follow AGENTS.md before changing this repository.
-
-The serp.software catalog is Cloudflare D1-only. Never add catalog JSON files,
-filesystem fallbacks, static search indexes, starter/default site infrastructure, or
-GitHub Pages/static-directory deployment code.

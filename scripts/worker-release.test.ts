@@ -37,11 +37,15 @@ describe('Worker release guard', () => {
     expect(() => validateWorkerConfig('production', 'serp.software')).not.toThrow()
     expect(() => validateWorkerConfig('preview', 'pornvideodownloaders.com')).not.toThrow()
     expect(() => validateWorkerConfig('production', 'pornvideodownloaders.com')).not.toThrow()
-    expect(readFileSync('wrangler.preview.jsonc', 'utf8')).not.toContain('PRODUCTION')
-    expect(readFileSync('wrangler.production.jsonc', 'utf8')).not.toContain('PREVIEW')
-    expect(readFileSync('wrangler.pornvideodownloaders.preview.jsonc', 'utf8')).not.toContain(
-      'serp.software'
+    expect(readFileSync('configs/wrangler/serp.software/preview.jsonc', 'utf8')).not.toContain(
+      'PRODUCTION'
     )
+    expect(readFileSync('configs/wrangler/serp.software/production.jsonc', 'utf8')).not.toContain(
+      'PREVIEW'
+    )
+    expect(
+      readFileSync('configs/wrangler/pornvideodownloaders.com/preview.jsonc', 'utf8')
+    ).not.toContain('serp.software')
   })
 
   it('uses a workerd-compatible Markdown renderer in both Workers', () => {
@@ -146,8 +150,24 @@ describe('Worker release guard', () => {
       const invocation = process.run.mock.calls[2]
       expect(invocation?.[0]).toBe('pnpm')
       expect(invocation?.[1]).toContain(
-        resolve('.wrangler.serp-software.production.generated.jsonc')
+        resolve('.wrangler/generated/serp-software.production.jsonc')
       )
+      const generated = JSON.parse(
+        readFileSync(resolve('.wrangler/generated/serp-software.production.jsonc'), 'utf8')
+      ) as {
+        $schema?: string
+        assets?: { directory?: string }
+        d1_databases?: Array<{ binding?: string; migrations_dir?: string }>
+        main?: string
+      }
+      expect(generated.$schema).toBe('../../node_modules/wrangler/config-schema.json')
+      expect(generated.main).toBe('../../apps/serp.software/.open-next/worker.js')
+      expect(generated.assets?.directory).toBe(
+        '../../apps/serp.software/.open-next/assets'
+      )
+      expect(
+        generated.d1_databases?.find(binding => binding.binding === 'DB')?.migrations_dir
+      ).toBe('../../d1/migrations')
       if (command === 'deploy') expect(invocation?.[1]).toContain('opennextjs-cloudflare')
       else {
         expect(invocation?.[1]).toContain('wrangler')
@@ -214,7 +234,7 @@ describe('Worker release guard', () => {
     const invocation = process.run.mock.calls[2]
     expect(invocation?.[1]).toContain('pornvideodownloaders.com')
     expect(invocation?.[1]).toContain(
-      resolve('.wrangler.pornvideodownloaders-com.preview.generated.jsonc')
+      resolve('.wrangler/generated/pornvideodownloaders-com.preview.jsonc')
     )
   })
 })

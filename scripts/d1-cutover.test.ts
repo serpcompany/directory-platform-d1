@@ -264,7 +264,9 @@ describe('local D1 cutover contracts', () => {
   })
 
   it('pins every executable D1 path to the dedicated local identity', () => {
-    const config = JSON.parse(readFileSync(resolve('wrangler.jsonc'), 'utf8')) as {
+    const config = JSON.parse(
+      readFileSync(resolve('configs/wrangler/serp.software/local.jsonc'), 'utf8')
+    ) as {
       name: string
       vars: { D1_RUNTIME_ENV: string }
       d1_databases: Array<{ database_id: string; database_name: string }>

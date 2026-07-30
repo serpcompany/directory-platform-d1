@@ -51,7 +51,7 @@ export const siteTargets = {
       submission: 'approve-pornvideodownloaders.com-submission-production'
     },
     local: {
-      configPath: 'wrangler.pornvideodownloaders.local.jsonc',
+      configPath: 'configs/wrangler/pornvideodownloaders.com/local.jsonc',
       databaseId: '00000000-0000-0000-0000-000000000003',
       databaseName: 'pornvideodownloaders-local',
       workerName: 'pornvideodownloaders-local'
@@ -62,8 +62,8 @@ export const siteTargets = {
       production: 'pornvideodownloaders-production'
     },
     remote: {
-      previewConfigPath: 'wrangler.pornvideodownloaders.preview.jsonc',
-      productionConfigPath: 'wrangler.pornvideodownloaders.production.jsonc'
+      previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/preview.jsonc',
+      productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/production.jsonc'
     },
     siteId: 'pornvideodownloaders.com'
   },
@@ -83,7 +83,7 @@ export const siteTargets = {
       submission: 'approve-serp.software-submission-production'
     },
     local: {
-      configPath: 'wrangler.jsonc',
+      configPath: 'configs/wrangler/serp.software/local.jsonc',
       databaseId: '00000000-0000-0000-0000-000000000002',
       databaseName: 'serp-software-local',
       workerName: 'serp-software-local'
@@ -94,8 +94,8 @@ export const siteTargets = {
       production: 'production'
     },
     remote: {
-      previewConfigPath: 'wrangler.preview.jsonc',
-      productionConfigPath: 'wrangler.production.jsonc'
+      previewConfigPath: 'configs/wrangler/serp.software/preview.jsonc',
+      productionConfigPath: 'configs/wrangler/serp.software/production.jsonc'
     },
     siteId: 'serp.software'
   }

@@ -24,8 +24,7 @@
     "dist"
   ],
   "scripts": {
-    "build": "pnpm build:registry && tsup",
-    "build:registry": "tsx scripts/build-registry.ts",
+    "build": "tsup",
     "dev": "tsup --watch",
     "test": "vitest run --passWithNoTests",
     "test:watch": "vitest",
