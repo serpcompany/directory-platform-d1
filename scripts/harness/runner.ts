@@ -39,6 +39,13 @@ const sharedSteps: HarnessStep[] = [
 
 const fullOnlySteps: HarnessStep[] = [
   {
+    name: 'changed-file Biome policy',
+    command: 'pnpm',
+    args: ['tsx', 'scripts/harness/biome-changed.ts'],
+    remediation:
+      'Format or correct the reported changed files so the local result matches PR CI. See docs/HARNESS.md.'
+  },
+  {
     name: 'read-only lint',
     command: 'pnpm',
     args: ['lint'],
