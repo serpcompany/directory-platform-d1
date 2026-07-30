@@ -33,26 +33,30 @@ describe('getSitemapTargets', () => {
 
 describe('runSubmitGscSitemaps', () => {
   it('verifies credential authority with a read-only Search Console request', async () => {
-    const calls: Array<{ method: string; url: string }> = []
+    const calls: Array<{ headers: Headers; method: string; url: string }> = []
     vi.stubGlobal(
       'fetch',
       vi.fn(async (url: string, init?: RequestInit) => {
-        calls.push({ method: init?.method ?? 'GET', url })
+        calls.push({
+          headers: new Headers(init?.headers),
+          method: init?.method ?? 'GET',
+          url
+        })
         return new Response('{"siteEntry":[]}', { status: 200 })
       })
     )
     const log = vi.spyOn(console, 'log').mockImplementation(() => undefined)
 
     await runSubmitGscSitemaps(['--verify-credentials'], {
-      GSC_ACCESS_TOKEN: 'token'
+      GSC_ACCESS_TOKEN: 'token',
+      GSC_QUOTA_PROJECT: 'quota-project'
     })
 
-    expect(calls).toEqual([
-      {
-        method: 'GET',
-        url: 'https://www.googleapis.com/webmasters/v3/sites'
-      }
-    ])
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.method).toBe('GET')
+    expect(calls[0]?.url).toBe('https://www.googleapis.com/webmasters/v3/sites')
+    expect(calls[0]?.headers.get('authorization')).toBe('Bearer token')
+    expect(calls[0]?.headers.get('x-goog-user-project')).toBe('quota-project')
     expect(log).toHaveBeenCalledWith(
       'Verified Search Console credential authority without mutation.'
     )

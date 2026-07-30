@@ -238,11 +238,24 @@ async function getAccessToken(env: NodeJS.ProcessEnv): Promise<string> {
   return body.access_token
 }
 
-async function verifyCredentialAuthority(accessToken: string): Promise<void> {
+function authorizationHeaders(accessToken: string, env: NodeJS.ProcessEnv): Record<string, string> {
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${accessToken}`
+  }
+
+  if (env.GSC_QUOTA_PROJECT) {
+    headers['x-goog-user-project'] = env.GSC_QUOTA_PROJECT
+  }
+
+  return headers
+}
+
+async function verifyCredentialAuthority(
+  accessToken: string,
+  env: NodeJS.ProcessEnv
+): Promise<void> {
   const response = await fetch('https://www.googleapis.com/webmasters/v3/sites', {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    }
+    headers: authorizationHeaders(accessToken, env)
   })
 
   if (!response.ok) {
@@ -255,15 +268,14 @@ async function verifyCredentialAuthority(accessToken: string): Promise<void> {
 async function submitSitemap(
   accessToken: string,
   siteUrl: string,
-  sitemapUrl: string
+  sitemapUrl: string,
+  env: NodeJS.ProcessEnv
 ): Promise<void> {
   const endpoint = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
     siteUrl
   )}/sitemaps/${encodeURIComponent(sitemapUrl)}`
   const response = await fetch(endpoint, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    },
+    headers: authorizationHeaders(accessToken, env),
     method: 'PUT'
   })
 
@@ -277,15 +289,14 @@ async function submitSitemap(
 async function deleteSitemap(
   accessToken: string,
   siteUrl: string,
-  sitemapUrl: string
+  sitemapUrl: string,
+  env: NodeJS.ProcessEnv
 ): Promise<void> {
   const endpoint = `https://www.googleapis.com/webmasters/v3/sites/${encodeURIComponent(
     siteUrl
   )}/sitemaps/${encodeURIComponent(sitemapUrl)}`
   const response = await fetch(endpoint, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`
-    },
+    headers: authorizationHeaders(accessToken, env),
     method: 'DELETE'
   })
 
@@ -338,20 +349,20 @@ export async function runSubmitGscSitemaps(
   const accessToken = await getAccessToken(env)
 
   if (args.verifyCredentials) {
-    await verifyCredentialAuthority(accessToken)
+    await verifyCredentialAuthority(accessToken, env)
     console.log('Verified Search Console credential authority without mutation.')
     return
   }
 
   for (const target of deleteTargets) {
     const siteUrl = siteUrlFor(target.domain, env)
-    await deleteSitemap(accessToken, siteUrl, target.sitemapUrl)
+    await deleteSitemap(accessToken, siteUrl, target.sitemapUrl, env)
     console.log(`Deleted ${target.sitemapUrl} for ${siteUrl}`)
   }
 
   for (const target of submitTargets) {
     const siteUrl = siteUrlFor(target.domain, env)
-    await submitSitemap(accessToken, siteUrl, target.sitemapUrl)
+    await submitSitemap(accessToken, siteUrl, target.sitemapUrl, env)
     console.log(`Submitted ${target.sitemapUrl} for ${siteUrl}`)
   }
 }
