@@ -90,11 +90,13 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       'production'
     ])
     expect(workflow.on.workflow_dispatch.inputs.confirmation.required).toBe(true)
-    expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(expect.objectContaining({
-      default: 'worker-only',
-      options: ['worker-only', 'database-and-worker'],
-      required: true
-    }))
+    expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(
+      expect.objectContaining({
+        default: 'worker-only',
+        options: ['worker-only', 'database-and-worker'],
+        required: true
+      })
+    )
     expect(workflow.permissions).toEqual({ contents: 'read' })
     expect(workflow.jobs.preview.environment.name).toBe('pornvideodownloaders-preview')
     expect(workflow.jobs.production.environment.name).toBe('pornvideodownloaders-production')

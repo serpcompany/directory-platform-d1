@@ -38,11 +38,13 @@ describe('production Worker workflow', () => {
     expect(workflow.on.push).toBeUndefined()
     expect(workflow.on.workflow_dispatch.inputs.site_id.options).toEqual(['serp.software'])
     expect(workflow.on.workflow_dispatch.inputs.confirmation.required).toBe(true)
-    expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(expect.objectContaining({
-      default: 'worker-only',
-      options: ['worker-only', 'database-and-worker'],
-      required: true
-    }))
+    expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(
+      expect.objectContaining({
+        default: 'worker-only',
+        options: ['worker-only', 'database-and-worker'],
+        required: true
+      })
+    )
     expect(workflow.permissions).toEqual({ contents: 'read' })
     expect(workflow.jobs.deploy.environment?.name).toBe('production')
     expect(workflow.jobs.deploy.if).toContain("github.ref == 'refs/heads/main'")
