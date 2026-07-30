@@ -91,9 +91,12 @@ jobs:
           pnpm tsx scripts/worker-release.ts import preview --site pornvideodownloaders.com
           pnpm tsx scripts/worker-release.ts verify preview --site pornvideodownloaders.com
 
-      - name: Deploy preview Worker
+      - name: Verify schema compatibility and deploy preview Worker
         env: *preview_env
-        run: pnpm tsx scripts/worker-release.ts deploy preview --site pornvideodownloaders.com
+        run: |
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts check-schema preview --site pornvideodownloaders.com
+          pnpm tsx scripts/worker-release.ts deploy preview --site pornvideodownloaders.com
 
   production:
     name: Validate, bootstrap & deploy production
@@ -153,6 +156,9 @@ jobs:
           pnpm tsx scripts/worker-release.ts import production --site pornvideodownloaders.com
           pnpm tsx scripts/worker-release.ts verify production --site pornvideodownloaders.com
 
-      - name: Deploy production Worker
+      - name: Verify schema compatibility and deploy production Worker
         env: *production_env
-        run: pnpm tsx scripts/worker-release.ts deploy production --site pornvideodownloaders.com
+        run: |
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts check-schema production --site pornvideodownloaders.com
+          pnpm tsx scripts/worker-release.ts deploy production --site pornvideodownloaders.com

@@ -3,6 +3,8 @@ import { resolve } from 'node:path'
 import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 import {
+  assertSchemaCompatible,
+  requiredMigrationNames,
   runWorkerRelease,
   validateWorkerConfig,
   type WorkerReleaseDependencies
@@ -23,7 +25,7 @@ const productionEnv = {
 }
 
 function dependencies(
-  outputs: Array<{ status: number; stdout?: string }> = []
+  outputs: Array<{ status: number; stderr?: string; stdout?: string }> = []
 ): WorkerReleaseDependencies & { run: ReturnType<typeof vi.fn> } {
   return {
     readFile: () => Buffer.from('backup'),
@@ -71,6 +73,38 @@ describe('Worker release guard', () => {
     expect(() => runWorkerRelease(['validate', 'preview'], {})).toThrow('explicit --site')
   })
 
+  it('treats repository migrations as minimum schema and permits forward schema rows', () => {
+    const required = requiredMigrationNames()
+    expect(required).toEqual([
+      '0001_public_catalog.sql',
+      '0002_listing_slug_redirects.sql',
+      '0003_publication_run_provenance.sql',
+      '0004_listing_display_order.sql',
+      '0005_listing_submissions.sql',
+      '0006_submission_rate_limits.sql',
+      '0007_submission_notifications.sql',
+      '0008_submission_review_preview.sql',
+      '0009_related_listing_name_index.sql'
+    ])
+    expect(() =>
+      assertSchemaCompatible(required, [
+        ...required.map(name => ({ name })),
+        { name: '0010_forward_compatible.sql' }
+      ])
+    ).not.toThrow()
+    expect(() =>
+      assertSchemaCompatible(
+        required,
+        required.slice(0, -1).map(name => ({ name }))
+      )
+    ).toThrow('0009_related_listing_name_index.sql')
+    expect(() =>
+      assertSchemaCompatible(required, [{ name: required[0] }, { name: required[0] }])
+    ).toThrow('duplicated')
+    expect(() => assertSchemaCompatible(required, [{ unexpected: 'shape' }])).toThrow('malformed')
+    expect(() => assertSchemaCompatible(required, [])).toThrow('empty')
+  })
+
   it('rejects a non-main ref, missing confirmation, and dirty simulated CI checkout', () => {
     expect(() =>
       runWorkerRelease(
@@ -106,13 +140,24 @@ describe('Worker release guard', () => {
   })
 
   it('builds guarded remote backup, migration, verification, and OpenNext commands without executing them', () => {
-    const commands = ['backup', 'migrate', 'verify', 'deploy'] as const
+    const commands = ['backup', 'check-schema', 'migrate', 'verify', 'deploy'] as const
     for (const command of commands) {
       const outputs = [
         { status: 0, stdout: '' },
         { status: 0, stdout: sha }
       ]
-      if (command === 'verify') {
+      if (command === 'check-schema') {
+        outputs.push({
+          status: 0,
+          stdout: JSON.stringify([
+            {
+              meta: { duration: 0.1, rows_read: 9, rows_written: 0 },
+              results: requiredMigrationNames().map(name => ({ name })),
+              success: true
+            }
+          ])
+        })
+      } else if (command === 'verify') {
         const report = parse(readFileSync('d1/artifacts/serp-software-v1-parity.yaml', 'utf8')) as {
           parity: {
             categories: Array<{ slug: string }>
@@ -172,6 +217,62 @@ describe('Worker release guard', () => {
         expect(invocation?.[1]).toContain('--remote')
       }
     }
+  })
+
+  it('fails closed on unsuccessful, malformed, or unparseable Wrangler JSON envelopes', () => {
+    const envelopes = [
+      JSON.stringify([{ errors: [{ message: 'denied' }], success: false }]),
+      JSON.stringify([{ results: [], success: false }]),
+      JSON.stringify({ results: [], success: true }),
+      JSON.stringify([{ success: true }]),
+      'not-json'
+    ]
+
+    for (const stdout of envelopes) {
+      const process = dependencies([
+        { status: 0, stdout: '' },
+        { status: 0, stdout: sha },
+        { status: 0, stdout }
+      ])
+      expect(() =>
+        runWorkerRelease(
+          ['check-schema', 'production', '--site', 'serp.software'],
+          productionEnv,
+          process
+        )
+      ).toThrow('Do not deploy Worker-only')
+      expect(process.run.mock.calls.some(call => call[1].includes('opennextjs-cloudflare'))).toBe(
+        false
+      )
+    }
+  })
+
+  it('does not reflect remote command output, bindings, or credentials in schema failures', () => {
+    const sensitiveMarker = 'sensitive-test-marker'
+    const process = dependencies([
+      { status: 0, stdout: '' },
+      { status: 0, stdout: sha },
+      { status: 1, stderr: sensitiveMarker }
+    ])
+
+    let message = ''
+    try {
+      runWorkerRelease(
+        ['check-schema', 'production', '--site', 'serp.software'],
+        { ...productionEnv, CLOUDFLARE_API_TOKEN: sensitiveMarker },
+        process
+      )
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).toContain('Do not deploy Worker-only')
+    expect(message).not.toContain(sensitiveMarker)
+    expect(message).not.toContain('test-production-id')
+    expect(message).not.toContain('test-production-name')
+    expect(message).not.toContain('test-production-worker')
+    expect(process.run.mock.calls.some(call => call[1].includes('opennextjs-cloudflare'))).toBe(
+      false
+    )
   })
 
   it('imports the deterministic catalog only into an empty production publication', () => {

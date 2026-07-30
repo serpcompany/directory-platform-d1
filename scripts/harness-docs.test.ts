@@ -1,7 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
-import { checkDocumentation, validateMultisiteDocumentation } from './harness/docs-health.ts'
+import {
+  checkDocumentation,
+  validateMultisiteDocumentation,
+  validateReleaseDocumentation
+} from './harness/docs-health.ts'
 import { stepsForProfile } from './harness/runner.ts'
 
 describe('repository harness contract', () => {
@@ -31,6 +35,24 @@ describe('repository harness contract', () => {
       )
     ).toContain(
       'docs/MIGRATION_SOP.md: retired single-site assertion "The current repository deploys one application and one tenant"'
+    )
+  })
+
+  it('rejects stale or incomplete release handoff guidance', () => {
+    expect(
+      validateReleaseDocumentation({
+        'docs/BUILD_PIPELINE.md': 'Deploy with worker-only.',
+        'docs/DATA_OPS_BENCHMARK.md': 'See docs/exec-plans/active/d1-live-metrics-followup.md.',
+        'docs/DEPLOY_RUNBOOK.md': 'Functional checks passed.',
+        'docs/exec-plans/completed/d1-live-metrics-followup.md': 'Production untouched.'
+      })
+    ).toEqual(
+      expect.arrayContaining([
+        'docs/BUILD_PIPELINE.md: missing release guidance "`packages/data-ops/`"',
+        'docs/DEPLOY_RUNBOOK.md: missing release guidance "`check-schema`"',
+        'docs/DATA_OPS_BENCHMARK.md: live metrics evidence must reference the completed plan',
+        'docs/exec-plans/completed/d1-live-metrics-followup.md: missing release guidance "## Post-completion production follow-up (2026-07-31)"'
+      ])
     )
   })
 

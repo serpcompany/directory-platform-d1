@@ -105,6 +105,9 @@ jobs:
         env: *production_env
         run: pnpm worker:d1:verify:production
 
-      - name: Deploy production Worker
+      - name: Verify schema compatibility and deploy production Worker
         env: *production_env
-        run: pnpm worker:deploy:production
+        run: |
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts check-schema production --site serp.software
+          pnpm worker:deploy:production

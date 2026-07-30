@@ -24,20 +24,45 @@ Local D1 migration, import, publication, verification, and preview commands requ
 separate database-operation approval. They are guarded by
 `scripts/d1-local-guard.ts` and can target only the checked-in local D1 identity.
 
-## Initial production release
+## Protected Worker releases
 
-Use the selected site's workflow from `main`. The workflow requires:
+Merging to `main` does not deploy either site automatically. Manually dispatch the
+selected site's workflow from the reviewed `main` commit. The workflow requires:
 
 - the site's protected production environment;
 - `deploy-<site-id>-production` exactly;
 - successful configuration, D1 contract, type, and Worker build checks.
 
-The workflow retains a pre-change D1 export, applies migrations, imports the
-deterministic initial catalog only when publication state is empty, verifies exact
-catalog parity, and then deploys the Worker. A failed migration, import, or
-verification stops the release before Worker deployment.
+Choose the release mode from the reviewed diff:
 
-Do not run production Wrangler or D1 commands from a local worktree.
+| Release mode | Select it when | Remote behavior |
+| --- | --- | --- |
+| `worker-only` | The commit adds no unapplied D1 migration and requires no newer schema. | Reads applied migration names to prove compatibility, then deploys the Worker. It does not back up, migrate, import, or write D1. |
+| `database-and-worker` | The commit adds a migration, the target may be behind, or compatibility cannot be proven. | Retains a D1 export, applies migrations, performs the idempotent initial import, verifies exact catalog parity and schema compatibility, then deploys the Worker. |
+
+Do not use `worker-only` merely because a change is described as application code.
+The workflow's `check-schema` operation compares every checked-in migration required
+by that Worker commit with `d1_migrations` in the exact configured remote database.
+It performs a read-only `SELECT` and fails closed; missing, duplicate, malformed, or
+unavailable evidence stops the shell before the deploy command. The remediation is
+to review the pending migrations and rerun the same commit as
+`database-and-worker`, not to bypass the check.
+
+The database-and-Worker path is always:
+
+1. retained pre-change D1 export;
+2. forward migrations;
+3. deterministic initial import, which is a no-op when the reviewed checksum already
+   matches;
+4. exact catalog verification;
+5. read-only schema compatibility verification;
+6. Worker deployment.
+
+A failed backup, migration, import, catalog verification, or schema verification
+stops before Worker deployment. Do not run production Wrangler or D1 commands from a
+local worktree.
+
+## Initial site release and preview rehearsal
 
 For every newly onboarded site, rehearse the same sequence first with its `preview`
 target and exact `deploy-<site-id>-preview` confirmation. The preview job uses a
@@ -110,14 +135,46 @@ database may already contain a valid forward migration.
 
 ## Post-release checks
 
-After an authorized production run:
+Functional QA and D1 efficiency QA are separate gates. A successful HTTP response
+does not prove query efficiency.
 
-- confirm the workflow’s migration, import/publication, parity, and deploy steps;
-- confirm the deployed Worker uses the production `DB` binding and
-  `D1_RUNTIME_ENV=production`;
-- verify the home page, product detail, category, search, RSS, and sitemap routes;
+After an authorized release, first record the workflow URL, commit, release mode,
+target, Worker version/time, and retained backup artifact and expiry when the run
+mutated D1. Confirm every selected workflow step and the production `DB` binding and
+`D1_RUNTIME_ENV=production`.
+
+Then run functional smoke checks:
+
+- verify the home page and one representative category and product detail route;
+- verify search, RSS, and sitemap routes;
 - verify a legacy root product slug redirects to `/products/<slug>/`;
-- retain the workflow backup for the required recovery window.
+- confirm the page titles, listing ordering, related-card ordering, navigation
+  boundaries, and empty/not-found behavior relevant to the change.
+
+For a data-operation or schema-sensitive release, use a bounded UTC window and the
+Cloudflare D1 dashboard, GraphQL analytics, or reviewed read-only tooling to record:
+
+- exact cold and warm request URLs/counts and the observation timestamps;
+- D1 query count and calls per route;
+- query shape/operation, count, total and per-execution `rows_read`, `rows_written`,
+  and latency;
+- whether expected indexes appear in `EXPLAIN QUERY PLAN` when the change depends on
+  them;
+- the prior Worker version and backup needed for rollback.
+
+Use the quantitative thresholds in the change's ExecPlan. For the shared catalog
+optimization deployed on 2026-07-31, a controlled warm home/category/detail sample
+must perform no stable summary/detail hydration, aggregate-count, related, media, or
+navigation query. Each warm route should issue only its publication-version lookup,
+with no more than two rows read per route; any unexplained application write or
+return of the retired broad query shapes stops the rollout and triggers Worker
+rollback review. Attribute one-time migration/index-maintenance writes only to the
+`database-and-worker` workflow window—do not call them live application traffic.
+
+Analytics access is not currently part of the deployment workflow's protected
+credential contract, so this quantitative evidence is an explicit operator check,
+not an automated workflow claim. Preserve it in the governing ExecPlan. Retain every
+workflow backup for its required recovery window.
 
 Provisioning a new site's Cloudflare databases, Worker names, route, environment
 secrets, and GitHub environment protection is a one-time prerequisite. Before the
