@@ -1,8 +1,6 @@
 # Repository contract for coding agents
 
-This repository operates the production `serp.software` and
-`pornvideodownloaders.com` directories as isolated Next.js OpenNext Workers backed
-by distinct Cloudflare D1 databases. D1 is the only catalog database.
+This repository operates the production `serp.software` and `pornvideodownloaders.com` directories as isolated Next.js OpenNext Workers backed by distinct Cloudflare D1 databases. D1 is the only catalog database.
 
 ## Start here
 
@@ -15,8 +13,7 @@ Read in this order:
 5. [Migration SOP](./docs/MIGRATION_SOP.md) before examining a legacy JSON-directory site.
 6. [Deploy runbook](./docs/DEPLOY_RUNBOOK.md) before any Cloudflare operation.
 
-Use [PLANS.md](./PLANS.md) for architectural, schema, deployment, multisite, or
-multi-file work. Active plans live under `docs/exec-plans/active/`.
+Use [PLANS.md](./PLANS.md) for architectural, schema, deployment, multisite, or multi-file work. Active plans live under `docs/exec-plans/active/`.
 
 ## Repository map
 
@@ -42,6 +39,16 @@ multi-file work. Active plans live under `docs/exec-plans/active/`.
 
 Closer `AGENTS.md` files add local rules without replacing this contract.
 
+## Agent skills
+
+### Issue tracker
+
+Issues and PRDs are tracked in GitHub Issues for `serpcompany/directory-platform-d1`. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This repository uses a single-context domain-doc layout. See `docs/agents/domain.md`.
+
 ## Primary commands
 
 - `pnpm harness:fast`: docs, architecture, D1 contracts, and type boundaries.
@@ -55,16 +62,12 @@ Closer `AGENTS.md` files add local rules without replacing this contract.
 - `pnpm worktree:destroy -- <name>`: safely remove a registered harness worktree.
 - `pnpm migration:preflight -- ...`: read-only legacy site inventory.
 
-Default root aliases select `serp.software` explicitly. Named
-`*:pornvideodownloaders*` aliases select `pornvideodownloaders.com`; lower-level
-multisite commands require `--site <site-id>` and reject missing or unknown sites.
+Default root aliases select `serp.software` explicitly. Named `*:pornvideodownloaders*` aliases select `pornvideodownloaders.com`; lower-level multisite commands require `--site <site-id>` and reject missing or unknown sites.
 
 ## When an ExecPlan is required
 
-Create or continue an ExecPlan when work changes architecture, D1 schema, deployment,
-Cloudflare resources, tenancy, package boundaries, or more than five related files.
-Also use one when rollback risk is meaningful or another agent must resume the work
-without the original conversation.
+Create or continue an ExecPlan when work changes architecture, D1 schema, deployment, Cloudflare resources, tenancy, package boundaries, or more than five related files.
+Also use one when rollback risk is meaningful or another agent must resume the work without the original conversation.
 
 Keep Progress, Surprises, Decision Log, and Outcomes current while working. Record
 exact commands, observable acceptance, idempotence, and recovery—not intended results.
@@ -112,8 +115,6 @@ Production database or Worker operations require the confirmations and protected
 environments in [the deploy runbook](./docs/DEPLOY_RUNBOOK.md). A passing local
 harness never grants deployment authority.
 
-Relevant skills:
-
-- [Migrate a JSON-directory site](./.agents/skills/migrate-json-directory-site/SKILL.md)
-- [Write an ExecPlan](./.agents/skills/write-exec-plan/SKILL.md)
-- [Review a change](./.agents/skills/review-change/SKILL.md)
+Relevant skills: [Migrate a JSON-directory site](./.agents/skills/migrate-json-directory-site/SKILL.md),
+[write an ExecPlan](./.agents/skills/write-exec-plan/SKILL.md), and
+[review a change](./.agents/skills/review-change/SKILL.md).
