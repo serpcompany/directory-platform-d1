@@ -43,11 +43,11 @@ Closer `AGENTS.md` files add local rules without replacing this contract.
 
 ### Issue tracker
 
-Issues and PRDs are tracked in GitHub Issues for `serpcompany/directory-platform-d1`. See `docs/agents/issue-tracker.md`.
+Issues and PRDs live in GitHub Issues for `serpcompany/directory-platform-d1`. See [the issue-tracker instructions](./docs/agents/issue-tracker.md).
 
 ### Domain docs
 
-This repository uses a single-context domain-doc layout. See `docs/agents/domain.md`.
+This repository uses a single-context domain-doc layout: root `CONTEXT.md` plus system-wide ADRs under `docs/adr/`. See [the domain-doc instructions](./docs/agents/domain.md).
 
 ## Primary commands
 
