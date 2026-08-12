@@ -162,7 +162,7 @@ Cloudflare D1 dashboard, GraphQL analytics, or reviewed read-only tooling to rec
   them;
 - the prior Worker version and backup needed for rollback.
 
-Use the quantitative thresholds in the change's ExecPlan. For the shared catalog
+Use the quantitative thresholds in the governing GitHub issue. For the shared catalog
 optimization deployed on 2026-07-31, a controlled warm home/category/detail sample
 must perform no stable summary/detail hydration, aggregate-count, related, media, or
 navigation query. Each warm route should issue only its publication-version lookup,
@@ -173,8 +173,8 @@ rollback review. Attribute one-time migration/index-maintenance writes only to t
 
 Analytics access is not currently part of the deployment workflow's protected
 credential contract, so this quantitative evidence is an explicit operator check,
-not an automated workflow claim. Preserve it in the governing ExecPlan. Retain every
-workflow backup for its required recovery window.
+not an automated workflow claim. Preserve it on the governing issue or ticket. Retain
+every workflow backup for its required recovery window.
 
 Provisioning a new site's Cloudflare databases, Worker names, route, environment
 secrets, and GitHub environment protection is a one-time prerequisite. Before the
@@ -182,7 +182,7 @@ first mutation, use read-only calls to verify that the credential belongs to the
 intended account and can see the exact resources. An account ID and API token are
 different values even when the dashboard presents them together; never infer them
 from clipboard order or labels. Record redacted identity evidence, resource IDs, and
-workflow run URLs in the site's active ExecPlan without committing credentials.
+workflow run URLs on the governing GitHub issue without committing credentials.
 
 For each new site, update and verify:
 

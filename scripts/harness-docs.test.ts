@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest'
 import {
   checkDocumentation,
   validateMultisiteDocumentation,
+  validatePlanningDocumentation,
   validateReleaseDocumentation
 } from './harness/docs-health.ts'
 import { stepsForProfile } from './harness/runner.ts'
@@ -42,18 +43,27 @@ describe('repository harness contract', () => {
     expect(
       validateReleaseDocumentation({
         'docs/BUILD_PIPELINE.md': 'Deploy with worker-only.',
-        'docs/DATA_OPS_BENCHMARK.md': 'See docs/exec-plans/active/d1-live-metrics-followup.md.',
-        'docs/DEPLOY_RUNBOOK.md': 'Functional checks passed.',
-        'docs/exec-plans/completed/d1-live-metrics-followup.md': 'Production untouched.'
+        'docs/DATA_OPS_BENCHMARK.md': 'Production untouched.',
+        'docs/DEPLOY_RUNBOOK.md': 'Functional checks passed.'
       })
     ).toEqual(
       expect.arrayContaining([
         'docs/BUILD_PIPELINE.md: missing release guidance "`packages/data-ops/`"',
         'docs/DEPLOY_RUNBOOK.md: missing release guidance "`check-schema`"',
-        'docs/DATA_OPS_BENCHMARK.md: live metrics evidence must reference the completed plan',
-        'docs/exec-plans/completed/d1-live-metrics-followup.md: missing release guidance "## Post-completion production follow-up (2026-07-31)"'
+        'docs/DATA_OPS_BENCHMARK.md: missing release guidance "## Production follow-up recorded 2026-07-31"'
       ])
     )
+  })
+
+  it('rejects retired Markdown planning references', () => {
+    expect(
+      validatePlanningDocumentation({
+        'AGENTS.md': 'Create an ExecPlan from PLANS.md.'
+      })
+    ).toEqual([
+      'AGENTS.md: retired Markdown planning reference "PLANS.md"',
+      'AGENTS.md: retired Markdown planning reference "ExecPlan"'
+    ])
   })
 
   it('makes the full loop a strict superset of the fast loop', () => {

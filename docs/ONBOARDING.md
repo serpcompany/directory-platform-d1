@@ -18,8 +18,9 @@ submission tables, and maintainer-authored mutations belong in `d1/publications/
 Never create a starter/default site, catalog file, source adapter, or file-backed
 fallback.
 
-Substantial work uses [`PLANS.md`](../PLANS.md). Onboarding another legacy site follows
-the complete [migration SOP](./MIGRATION_SOP.md). Adding a directory under `sites/`
-or a tenant row is not sufficient: the registry, app, local guard, artifacts, tests,
-Worker/D1 configuration, protected environments, workflows, and evidence must all be
-extended and proven as one isolated site boundary.
+Substantial work is planned and tracked in GitHub Issues using the workflow in
+[`AGENTS.md`](../AGENTS.md). Onboarding another legacy site follows the complete
+[migration SOP](./MIGRATION_SOP.md). Adding a directory under `sites/` or a Site row
+is not sufficient: the registry, app, local guard, artifacts, tests, Worker/D1
+configuration, protected environments, workflows, and evidence must all be extended
+and proven as one isolated Site boundary.

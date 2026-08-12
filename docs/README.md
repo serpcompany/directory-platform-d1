@@ -24,8 +24,10 @@ Validation: `pnpm docs:check`
 | [Harness](./HARNESS.md) | Active | agent feedback/runtime | 2026-07-30 | `pnpm harness:fast` |
 | [Migration SOP](./MIGRATION_SOP.md) | Approved process | migration safety | 2026-07-30 | `pnpm migration:preflight` |
 | [Quality score](./QUALITY_SCORE.md) | Active | evidence ledger | 2026-07-30 | `pnpm harness:check` |
-| [Active execution plans](./exec-plans/active/README.md) | Active index | substantial work | 2026-07-30 | `pnpm docs:check` |
-| [Completed execution plans](./exec-plans/completed/README.md) | Archive index | decision history | 2026-07-30 | `pnpm docs:check` |
+| [Issue tracker](./agents/issue-tracker.md) | Active configuration | planning and tickets | 2026-08-13 | `pnpm docs:check` |
+| [Triage labels](./agents/triage-labels.md) | Active configuration | issue workflow | 2026-08-13 | `pnpm docs:check` |
+| [Domain docs](./agents/domain.md) | Active configuration | shared vocabulary | 2026-08-13 | `pnpm docs:check` |
 
 Root navigation and non-negotiable rules live in [`AGENTS.md`](../AGENTS.md).
-ExecPlan requirements live in [`PLANS.md`](../PLANS.md).
+Active specs, decision maps, tickets, dependencies, and acceptance evidence live in
+GitHub Issues for `serpcompany/directory-platform-d1`.

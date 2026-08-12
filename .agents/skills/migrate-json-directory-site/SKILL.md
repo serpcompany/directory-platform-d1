@@ -17,7 +17,9 @@ Read these files completely before changing code:
 3. `docs/ARCHITECTURE.md`
 4. `docs/DATA_MODEL.md`
 5. `docs/DEPLOY_RUNBOOK.md`
-6. `PLANS.md`
+6. `docs/agents/issue-tracker.md`
+7. `docs/agents/triage-labels.md`
+8. `docs/agents/domain.md`
 
 Read the relevant source repository’s `AGENTS.md`, site README, configuration, content,
 and catalog schema in place. Do not copy catalog files into this repository.
@@ -44,7 +46,9 @@ and catalog schema in place. Do not copy catalog files into this repository.
    workflow boundaries. Extend `scripts/site-targets.ts` exhaustively and treat the
    existing tenant columns or two-site implementation as insufficient proof that a
    new site is isolated.
-7. Create a self-contained ExecPlan from `docs/exec-plans/template.md`.
+7. If key decisions remain unclear, use `wayfinder`. Otherwise use `to-spec`, then
+   use `to-tickets` to publish independently verifiable vertical slices and their
+   blocking relationships to GitHub Issues.
 8. Build a field map and evidence checklist before a generator or SQL artifact.
 9. Parse external data into precise types at the migration boundary.
 10. Extend and run `pnpm migration:generate` to produce deterministic SQL and parity
@@ -60,8 +64,9 @@ and catalog schema in place. Do not copy catalog files into this repository.
 15. Capture desktop and real mobile route evidence, including element containment
     rather than relying only on document-level scroll width.
 16. Remove legacy runtime paths only after parity and the observation window.
-17. Run the full harness, review the diff, update the ExecPlan outcome, and safely
-    remove the registered migration worktree after merge.
+17. Run the full harness, review the diff, record acceptance evidence and residual
+    risks on the governing ticket, and safely remove the registered migration
+    worktree after merge.
 
 ## Stop conditions
 
@@ -88,5 +93,5 @@ For planning or audit requests, return:
 - exact evidence required for parity;
 - risks, rollback conditions, and next authorized action.
 
-For implementation requests, keep the ExecPlan current and preserve all required
-evidence paths from `docs/MIGRATION_SOP.md`.
+For implementation requests, keep the governing GitHub issue and tickets current and
+preserve all required evidence paths from `docs/MIGRATION_SOP.md`.

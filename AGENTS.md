@@ -13,8 +13,6 @@ Read in this order:
 5. [Migration SOP](./docs/MIGRATION_SOP.md) before examining a legacy JSON-directory site.
 6. [Deploy runbook](./docs/DEPLOY_RUNBOOK.md) before any Cloudflare operation.
 
-Use [PLANS.md](./PLANS.md) for architectural, schema, deployment, multisite, or multi-file work. Active plans live under `docs/exec-plans/active/`.
-
 ## Repository map
 
 - `apps/<site-id>/`: site-specific Next.js routes and OpenNext Worker boundary.
@@ -41,13 +39,9 @@ Closer `AGENTS.md` files add local rules without replacing this contract.
 
 ## Agent skills
 
-### Issue tracker
-
-Issues and PRDs live in GitHub Issues for `serpcompany/directory-platform-d1`. See [the issue-tracker instructions](./docs/agents/issue-tracker.md).
-
-### Domain docs
-
-This repository uses a single-context domain-doc layout: root `CONTEXT.md` plus system-wide ADRs under `docs/adr/`. See [the domain-doc instructions](./docs/agents/domain.md).
+Repository-specific [issue-tracker](./docs/agents/issue-tracker.md),
+[triage-label](./docs/agents/triage-labels.md), and [domain-doc](./docs/agents/domain.md)
+configuration lives under `docs/agents/`; installed skills own their general workflows.
 
 ## Primary commands
 
@@ -64,13 +58,22 @@ This repository uses a single-context domain-doc layout: root `CONTEXT.md` plus 
 
 Default root aliases select `serp.software` explicitly. Named `*:pornvideodownloaders*` aliases select `pornvideodownloaders.com`; lower-level multisite commands require `--site <site-id>` and reject missing or unknown sites.
 
-## When an ExecPlan is required
+## Planning and implementation
 
-Create or continue an ExecPlan when work changes architecture, D1 schema, deployment, Cloudflare resources, tenancy, package boundaries, or more than five related files.
-Also use one when rollback risk is meaningful or another agent must resume the work without the original conversation.
+GitHub Issues are the source of truth for active planning and execution.
 
-Keep Progress, Surprises, Decision Log, and Outcomes current while working. Record
-exact commands, observable acceptance, idempotence, and recovery—not intended results.
+- For a clear substantial change, use `to-spec` to publish the PRD, then
+  `to-tickets` to create independently verifiable vertical slices with explicit
+  blocking relationships.
+- For a large effort whose decisions are not yet clear, use `wayfinder` to maintain
+  a GitHub map and decision tickets. Convert the settled result into a spec and
+  implementation tickets.
+- Implement one ready ticket at a time with `implement`, run the repository harness,
+  and use `code-review` before closing it.
+- Record acceptance evidence, operational results, recovery details, and residual
+  risks on the governing issue or ticket.
+- Issues and labels never grant production, database, deployment, deletion, or other
+  external-mutation authority. The deploy runbook's confirmation gates still apply.
 
 ## Non-negotiable architecture
 
@@ -114,7 +117,3 @@ and report residual risks.
 Production database or Worker operations require the confirmations and protected
 environments in [the deploy runbook](./docs/DEPLOY_RUNBOOK.md). A passing local
 harness never grants deployment authority.
-
-Relevant skills: [Migrate a JSON-directory site](./.agents/skills/migrate-json-directory-site/SKILL.md),
-[write an ExecPlan](./.agents/skills/write-exec-plan/SKILL.md), and
-[review a change](./.agents/skills/review-change/SKILL.md).

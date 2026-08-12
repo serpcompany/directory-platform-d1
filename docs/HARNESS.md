@@ -60,7 +60,7 @@ pnpm docs:check
 
 The checker enforces:
 
-- required docs, indexes, ExecPlan scaffolding, and skills exist;
+- required docs, indexes, agent configuration, and repository skills exist;
 - the root agent map remains concise;
 - local Markdown links resolve;
 - migration SOP phase headings remain intact;
@@ -177,14 +177,13 @@ After a site is registered, use only its explicit local aliases or the canonical
 registered worktree with `pnpm worktree:destroy -- <name>` and delete the merged
 branch when no recovery work remains.
 
-## Execution plans and review
+## Issue-driven planning and review
 
-Substantial work follows [`PLANS.md`](../PLANS.md). Keep the active plan current,
-review the complete diff, run targeted checks, run the full harness, collect runtime
-evidence where behavior changed, and record remaining risk.
-
-The [review-change skill](../.agents/skills/review-change/SKILL.md) converts this into
-a repeatable checklist.
+GitHub Issues hold active specs, decision maps, implementation tickets, blocking
+relationships, and acceptance evidence. Follow the planning workflow in
+[`AGENTS.md`](../AGENTS.md), review the complete diff, run targeted checks, run the
+full harness, collect runtime evidence where behavior changed, and record remaining
+risk on the governing ticket before closing it.
 
 ## Harness maintenance
 
