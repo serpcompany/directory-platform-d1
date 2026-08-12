@@ -45,11 +45,9 @@ this repository, committed, served, or retained as a fallback.
 
 ## Required evidence package
 
-Create an ExecPlan at:
-
-```text
-docs/exec-plans/active/<site-id>-d1-migration.md
-```
+Publish a governing GitHub spec and independently verifiable vertical-slice tickets
+with explicit blocking relationships. If the route to a safe migration is still
+unclear, use a `wayfinder` map and decision tickets before publishing the spec.
 
 Keep temporary evidence under the ignored directory:
 
@@ -72,7 +70,7 @@ The committed migration result may include:
 - deterministic initial SQL and bounded import batches;
 - a committed parity report with source hashes, counts, and exact slug sets;
 - tests for mapping, configuration, runtime, routes, and release workflows;
-- documentation and a completed ExecPlan.
+- documentation and closed GitHub issues containing the acceptance evidence.
 
 Do not commit the source catalog, normalized catalog JSON, database exports containing
 production data, secrets, or Wrangler credentials.
@@ -82,7 +80,8 @@ checksums. A count without a source identity is not reproducible evidence.
 
 ## Phase 0: choose the tenancy architecture
 
-Record one decision in the ExecPlan before writing migration code.
+Record one tenancy decision on the governing spec or decision-map issue before
+writing migration code.
 
 ### Option A: independent deployment repository
 
@@ -103,8 +102,8 @@ backup/restore impact analysis, and cross-tenant tests.
 
 ### Required platform extension for Option B
 
-The platform already satisfies this contract for its two active sites. A new-site
-ExecPlan must extend it without weakening any item:
+The platform already satisfies this contract for its two active Sites. A new Site's
+governing spec and tickets must extend it without weakening any item:
 
 1. add the site to the exhaustive registry and every required workflow choice or
    matrix;
@@ -156,7 +155,7 @@ The preflight verifies:
 not authorization to modify D1 and is not proof of application parity.
 
 Resolve every issue or record an explicit, reviewed normalization decision. Warnings
-may be accepted only in the ExecPlan Decision Log.
+may be accepted only through a decision recorded on the governing GitHub issue.
 
 ## Phase 2: map and normalize
 
@@ -295,8 +294,8 @@ pnpm test:e2e:smoke
 pnpm harness:check
 ```
 
-Attach actual command output and browser artifacts to the ExecPlan. A successful build
-does not prove data or route parity.
+Attach actual command output and browser artifacts to the governing ticket. A
+successful build does not prove data or route parity.
 
 ## Phase 5: provision Cloudflare safely
 
@@ -322,7 +321,7 @@ Cloudflare displays the account identifier and API token in nearby UI/API contex
 Treat them as distinct values: confirm the account ID against the authenticated
 account endpoint, then verify the token with a read-only request. Do not infer either
 value from its label, length, clipboard order, or a successful login. Record only
-redacted identity evidence in the ExecPlan.
+redacted identity evidence on the governing ticket.
 
 ## Phase 6: rehearse and release
 
@@ -342,7 +341,8 @@ redacted identity evidence in the ExecPlan.
 
 ### Production release
 
-1. merge the reviewed code, artifacts, tests, SOP-specific ExecPlan, and workflows;
+1. merge the reviewed code, artifacts, tests, and workflows associated with the
+   governing migration tickets;
 2. record the exact commit to release;
 3. stop legacy catalog writes at the cutoff;
 4. retain a production D1 backup;
@@ -374,7 +374,8 @@ After production parity and the observation window:
 7. search tracked and generated outputs for legacy catalog filenames;
 8. rebuild and repeat the search;
 9. archive the legacy repository as read-only or clearly mark it superseded;
-10. move the completed ExecPlan with final evidence into `docs/exec-plans/completed/`.
+10. post final acceptance evidence and residual risks, then close the implementation
+    tickets and governing spec;
 11. from the controlling checkout, remove the registered migration worktree with
     `pnpm worktree:destroy -- <name>`; after merge and recovery review, delete the
     merged migration branch if it is no longer needed.
@@ -398,7 +399,7 @@ Define rollback before production mutation.
   Cloudflare procedure, and re-run exact verification.
 - Never “roll back” with a source catalog import after ongoing D1 publications have
   begun; that can erase legitimate changes.
-- Record every partial failure and retry in the ExecPlan.
+- Record every partial failure and retry on the governing ticket.
 
 All migration and import steps must be idempotent or explicitly state why they are not
 and how to recover safely.
@@ -448,6 +449,6 @@ and how to recover safely.
 
 - [ ] Catalog files and obsolete runtime/deployment code are absent.
 - [ ] Architecture guards prevent regression.
-- [ ] Docs, skills, and the completed ExecPlan reflect the final system.
+- [ ] Docs, skills, and closed GitHub issue set reflect the final system.
 - [ ] `pnpm harness:check` and relevant runtime checks pass from the release commit.
 - [ ] The merged migration worktree and unneeded branch were cleaned safely.

@@ -6,7 +6,7 @@ import { siteIds } from '../site-targets.ts'
 
 const REQUIRED_FILES = [
   'AGENTS.md',
-  'PLANS.md',
+  'CONTEXT.md',
   'README.md',
   'docs/README.md',
   'docs/ARCHITECTURE.md',
@@ -16,13 +16,11 @@ const REQUIRED_FILES = [
   'docs/HARNESS.md',
   'docs/MIGRATION_SOP.md',
   'docs/QUALITY_SCORE.md',
-  'docs/exec-plans/active/README.md',
-  'docs/exec-plans/completed/README.md',
-  'docs/exec-plans/template.md',
+  'docs/agents/domain.md',
+  'docs/agents/issue-tracker.md',
+  'docs/agents/triage-labels.md',
   '.github/workflows/harness-gardening.yml',
-  '.agents/skills/migrate-json-directory-site/SKILL.md',
-  '.agents/skills/write-exec-plan/SKILL.md',
-  '.agents/skills/review-change/SKILL.md'
+  '.agents/skills/migrate-json-directory-site/SKILL.md'
 ] as const
 
 const REQUIRED_MIGRATION_HEADINGS = [
@@ -152,8 +150,8 @@ export function validateReleaseDocumentation(
       'fails closed',
       'Functional QA and D1 efficiency QA are separate gates'
     ],
-    'docs/exec-plans/completed/d1-live-metrics-followup.md': [
-      '## Post-completion production follow-up (2026-07-31)',
+    'docs/DATA_OPS_BENCHMARK.md': [
+      '## Production follow-up recorded 2026-07-31',
       'actions/runs/30560826641',
       'actions/runs/30561183257'
     ]
@@ -168,14 +166,21 @@ export function validateReleaseDocumentation(
     }
   }
 
-  const benchmark = documents['docs/DATA_OPS_BENCHMARK.md']
-  if (benchmark?.includes('docs/exec-plans/active/d1-live-metrics-followup.md')) {
-    violations.push(
-      'docs/DATA_OPS_BENCHMARK.md: live metrics evidence must reference the completed plan'
-    )
-  }
-  if (benchmark && !benchmark.includes('docs/exec-plans/completed/d1-live-metrics-followup.md')) {
-    violations.push('docs/DATA_OPS_BENCHMARK.md: completed live metrics plan is missing')
+  return violations
+}
+
+export function validatePlanningDocumentation(
+  documents: Readonly<Record<string, string>>
+): string[] {
+  const violations: string[] = []
+  const retiredReferences = ['PLANS.md', 'docs/exec-plans', 'ExecPlan', 'write-exec-plan']
+
+  for (const [file, source] of Object.entries(documents)) {
+    for (const reference of retiredReferences) {
+      if (source.includes(reference)) {
+        violations.push(`${file}: retired Markdown planning reference "${reference}"`)
+      }
+    }
   }
 
   return violations
@@ -214,6 +219,7 @@ export function checkDocumentation(root = resolve('.')): string[] {
   )
   violations.push(...validateMultisiteDocumentation(documentationSources, siteIds))
   violations.push(...validateReleaseDocumentation(documentationSources))
+  violations.push(...validatePlanningDocumentation(documentationSources))
 
   for (const file of files.filter(candidate => extname(candidate) === '.md')) {
     const source = readFileSync(resolve(root, file), 'utf8')

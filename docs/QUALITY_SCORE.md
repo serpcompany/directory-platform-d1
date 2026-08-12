@@ -21,7 +21,7 @@ actionable capability remains.
 | Cloudflare compatibility | Passing | `pnpm worker:config:validate` and `pnpm worker:build` | Preserve protected remote workflows. |
 | Source migration safety | Passing | `pnpm migration:preflight`, deterministic artifact generation, and two completed cutovers | Prove the updated SOP with a third-site dry run and consider a safe scaffold for repetitive boundaries. |
 | Security hygiene | Partial | guarded local/remote identities | Add a dedicated secret scanner. |
-| Agent workflow quality | Passing | root/nested `AGENTS.md`, `PLANS.md`, repo skills | Add skill scenario evaluations as workflows mature. |
+| Agent workflow quality | Passing | root/nested `AGENTS.md`, GitHub issue configuration, domain docs, triage labels, and repo skills | Add skill scenario evaluations as workflows mature. |
 | Continuous cleanup | Passing | `pnpm docs:garden` and `harness-gardening.yml` | Add deterministic dead-export and dependency audits when selected. |
 
 Update the status only with executable or inspectable evidence. Record regressions

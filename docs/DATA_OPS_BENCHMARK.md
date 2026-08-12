@@ -44,11 +44,36 @@ After the first preview deployment, live Cloudflare D1 metadata exposed a remain
 multi-category grouping path: it read 1,040 rows before hydration. A read-only
 replacement query against the actual PVD preview database returned the identical
 four ranked slugs in 25 rows and used `listings_related_name_idx` with no temporary
-grouping tree. The shared implementation now uses that shape. Deployed after-evidence
-is recorded in
-[`docs/exec-plans/completed/d1-live-metrics-followup.md`](./exec-plans/completed/d1-live-metrics-followup.md),
-not inferred
-from this local benchmark.
+grouping tree. The shared implementation now uses that shape.
+
+## Production follow-up recorded 2026-07-31
+
+The protected PVD production workflow
+[`30560826641`](https://github.com/serpcompany/directory-platform-d1/actions/runs/30560826641)
+retained backup artifact `8766845035` through 2026-08-29, applied
+`0009_related_listing_name_index.sql`, found the deterministic import checksum already
+matched, verified the 286-listing catalog, and deployed the optimized Worker.
+
+The protected SERP production workflow
+[`30561183257`](https://github.com/serpcompany/directory-platform-d1/actions/runs/30561183257)
+retained backup artifact `8766961810` through 2026-08-29, applied the same migration,
+found the deterministic import checksum already matched, verified the 339-listing
+catalog, and deployed the optimized Worker. Cloudflare attributed 680 rows written to
+SERP's one-time `CREATE INDEX` operation; that was migration/index maintenance, not
+ongoing application traffic.
+
+Read-only production checks confirmed the partial index existed in both databases,
+representative related seeks read 25 rows on PVD and 30 on SERP, and live home,
+category, and detail routes returned HTTP 200 with the expected titles and ordering.
+In the controlled UTC window from 2026-07-30 16:26:25 through 16:27:00, nine warm
+requests per site produced only nine one-row publication-version queries per database
+and zero writes. No stable summary/detail hydration, aggregate, related, media, or
+navigation query shape appeared in that bounded sample.
+
+The fuller historical execution record remains available at the annotated
+[`exec-plans-archive-2026-08-13`](https://github.com/serpcompany/directory-platform-d1/tree/exec-plans-archive-2026-08-13)
+tag; the evidence above is retained here because it remains part of the stable
+benchmark interpretation.
 
 The representative cold detail operation executes six D1 statements and the benchmark
 finishes in under 0.4 seconds locally. Summary/card contracts assert that they do not
@@ -56,6 +81,5 @@ hydrate detail content, resource links, FAQs, or non-logo media.
 
 The production baselines that motivated this work were approximately 2,004 rows
 scanned per navigation execution, 2,293 per related-listing execution, and 1,565 per
-active-category-count execution. Genuine D1 `rows_read`, route-level D1 call counts
-from a deployed revision, and clean-runner CI timing are recorded in the relevant
-ExecPlans rather than inferred from this local surrogate.
+active-category-count execution. The production follow-up above records genuine D1
+`rows_read` and route-level D1 call counts; the table remains a local surrogate.
