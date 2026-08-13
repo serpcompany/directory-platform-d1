@@ -74,6 +74,10 @@ Important limits:
 - Preview URLs use `workers.dev`, not the production hostname, so they do not
   prove zone-level routing, WAF, redirects, or other hostname-specific behavior.
 - Preview URLs are public when enabled unless protected with Cloudflare Access.
+  A production-bound version in this repository can expose submission/write
+  routes backed by production D1, so deny-by-default Access is a prerequisite,
+  not an optional hardening step. The gate must verify that protection before
+  it creates the production-bound version.
 - Their default follows `workers_dev`; the repository does not currently set
   `preview_urls`, so the live setting must be inventoried before relying on them.
 - Cloudflare currently does not expose logs for preview URLs.
@@ -230,18 +234,22 @@ Implement this first for PVD:
 3. Run the bounded Visitor/SEO tracer against that preview version. This proves
    the build against isolated Cloudflare and preview D1, but is not the exact
    production version.
-4. Prove production D1 schema compatibility, then upload the same sealed output
-   to the PVD production Worker with production bindings and no trigger change.
-   Capture the resulting production Worker name and version ID.
+4. Enter the protected production environment with the deploy-runbook
+   authorization required to create remote Worker state. Verify deny-by-default
+   Access on version preview URLs and prove production D1 schema compatibility;
+   only then upload the same sealed output to the PVD production Worker with
+   production bindings and no trigger change. Capture the resulting production
+   Worker name and version ID.
 5. Run the same read-only tracer against that production-bound version's preview
    URL. If production-host routing or zone behavior is essential, use the more
    invasive 0%-deployment/version-override method behind a distinct approval
    gate instead. In that mode, fail closed unless each response is attested to
    the expected candidate version ID; never accept a successful response that
    may have silently fallen back to the old version.
-6. Require explicit production approval for that recorded SHA, build digest,
-   Worker name, and version ID. Promote with `wrangler versions deploy` at 100%.
-   Do not rebuild, re-upload, or run `opennextjs-cloudflare deploy` in this step.
+6. After the proof, require a distinct traffic-promotion approval for that
+   recorded SHA, build digest, Worker name, and version ID. Promote with
+   `wrangler versions deploy` at 100%. Do not rebuild, re-upload, or run
+   `opennextjs-cloudflare deploy` in this step.
 7. Verify that the active deployment reports the approved version ID. A brief
    post-deployment check may confirm route activation, but it is evidence after
    the prevention gates, not the prevention mechanism.
@@ -257,9 +265,10 @@ promotion of the separately created production-bound version ID.
 ### `pornvideodownloaders.com`
 
 Feasible after workflow and release-tool changes. Its preview Worker, preview D1,
-protected environment, templates, and confirmation gates already exist. No new
-Cloudflare resource is required for the two-level design, although preview URL
-and Access settings must be inventoried read-only before implementation.
+protected environment, templates, and confirmation gates already exist. Its
+preview URL settings must be inventoried read-only, and an Access application or
+equivalent deny-by-default control must be provisioned if one does not already
+protect production-version preview URLs.
 
 ### `serp.software`
 
@@ -286,8 +295,7 @@ Only these product/operations choices remain after the technical research:
    requests to production D1 through a version preview URL.
 2. Whether `workers.dev` fidelity is sufficient, or production-host behavior is
    important enough to authorize a 0% deployment plus version override.
-3. Whether preview URLs should be public or protected by Cloudflare Access.
-4. Whether to provision the missing SERP preview Worker, D1 database, protected
+3. Whether to provision the missing SERP preview Worker, D1 database, protected
    environment, and endpoint now or implement the design for PVD first.
 
 No deployment, upload, route change, resource provisioning, or D1 access was
