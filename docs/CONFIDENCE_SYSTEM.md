@@ -77,11 +77,12 @@ merely because they are convenient to test.
 | Focused local check | Existing | Run after each small edit for immediate, behavior-specific feedback. | Direct Vitest, Playwright, typecheck, or repository command selected for the changed seam. | The governing ticket should record the command and result. |
 | Fast local harness | Existing | Run at milestone boundaries to protect foundational repository contracts. | `pnpm harness:fast`. | Covers documentation, architecture, shared catalog operations, D1 contracts, and types. |
 | Full local harness | Existing | Run before claiming a substantial change complete. | `pnpm harness:check`. | Adds changed-file policy, lint, repository tests, Worker configuration, and both builds. It does not include the general `pnpm test` or Playwright suite. |
-| Pull-request CI | Existing | Prevent an unvalidated change from entering protected `main`. | `.github/workflows/pr-review.yml` supplies five strict required checks: repository/Site policy, types, unit tests, both Worker builds, and conditional Playwright. | Pull requests must be current with `main`, required checks must complete, and conversations must be resolved; no additional human approval is required for the solo Maintainer. |
+| Pull-request CI | Existing | Prevent an unvalidated change from entering protected `main`. | `.github/workflows/pr-review.yml` supplies five strict required checks: repository/Site policy, types, unit tests, both Worker builds, and conditional local Playwright. | Pull requests must be current with `main`, required checks must complete, and conversations must be resolved. The checks do not yet exercise a deployed preview. |
 | Integrated `main` revision | Existing | Independently validate the exact revision produced by merging a reviewed pull request without deploying it. | Every push created by a merge runs `pnpm harness:check` on a clean GitHub-hosted runner with the exact push range. | This detects integration or clean-runner drift after merge; production release remains separate and manual. |
 | Release preflight | Existing | Prove the exact reviewed revision, Site, environment, configuration, and D1 compatibility before mutation. | Manually dispatched protected production workflows. | SERP and PVD have separate confirmation and environment contracts. |
-| Isolated preview target | Available for PVD; missing for SERP | Exercise a deployable Worker away from production. | PVD has a protected preview Worker and D1 target. | Availability alone is not a release gate. SERP has no registered preview environment; do not invent or provision one without explicit platform authority. |
-| Proven-candidate promotion | Next | Prevent a known-bad Visitor or discoverability candidate from reaching production by proving an isolated candidate and promoting that exact artifact or version. | No required preview-to-production promotion contract exists. | Research immutable Worker candidate and promotion semantics before implementation; do not silently rebuild between proof and production. |
+| Required pull-request preview | Next | Prevent broken Visitor behavior or discoverability from entering `main` by exercising each changed Site on an isolated live preview. | PVD has preview Worker and D1 identities, but PR CI does not create a unique preview or run required live checks against it. | Settle preview isolation, concurrent PR naming, bounded Visitor/SEO checks, fork security, and cleanup; then implement the smallest PVD-first vertical slice. |
+| Isolated preview target | Available for PVD; missing for SERP | Exercise a deployable Worker away from production. | PVD has a protected preview Worker and D1 target. | A shared preview identity is not yet sufficient for concurrent PRs. SERP has no registered preview environment; do not invent or provision one without explicit platform authority. |
+| Proven-candidate promotion | Later | Promote the exact artifact or version that passed pre-production proof. | No required preview-to-production promotion contract exists. | Reconsider only after required PR previews produce useful evidence; do not make this the first implementation slice. |
 | Post-deployment smoke | Later; secondary only | Detect production-only routing, binding, DNS, or edge drift after release. | Manual runbook checks only. | Detection after mutation cannot prevent a bad deploy. Reconsider only as confirmation after the pre-production gate exists. |
 | Continuous live monitoring | Later | Detect production drift after a release window. | No repository-owned live monitor exists. | Define only after post-deployment checks reveal stable, worthwhile invariants. |
 | Periodic repository gardening | Existing | Detect documentation and architectural drift independently of feature work. | Weekly and manual `harness-gardening.yml` plus `pnpm docs:garden`. | Future checks require deterministic rules and a demonstrated source of entropy. |
@@ -97,12 +98,12 @@ The map authorizes no implementation by itself. The recommended sequence is:
    loops.
 2. Preserve the protected pull-request gate and the non-deployment validation attached
    to merged `main` revisions.
-3. Research how an immutable Worker candidate can be deployed to an isolated target,
-   proven through a critical Visitor and discoverability journey, and promoted without
-   rebuilding it.
-4. Implement the smallest pre-production proof-and-promotion slice only after that
-   release contract is settled. Consider a post-deployment confirmation only after
-   the prevention gate has produced real operational evidence.
+3. Define the smallest PVD pull-request preview contract: unique isolation, preview
+   D1 safety, a bounded Visitor and discoverability journey, fork security, and
+   cleanup.
+4. Make that live preview result a required merge check. Apply the pattern to SERP
+   only after PVD produces operational evidence. Reconsider exact artifact promotion
+   and post-deployment confirmation later.
 
 Do not open implementation issues for Later or Possibly unnecessary rows. When a row
 becomes current, first decide its seam and expected evidence, then create the smallest
