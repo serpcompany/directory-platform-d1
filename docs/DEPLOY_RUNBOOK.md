@@ -145,13 +145,6 @@ mutated D1. Confirm every selected workflow step and the production `DB` binding
 
 Then run functional smoke checks:
 
-The production workflow automatically performs one bounded, read-only tracer after a
-successful Worker deploy: home -> one dynamically discovered Listing -> exact Listing
-sitemap membership. Confirm that the `Prove production Visitor journey` job passed
-and record its step summary. It is deliberately credential-free and does not replace
-the broader operator checks below. If it fails, investigate the deployed release; do
-not automatically restore D1 or roll back the Worker.
-
 - verify the home page and one representative category and product detail route;
 - verify search, RSS, and sitemap routes;
 - verify a legacy root product slug redirects to `/products/<slug>/`;

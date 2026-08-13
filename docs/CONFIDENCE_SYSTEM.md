@@ -80,8 +80,9 @@ merely because they are convenient to test.
 | Pull-request CI | Existing | Prevent an unvalidated change from entering protected `main`. | `.github/workflows/pr-review.yml` supplies five strict required checks: repository/Site policy, types, unit tests, both Worker builds, and conditional Playwright. | Pull requests must be current with `main`, required checks must complete, and conversations must be resolved; no additional human approval is required for the solo Maintainer. |
 | Integrated `main` revision | Existing | Independently validate the exact revision produced by merging a reviewed pull request without deploying it. | Every push created by a merge runs `pnpm harness:check` on a clean GitHub-hosted runner with the exact push range. | This detects integration or clean-runner drift after merge; production release remains separate and manual. |
 | Release preflight | Existing | Prove the exact reviewed revision, Site, environment, configuration, and D1 compatibility before mutation. | Manually dispatched protected production workflows. | SERP and PVD have separate confirmation and environment contracts. |
-| Preview | Existing for PVD; Later for SERP | Exercise a deployable Worker before production where an isolated target exists. | PVD protected preview workflow. | SERP has no registered preview environment; do not invent one during unrelated work. |
-| Post-deployment tracer bullet | Implemented; live release evidence pending | Immediately prove one critical Visitor and discoverability journey on each deployed Site. | Credential-free downstream production workflow jobs prove home -> live Listing -> Listing sitemap membership. | The implementation requires no deployment authority; confirm the first authorized run for each Site before calling production evidence established. |
+| Isolated preview target | Available for PVD; missing for SERP | Exercise a deployable Worker away from production. | PVD has a protected preview Worker and D1 target. | Availability alone is not a release gate. SERP has no registered preview environment; do not invent or provision one without explicit platform authority. |
+| Proven-candidate promotion | Next | Prevent a known-bad Visitor or discoverability candidate from reaching production by proving an isolated candidate and promoting that exact artifact or version. | No required preview-to-production promotion contract exists. | Research immutable Worker candidate and promotion semantics before implementation; do not silently rebuild between proof and production. |
+| Post-deployment smoke | Later; secondary only | Detect production-only routing, binding, DNS, or edge drift after release. | Manual runbook checks only. | Detection after mutation cannot prevent a bad deploy. Reconsider only as confirmation after the pre-production gate exists. |
 | Continuous live monitoring | Later | Detect production drift after a release window. | No repository-owned live monitor exists. | Define only after post-deployment checks reveal stable, worthwhile invariants. |
 | Periodic repository gardening | Existing | Detect documentation and architectural drift independently of feature work. | Weekly and manual `harness-gardening.yml` plus `pnpm docs:garden`. | Future checks require deterministic rules and a demonstrated source of entropy. |
 | Architecture deepening survey | Later | Find recently changing shallow modules whose complexity should move behind a smaller interface. | Maintainer-invoked review using the installed architecture workflow. | Keep periodic and judgment-led; do not turn every candidate into a ticket. |
@@ -96,9 +97,12 @@ The map authorizes no implementation by itself. The recommended sequence is:
    loops.
 2. Preserve the protected pull-request gate and the non-deployment validation attached
    to merged `main` revisions.
-3. Use its operational evidence before deciding whether to promote one
-   post-deployment tracer bullet for the critical Visitor and discoverability path.
-4. Use evidence from completed tracer bullets before promoting any Later item.
+3. Research how an immutable Worker candidate can be deployed to an isolated target,
+   proven through a critical Visitor and discoverability journey, and promoted without
+   rebuilding it.
+4. Implement the smallest pre-production proof-and-promotion slice only after that
+   release contract is settled. Consider a post-deployment confirmation only after
+   the prevention gate has produced real operational evidence.
 
 Do not open implementation issues for Later or Possibly unnecessary rows. When a row
 becomes current, first decide its seam and expected evidence, then create the smallest
