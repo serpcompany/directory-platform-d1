@@ -15,13 +15,16 @@ interface Step {
 }
 
 interface Job {
-  environment: { name: string }
-  if: string
+  environment?: { name: string }
+  if?: string
+  needs?: string
+  permissions?: Record<string, string>
+  'runs-on'?: string
   steps: Step[]
 }
 
 interface Workflow {
-  jobs: { preview: Job; production: Job }
+  jobs: { preview: Job; production: Job; 'post-deploy': Job }
   on: {
     workflow_dispatch: {
       inputs: {
@@ -36,6 +39,10 @@ interface Workflow {
 
 const raw = readFileSync('.github/workflows/deploy-pornvideodownloaders.yml', 'utf8')
 const workflow = yaml.load(raw) as Workflow
+
+function githubExpression(expression: string): string {
+  return `$${`{{ ${expression} }}`}`
+}
 
 describe('pornvideodownloaders.com deployment workflow', () => {
   it('keeps every executable identity distinct between active sites', () => {
@@ -100,14 +107,42 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       })
     )
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    expect(workflow.jobs.preview.environment.name).toBe('pornvideodownloaders-preview')
-    expect(workflow.jobs.production.environment.name).toBe('pornvideodownloaders-production')
+    expect(workflow.jobs.preview.environment?.name).toBe('pornvideodownloaders-preview')
+    expect(workflow.jobs.production.environment?.name).toBe('pornvideodownloaders-production')
     expect(workflow.jobs.preview.if).toContain(
       "inputs.confirmation == 'deploy-pornvideodownloaders.com-preview'"
     )
     expect(workflow.jobs.production.if).toContain(
       "inputs.confirmation == 'deploy-pornvideodownloaders.com-production'"
     )
+  })
+
+  it('proves only a production Visitor journey in a separate read-only job', () => {
+    const job = workflow.jobs['post-deploy']
+    expect(job.needs).toBe('production')
+    expect(job.if).toBe(
+      "inputs.environment == 'production' && needs.production.result == 'success'"
+    )
+    expect(job['runs-on']).toBe('ubuntu-latest')
+    expect(job.permissions).toEqual({ contents: 'read' })
+    expect(job.environment).toBeUndefined()
+
+    const checkout = job.steps.find(step => step.name === 'Checkout deployed source')
+    expect(checkout).toMatchObject({
+      uses: 'actions/checkout@v6',
+      with: { ref: githubExpression('github.sha'), 'persist-credentials': false }
+    })
+    const tracer = job.steps.find(step => step.name === 'Prove production Visitor journey')
+    expect(tracer?.run).toBe(
+      'pnpm tsx scripts/post-deploy-tracer.ts --site pornvideodownloaders.com --environment production'
+    )
+    expect(tracer?.['continue-on-error']).toBeUndefined()
+    expect(tracer?.env).toEqual({
+      POST_DEPLOY_RELEASE_MODE: githubExpression('inputs.release_mode'),
+      POST_DEPLOY_RUN_URL: `${githubExpression('github.server_url')}/${githubExpression('github.repository')}/actions/runs/${githubExpression('github.run_id')}`,
+      POST_DEPLOY_SOURCE_SHA: githubExpression('github.sha')
+    })
+    expect(JSON.stringify(job)).not.toMatch(/secrets\.|worker-release|worker:deploy|d1:|rollback/iu)
   })
 
   it.each(['preview', 'production'] as const)(
