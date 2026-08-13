@@ -78,7 +78,7 @@ merely because they are convenient to test.
 | Fast local harness | Existing | Run at milestone boundaries to protect foundational repository contracts. | `pnpm harness:fast`. | Covers documentation, architecture, shared catalog operations, D1 contracts, and types. |
 | Full local harness | Existing | Run before claiming a substantial change complete. | `pnpm harness:check`. | Adds changed-file policy, lint, repository tests, Worker configuration, and both builds. It does not include the general `pnpm test` or Playwright suite. |
 | Pull-request CI | Existing | Reproduce validation on a clean machine for changes proposed through a pull request. | `.github/workflows/pr-review.yml`. | Runs repository/D1 policy, types, general tests, both Worker builds, and conditional Playwright. It runs only for pull requests to `main`. |
-| Direct commit to `main` | Next | Independently validate the current alpha workflow without deploying it. | No push-triggered validation workflow exists today. | Reuse the smallest dependable existing CI composition; a push to `main` must remain non-deploying. |
+| Direct commit to `main` | Existing | Independently validate the current alpha workflow without deploying it. | Every push runs `pnpm harness:check` on a clean GitHub-hosted runner with the exact push range. | Failure marks the pushed revision red but cannot prevent or undo the direct push. |
 | Release preflight | Existing | Prove the exact reviewed revision, Site, environment, configuration, and D1 compatibility before mutation. | Manually dispatched protected production workflows. | SERP and PVD have separate confirmation and environment contracts. |
 | Preview | Existing for PVD; Later for SERP | Exercise a deployable Worker before production where an isolated target exists. | PVD protected preview workflow. | SERP has no registered preview environment; do not invent one during unrelated work. |
 | Post-deployment tracer bullet | Next | Immediately prove one critical Visitor and discoverability journey on each deployed Site. | Manual runbook checks only. | Start with one bounded end-to-end smoke, not a comprehensive monitoring platform. |
@@ -94,11 +94,10 @@ The map authorizes no implementation by itself. The recommended sequence is:
 
 1. Preserve the existing focused, fast, full, pull-request, release, and gardening
    loops.
-2. Decide the smallest non-deployment validation needed for direct commits to
-   `main`.
-3. After that works, define one post-deployment tracer bullet for the critical
-   Visitor and discoverability path across both Sites.
-4. Use evidence from those two additions before promoting any Later item.
+2. Preserve the non-deployment validation attached to direct commits to `main`.
+3. Use its operational evidence before deciding whether to promote one
+   post-deployment tracer bullet for the critical Visitor and discoverability path.
+4. Use evidence from completed tracer bullets before promoting any Later item.
 
 Do not open implementation issues for Later or Possibly unnecessary rows. When a row
 becomes current, first decide its seam and expected evidence, then create the smallest

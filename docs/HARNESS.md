@@ -52,6 +52,13 @@ database.
 Run a focused test while implementing, the fast loop at milestone boundaries, and the
 full loop before a substantial completion claim.
 
+Every push to `main` also runs the full loop on a clean GitHub-hosted runner through
+`main-validation.yml`. The workflow supplies the exact before/after push revisions
+to the changed-file policy, records a check on the pushed commit, and has read-only
+repository permission. It does not deploy, use a protected environment, or access a
+remote D1 database. Because it runs after a direct push lands, failure marks the
+revision red but cannot prevent or undo that push.
+
 ## Documentation health
 
 ```bash
