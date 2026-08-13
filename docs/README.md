@@ -15,6 +15,7 @@ Validation: `pnpm docs:check`
 | [Build pipeline](./BUILD_PIPELINE.md) | Active | release engineering | 2026-07-30 | `pnpm worker:build` |
 | [Deploy runbook](./DEPLOY_RUNBOOK.md) | Active | release engineering | 2026-07-30 | `pnpm worker:config:validate` |
 | [Submission flow](./SUBMISSION_FLOW.md) | Active | catalog publication | 2026-07-30 | `pnpm test:d1` |
+| [Visitor capabilities](./CAPABILITIES.md) | Inventory draft | product and release confidence | 2026-08-13 | `pnpm docs:check` |
 | [Maintainer onboarding](./ONBOARDING.md) | Active | repository orientation | 2026-07-30 | `pnpm docs:check` |
 
 ## Agent operating system
