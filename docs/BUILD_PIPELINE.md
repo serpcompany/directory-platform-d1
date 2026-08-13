@@ -43,8 +43,15 @@ relative to that generated configuration.
 
 ## Protected production release
 
-Production release is manual after merge; updating `main` does not deploy a Worker.
-Use the site-specific protected workflow from the reviewed `main` commit:
+`main` is protected. Changes arrive through pull requests whose strict required
+checks must pass on a revision current with `main`; conversations must be resolved,
+and direct pushes, force pushes, and branch deletion are prohibited. The repository
+does not require another approving reviewer because it has one Maintainer.
+
+Merging a pull request triggers a read-only full-harness validation of the integrated
+`main` revision. Production release remains manual after that merge; updating `main`
+does not deploy a Worker. Use the site-specific protected workflow from the reviewed
+`main` commit:
 
 | Site | Workflow | Protected production environment |
 | --- | --- | --- |

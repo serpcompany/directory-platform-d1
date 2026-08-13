@@ -77,8 +77,8 @@ merely because they are convenient to test.
 | Focused local check | Existing | Run after each small edit for immediate, behavior-specific feedback. | Direct Vitest, Playwright, typecheck, or repository command selected for the changed seam. | The governing ticket should record the command and result. |
 | Fast local harness | Existing | Run at milestone boundaries to protect foundational repository contracts. | `pnpm harness:fast`. | Covers documentation, architecture, shared catalog operations, D1 contracts, and types. |
 | Full local harness | Existing | Run before claiming a substantial change complete. | `pnpm harness:check`. | Adds changed-file policy, lint, repository tests, Worker configuration, and both builds. It does not include the general `pnpm test` or Playwright suite. |
-| Pull-request CI | Existing | Reproduce validation on a clean machine for changes proposed through a pull request. | `.github/workflows/pr-review.yml`. | Runs repository/D1 policy, types, general tests, both Worker builds, and conditional Playwright. It runs only for pull requests to `main`. |
-| Direct commit to `main` | Existing | Independently validate the current alpha workflow without deploying it. | Every push runs `pnpm harness:check` on a clean GitHub-hosted runner with the exact push range. | Failure marks the pushed revision red but cannot prevent or undo the direct push. |
+| Pull-request CI | Existing | Prevent an unvalidated change from entering protected `main`. | `.github/workflows/pr-review.yml` supplies five strict required checks: repository/Site policy, types, unit tests, both Worker builds, and conditional Playwright. | Pull requests must be current with `main`, required checks must complete, and conversations must be resolved; no additional human approval is required for the solo Maintainer. |
+| Integrated `main` revision | Existing | Independently validate the exact revision produced by merging a reviewed pull request without deploying it. | Every push created by a merge runs `pnpm harness:check` on a clean GitHub-hosted runner with the exact push range. | This detects integration or clean-runner drift after merge; production release remains separate and manual. |
 | Release preflight | Existing | Prove the exact reviewed revision, Site, environment, configuration, and D1 compatibility before mutation. | Manually dispatched protected production workflows. | SERP and PVD have separate confirmation and environment contracts. |
 | Preview | Existing for PVD; Later for SERP | Exercise a deployable Worker before production where an isolated target exists. | PVD protected preview workflow. | SERP has no registered preview environment; do not invent one during unrelated work. |
 | Post-deployment tracer bullet | Next | Immediately prove one critical Visitor and discoverability journey on each deployed Site. | Manual runbook checks only. | Start with one bounded end-to-end smoke, not a comprehensive monitoring platform. |
@@ -94,7 +94,8 @@ The map authorizes no implementation by itself. The recommended sequence is:
 
 1. Preserve the existing focused, fast, full, pull-request, release, and gardening
    loops.
-2. Preserve the non-deployment validation attached to direct commits to `main`.
+2. Preserve the protected pull-request gate and the non-deployment validation attached
+   to merged `main` revisions.
 3. Use its operational evidence before deciding whether to promote one
    post-deployment tracer bullet for the critical Visitor and discoverability path.
 4. Use evidence from completed tracer bullets before promoting any Later item.
