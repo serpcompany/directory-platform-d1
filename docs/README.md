@@ -17,6 +17,7 @@ Validation: `pnpm docs:check`
 | [Submission flow](./SUBMISSION_FLOW.md) | Active | catalog publication | 2026-07-30 | `pnpm test:d1` |
 | [Visitor capabilities](./CAPABILITIES.md) | Inventory draft | product and release confidence | 2026-08-13 | `pnpm docs:check` |
 | [Maintainer onboarding](./ONBOARDING.md) | Active | repository orientation | 2026-07-30 | `pnpm docs:check` |
+| [Live Visitor baseline](./LIVE_VISITOR_BASELINE.md) | Point-in-time research | product and release engineering | 2026-08-13 | `pnpm docs:check` |
 
 ## Agent operating system
 
