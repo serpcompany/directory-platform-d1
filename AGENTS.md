@@ -68,8 +68,9 @@ GitHub Issues are the source of truth for active planning and execution.
 - For a large effort whose decisions are not yet clear, use `wayfinder` to maintain
   a GitHub map and decision tickets. Convert the settled result into a spec and
   implementation tickets.
-- Implement one ready ticket at a time with `implement`, run the repository harness,
-  and use `code-review` before closing it.
+- Implement one ready ticket at a time with `implement`; use a short-lived branch,
+  the repository harness, `code-review`, and a required-check pull request into
+  protected `main`. Never push directly or force-push to `main`.
 - Record acceptance evidence, operational results, recovery details, and residual
   risks on the governing issue or ticket.
 - Issues and labels never grant production, database, deployment, deletion, or other

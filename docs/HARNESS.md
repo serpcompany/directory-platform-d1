@@ -52,12 +52,18 @@ database.
 Run a focused test while implementing, the fast loop at milestone boundaries, and the
 full loop before a substantial completion claim.
 
-Every push to `main` also runs the full loop on a clean GitHub-hosted runner through
-`main-validation.yml`. The workflow supplies the exact before/after push revisions
-to the changed-file policy, records a check on the pushed commit, and has read-only
-repository permission. It does not deploy, use a protected environment, or access a
-remote D1 database. Because it runs after a direct push lands, failure marks the
-revision red but cannot prevent or undo that push.
+Pull requests targeting protected `main` run `pr-review.yml`. Its repository policy,
+type, test, Worker-build, and conditional browser jobs are required before merge.
+The branch must be current with `main`, conversations must be resolved, and neither
+administrators nor agents may bypass the pull-request requirement with a direct or
+force push.
+
+After a reviewed pull request merges, `main-validation.yml` runs the full loop again
+on the exact resulting `main` revision. It supplies the before/after push revisions
+to the changed-file policy and has read-only repository permission. It does not
+deploy, use a protected environment, or access a remote D1 database. This post-merge
+result proves the integrated revision independently; it does not replace the required
+pre-merge checks.
 
 ## Documentation health
 
