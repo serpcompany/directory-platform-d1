@@ -162,3 +162,27 @@ jobs:
           set -euo pipefail
           pnpm tsx scripts/worker-release.ts check-schema production --site pornvideodownloaders.com
           pnpm tsx scripts/worker-release.ts deploy production --site pornvideodownloaders.com
+
+  post-deploy:
+    name: Prove production Visitor journey
+    needs: production
+    if: inputs.environment == 'production' && needs.production.result == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout deployed source
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+
+      - name: Install dependencies
+        uses: ./.github/actions/install
+
+      - name: Prove production Visitor journey
+        env:
+          POST_DEPLOY_RELEASE_MODE: ${{ inputs.release_mode }}
+          POST_DEPLOY_RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+          POST_DEPLOY_SOURCE_SHA: ${{ github.sha }}
+        run: pnpm tsx scripts/post-deploy-tracer.ts --site pornvideodownloaders.com --environment production
