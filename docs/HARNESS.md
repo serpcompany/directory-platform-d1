@@ -65,14 +65,6 @@ deploy, use a protected environment, or access a remote D1 database. This post-m
 result proves the integrated revision independently; it does not replace the required
 pre-merge checks.
 
-After an authorized production deployment succeeds, the selected deploy workflow
-runs one separate, credential-free post-deployment tracer job. It checks the deployed
-Site's home page, follows one live same-origin Listing link, and proves that Listing's
-canonical URL appears in the Listing sitemap. The job has read-only repository
-permission, no protected environment, and no Cloudflare or D1 secrets. Its bounded
-retries accommodate propagation; failure makes the release run visibly red but never
-rolls back or mutates production. Broader release checks remain in the deploy runbook.
-
 ## Documentation health
 
 ```bash

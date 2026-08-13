@@ -8,16 +8,11 @@ interface Step {
   if?: string
   name?: string
   run?: string
-  uses?: string
-  with?: Record<string, boolean | string>
 }
 interface Job {
   env?: Record<string, string>
   environment?: { name?: string }
   if?: string
-  needs?: string
-  permissions?: Record<string, string>
-  'runs-on'?: string
   steps?: Step[]
 }
 interface Workflow {
@@ -145,33 +140,5 @@ describe('production Worker workflow', () => {
       `.wrangler/backups/serp-software/production/${githubExpression('github.sha')}.sql`
     )
     expect(backupStep.with?.['if-no-files-found']).toBe('error')
-  })
-
-  it('proves the deployed Visitor journey in a separate read-only job', () => {
-    const { workflow } = loadWorkflow()
-    const job = workflow.jobs['post-deploy']
-    expect(job.needs).toBe('deploy')
-    expect(job.if).toBe("needs.deploy.result == 'success'")
-    expect(job['runs-on']).toBe('ubuntu-latest')
-    expect(job.permissions).toEqual({ contents: 'read' })
-    expect(job.environment).toBeUndefined()
-    expect(job.env).toBeUndefined()
-
-    const checkout = job.steps?.find(step => step.name === 'Checkout deployed source')
-    expect(checkout).toMatchObject({
-      uses: 'actions/checkout@v6',
-      with: { ref: githubExpression('github.sha'), 'persist-credentials': false }
-    })
-    const tracer = job.steps?.find(step => step.name === 'Prove production Visitor journey')
-    expect(tracer?.run).toBe(
-      'pnpm tsx scripts/post-deploy-tracer.ts --site serp.software --environment production'
-    )
-    expect(tracer?.['continue-on-error']).toBeUndefined()
-    expect(tracer?.env).toEqual({
-      POST_DEPLOY_RELEASE_MODE: githubExpression('inputs.release_mode'),
-      POST_DEPLOY_RUN_URL: `${githubExpression('github.server_url')}/${githubExpression('github.repository')}/actions/runs/${githubExpression('github.run_id')}`,
-      POST_DEPLOY_SOURCE_SHA: githubExpression('github.sha')
-    })
-    expect(JSON.stringify(job)).not.toMatch(/secrets\.|worker-release|worker:deploy|d1:|rollback/iu)
   })
 })
