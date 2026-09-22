@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createSiteDatabase } from './client'
 import type { CatalogQueryEvent } from './contracts'
 import { MemoryCatalogCache, SqliteD1, seedContractFixture } from './test-support'
 
@@ -180,12 +181,11 @@ describe('representative D1 query benchmark', () => {
     const events: CatalogQueryEvent[] = []
     const catalog = createCatalogOperations({
       cache: new MemoryCatalogCache(),
+      client: createSiteDatabase(sqlite.asD1Database(), 'serp.software'),
       clock: benchmarkNow,
-      database: sqlite.asD1Database(),
       observe: event => {
         if (event.event === 'd1_query') events.push(event)
-      },
-      siteId: 'serp.software'
+      }
     })
     const currentId = 'serp-bench-160'
     const currentSlug = 'bench-160'

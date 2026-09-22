@@ -87,6 +87,10 @@ describe('D1-only repository architecture', () => {
       expect(repository).toContain('getCloudflareContext')
       expect(repository).toContain('env.DB')
       expect(repository).toContain('@serpdirectory/data-ops/catalog')
+      expect(repository).toContain("from '@serpdirectory/data-ops/client'")
+      expect(repository).toContain(
+        'createSiteDatabase(assertCatalogBinding(cloudflareEnv), siteId)'
+      )
       expect(repository).toContain('readListingBySlug = cache(')
       expect(repository).not.toMatch(/\b(?:SELECT|WITH)\b/u)
       expect(repository).not.toMatch(/node:fs|readFile|writeFile/u)
@@ -95,7 +99,9 @@ describe('D1-only repository architecture', () => {
     }
     const sharedOperations = readFileSync(resolve('packages/data-ops/src/catalog.ts'), 'utf8')
     expect(sharedOperations).toContain('createCatalogOperations')
+    expect(sharedOperations).toContain('runSiteQuery')
     expect(sharedOperations).toContain('siteId')
+    expect(sharedOperations).not.toContain('.prepare(')
     expect(sharedOperations).not.toContain('getCloudflareContext')
     expect(sharedOperations).not.toContain('process.env')
   })
@@ -137,6 +143,10 @@ describe('D1-only repository architecture', () => {
     expect(client).toContain('siteId: ActiveCheckedInSiteId')
     expect(client).toContain('assertSiteIdIsSupported(siteId)')
     expect(client).not.toMatch(/getCloudflareContext|process\.env/u)
+
+    const contracts = readFileSync(resolve('packages/data-ops/src/contracts.ts'), 'utf8')
+    expect(contracts).toContain('client: SiteDatabase')
+    expect(contracts).not.toContain('database: D1Database')
   })
 
   it('keeps fresh Drizzle migrations isolated and forbids push-based schema mutation', () => {

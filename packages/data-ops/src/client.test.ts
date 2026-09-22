@@ -8,6 +8,7 @@ describe('shared Drizzle client', () => {
   it('retains the explicit supported Site identity beside the injected binding client', () => {
     const client = createSiteDatabase(injectedBinding, 'serp.software')
     expect(client.siteId).toBe('serp.software')
+    expect(client.binding).toBe(injectedBinding)
     expect(client.database).toBeDefined()
   })
 

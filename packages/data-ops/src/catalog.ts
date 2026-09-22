@@ -1,5 +1,7 @@
 import 'server-only'
 
+import { and, eq, type SQL, sql } from 'drizzle-orm'
+import { type CompiledSiteQuery, runSiteQuery } from './client'
 import type {
   CatalogCacheEvent,
   CatalogOperation,
@@ -16,6 +18,7 @@ import type {
   PublishedCategory,
   RelatedListing
 } from './contracts'
+import { listingSlugRedirects, listings, publicationState } from './schema'
 
 const CACHE_SCHEMA = 'v2'
 const CACHE_TTL_SECONDS = 60 * 60
@@ -67,6 +70,27 @@ interface RelatedLogoRow {
 interface ShellRow {
   categories: string
   featured_count: number
+}
+
+/**
+ * Catalog reads retain their reviewed SQL shapes because D1 metadata and the
+ * query-plan benchmarks are part of the public runtime contract. Drizzle's query
+ * builder maps rows but discards the raw D1 response metadata, so these statements
+ * use typed raw SQL with every runtime value represented by a Drizzle parameter.
+ */
+function parameterizedQuery<T>(text: string, bindings: unknown[]): SQL<T> {
+  const fragments = text.split('?')
+  if (fragments.length !== bindings.length + 1) {
+    throw new Error(
+      `Catalog query expected ${fragments.length - 1} bindings but received ${bindings.length}.`
+    )
+  }
+
+  let query = sql.raw(fragments[0] || '')
+  for (const [index, binding] of bindings.entries()) {
+    query = sql`${query}${sql.param(binding)}${sql.raw(fragments[index + 1] || '')}`
+  }
+  return query as SQL<T>
 }
 
 function finiteMetric(value: unknown): number | null {
@@ -364,7 +388,8 @@ function isDetailCacheEntry(value: unknown, publicationVersion: number): value i
 }
 
 export function createCatalogOperations(config: CatalogOperationsConfig): CatalogOperations {
-  const { cache, clock, database, observe, siteId } = config
+  const { cache, client, clock, observe } = config
+  const { siteId } = client
   let publicationVersionPromise: Promise<number> | undefined
   let publishedListingsPromise: Promise<ListingSummary[]> | undefined
   let shellStatsPromise: Promise<CatalogShellStats> | undefined
@@ -373,16 +398,17 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
   async function queryAll<T>(
     operation: CatalogOperation,
     queryShape: CatalogQueryShape,
-    sql: string,
+    query: CompiledSiteQuery | SQL<T> | string,
     bindings: unknown[]
   ): Promise<T[]> {
     const startedAt = performance.now()
     let eventEmitted = false
     try {
-      const result = await database
-        .prepare(sql)
-        .bind(...bindings)
-        .all<T>()
+      const statement = typeof query === 'string' ? parameterizedQuery<T>(query, bindings) : query
+      if (typeof query !== 'string' && bindings.length > 0) {
+        throw new Error('Compiled Catalog queries must own their Drizzle parameters.')
+      }
+      const result = await runSiteQuery<T>(client, statement)
       const meta = result.meta as QueryMeta
       const event: CatalogQueryEvent = {
         d1DurationMs: finiteMetric(meta?.duration),
@@ -491,8 +517,12 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     const rows = await queryAll<{ version: number }>(
       'publication-version',
       'publication-version',
-      'SELECT version FROM publication_state WHERE site_id = ? LIMIT 1',
-      [siteId]
+      client.database
+        .select({ version: publicationState.version })
+        .from(publicationState)
+        .where(eq(publicationState.siteId, siteId))
+        .limit(1),
+      []
     )
     return requireNonNegativeInteger(rows[0]?.version, `publication state for ${siteId}`)
   }
@@ -922,12 +952,23 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       const rows = await queryAll<{ slug: string }>(
         'canonical-redirect',
         'canonical-redirect',
-        `SELECT l.slug
-         FROM listing_slug_redirects r
-         JOIN listings l ON l.id = r.listing_id
-         WHERE r.site_id = ? AND r.old_slug = ? AND ${publicEligibilitySql()}
-         LIMIT 1`,
-        [siteId, oldSlug, siteId, asOf]
+        client.database
+          .select({ slug: listings.slug })
+          .from(listingSlugRedirects)
+          .innerJoin(listings, eq(listings.id, listingSlugRedirects.listingId))
+          .where(
+            and(
+              eq(listingSlugRedirects.siteId, siteId),
+              eq(listingSlugRedirects.oldSlug, oldSlug),
+              sql`${listings.siteId} = ${siteId}`,
+              sql`${listings.status} = 'approved'`,
+              sql`${listings.isActive} = 1`,
+              sql`${listings.publishedAt} IS NOT NULL`,
+              sql`${listings.publishedAt} <= ${asOf}`
+            )
+          )
+          .limit(1),
+        []
       )
       return rows[0]?.slug || null
     },

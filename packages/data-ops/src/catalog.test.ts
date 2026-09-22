@@ -1,5 +1,6 @@
 import type { ActiveCheckedInSiteId } from '@serpdirectory/site-contract/active-site-ids'
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest'
+import { createSiteDatabase } from './client'
 import type { CatalogCacheEvent, CatalogDataCache, CatalogQueryEvent } from './contracts'
 import { MemoryCatalogCache, SqliteD1, seedContractFixture } from './test-support'
 
@@ -30,10 +31,9 @@ describe('shared catalog data operations', () => {
       events,
       operations: createCatalogOperations({
         cache,
+        client: createSiteDatabase(sqlite.asD1Database(), siteId),
         clock: now,
-        database: sqlite.asD1Database(),
-        observe: event => events.push(event),
-        siteId
+        observe: event => events.push(event)
       })
     }
   }

@@ -3,6 +3,7 @@ import 'server-only'
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { createCacheApiDataCache, noCatalogDataCache } from '@serpdirectory/data-ops/cache'
 import { createCatalogOperations } from '@serpdirectory/data-ops/catalog'
+import { createSiteDatabase } from '@serpdirectory/data-ops/client'
 import type {
   CatalogObserver,
   ListingPage,
@@ -42,10 +43,9 @@ const getOperations = cache(async () => {
       : createCacheApiDataCache(await caches.open('catalog-data-ops'))
   return createCatalogOperations({
     cache: dataCache,
+    client: createSiteDatabase(assertCatalogBinding(cloudflareEnv), siteId),
     clock: () => new Date(),
-    database: assertCatalogBinding(cloudflareEnv),
-    observe,
-    siteId
+    observe
   })
 })
 

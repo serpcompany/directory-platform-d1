@@ -81,8 +81,13 @@ export function materializeFreshLocalConfig(target: SiteTarget): {
     `${target.siteId.replaceAll('.', '-')}.drizzle-local.jsonc`
   )
   const databaseName = `${target.local.databaseName}-drizzle`
+  const appOutput = resolve('apps', target.appPackageName, '.open-next')
   const config = {
     $schema: pathRelativeToConfig(configPath, resolve('node_modules/wrangler/config-schema.json')),
+    assets: {
+      binding: 'ASSETS',
+      directory: pathRelativeToConfig(configPath, resolve(appOutput, 'assets'))
+    },
     compatibility_date: '2026-07-13',
     compatibility_flags: ['nodejs_compat'],
     d1_databases: [
@@ -93,8 +98,10 @@ export function materializeFreshLocalConfig(target: SiteTarget): {
         migrations_dir: pathRelativeToConfig(configPath, freshMigrationsDirectory)
       }
     ],
+    main: pathRelativeToConfig(configPath, resolve(appOutput, 'worker.js')),
     name: `${target.local.workerName}-drizzle`,
     vars: {
+      AUTH_TRUST_HOST: 'true',
       D1_RUNTIME_ENV: 'local',
       NEXT_PUBLIC_SITE_ID: target.siteId,
       SITE_ID: target.siteId

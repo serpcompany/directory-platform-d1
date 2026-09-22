@@ -123,6 +123,7 @@ jobs:
               - 'apps/pornvideodownloaders.com/**'
               - 'apps/e2e/**'
               - 'd1/**'
+              - 'packages/data-ops/**'
               - 'packages/web-core/**'
               - 'packages/design-system/**'
               - 'sites/**'

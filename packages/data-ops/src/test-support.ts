@@ -123,24 +123,30 @@ export class SqliteD1 {
     return {
       prepare(sql: string) {
         let bindings: unknown[] = []
+        const execute = <T>() => {
+          owner.statements.push({ bindings, sql })
+          const statement = owner.database.prepare(sql)
+          const results = statement.all(...(bindings as SqlPrimitive[])) as T[]
+          return {
+            results,
+            success: true as const,
+            meta: {
+              duration: 0,
+              rows_read: results.length,
+              rows_written: 0
+            }
+          }
+        }
         return {
           bind(...values: unknown[]) {
             bindings = values
             return this
           },
           async all<T>() {
-            owner.statements.push({ bindings, sql })
-            const statement = owner.database.prepare(sql)
-            const results = statement.all(...(bindings as SqlPrimitive[])) as T[]
-            return {
-              results,
-              success: true,
-              meta: {
-                duration: 0,
-                rows_read: results.length,
-                rows_written: 0
-              }
-            }
+            return execute<T>()
+          },
+          async run<T>() {
+            return execute<T>()
           }
         } as unknown as D1PreparedStatement
       }

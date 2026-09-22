@@ -78,6 +78,12 @@ Client Component. Keep `apps/<site-id>/lib/catalog/repository.ts` as the server-
 binding, site-identity, cache, observer, and request-deduplication adapter. A future
 site must instantiate the shared operations rather than copy SQL.
 
+Construct the shared Site-explicit Drizzle client with `createSiteDatabase` before
+creating Catalog operations. Prefer schema-backed Drizzle builders. Typed,
+parameterized raw SQL is reserved for statements whose D1 metadata or reviewed
+query plan cannot be preserved by the builder; those statements still execute
+through the shared client and must keep their telemetry and benchmark coverage.
+
 Run the focused shared contract and scan benchmark with:
 
 ```bash
