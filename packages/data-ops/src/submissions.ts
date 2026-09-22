@@ -1,7 +1,8 @@
-import { isIP } from 'node:net'
+import { isValidAssetReference } from '@serpdirectory/site-contract/asset-reference'
 import { and, eq, or, sql } from 'drizzle-orm'
 import type { CompiledSiteQuery, SiteDatabase } from './client'
 import type { ListingDetail } from './contracts'
+import { validatePublicHttpUrl } from './public-url'
 import {
   categories,
   listingSubmissionEvents,
@@ -19,17 +20,7 @@ const SUBMISSION_WINDOW_SECONDS = 60 * 60
 const SUBMISSION_WINDOW_LIMIT = 10
 const REVIEW_CHANNEL = 'github_issue'
 const CONTENT_VERIFICATION_FAILURES = new Set(['badge_missing', 'nofollow', 'wrong_destination'])
-const BLOCKED_HOSTNAMES = new Set([
-  'localhost',
-  'localhost.localdomain',
-  '0.0.0.0',
-  '127.0.0.1',
-  '::1',
-  '::',
-  '169.254.169.254',
-  'metadata.google.internal',
-  'metadata'
-])
+const PUBLISHED_AT_PATTERN = /^\d{4}-\d{2}-\d{2}$/u
 
 export class SubmissionError extends Error {
   constructor(
@@ -158,94 +149,74 @@ async function sha256(value: string): Promise<string> {
   return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
 }
 
-function parseIPv4(value: string): number[] | null {
-  const parts = value.split('.')
-  if (parts.length !== 4 || parts.some(part => !/^\d{1,3}$/u.test(part))) return null
-  const octets = parts.map(Number)
-  return octets.every(value => value >= 0 && value <= 255) ? octets : null
-}
-
-function isPrivateIPv4(value: string): boolean {
-  const octets = parseIPv4(value)
-  if (!octets) return false
-  const [a, b] = octets
-  return (
-    a === 0 ||
-    a === 10 ||
-    a === 127 ||
-    (a === 100 && b >= 64 && b <= 127) ||
-    (a === 169 && b === 254) ||
-    (a === 172 && b >= 16 && b <= 31) ||
-    (a === 192 && b === 168) ||
-    (a === 198 && (b === 18 || b === 19)) ||
-    a >= 224
-  )
-}
-
-function isPrivateIPv6(value: string): boolean {
-  const normalized = value.toLowerCase()
-  if (normalized === '::1' || normalized === '::') return true
-  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true
-  if (/^fe[89ab]/u.test(normalized)) return true
-  if (!normalized.startsWith('::ffff:')) return false
-  const mapped = normalized.slice('::ffff:'.length)
-  if (mapped.includes('.')) return isPrivateIPv4(mapped)
-  const parts = mapped.split(':')
-  if (parts.length !== 2) return false
-  const high = Number.parseInt(parts[0] || '', 16)
-  const low = Number.parseInt(parts[1] || '', 16)
-  if (!Number.isInteger(high) || !Number.isInteger(low) || high > 0xffff || low > 0xffff)
-    return false
-  return isPrivateIPv4(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`)
-}
-
-function isPublicHttpUrl(value: string): boolean {
-  let parsed: URL
-  try {
-    parsed = new URL(value)
-  } catch {
-    return false
-  }
-  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
-  const hostname = parsed.hostname
-    .trim()
-    .replace(/^\[/u, '')
-    .replace(/\]$/u, '')
-    .replace(/\.$/u, '')
-    .toLowerCase()
-  if (!hostname || BLOCKED_HOSTNAMES.has(hostname)) return false
-  if (hostname.endsWith('.localhost') || hostname.endsWith('.local')) return false
-  const version = isIP(hostname)
-  if (version === 4) return !isPrivateIPv4(hostname)
-  if (version === 6) return !isPrivateIPv6(hostname)
-  return true
-}
-
 function submissionSlug(website: string): string {
   return new URL(website).hostname.replace(/^www\./u, '').toLowerCase()
+}
+
+function requiredText(value: unknown, field: string): string {
+  if (typeof value !== 'string' || value.length === 0) {
+    throw new Error(`Invalid D1 submission preview ${field}.`)
+  }
+  return value
+}
+
+function requiredTrimmedText(value: unknown, field: string): string {
+  const text = requiredText(value, field).trim()
+  if (!text) throw new Error(`Invalid D1 submission preview ${field}.`)
+  return text
+}
+
+function absoluteUrl(value: unknown, field: string): string {
+  const text = requiredText(value, field)
+  try {
+    new URL(text)
+    return text
+  } catch {
+    throw new Error(`Invalid D1 submission preview ${field}.`)
+  }
+}
+
+function assetReference(value: unknown, field: string): string {
+  const text = requiredText(value, field)
+  if (!isValidAssetReference(text)) {
+    throw new Error(`Invalid D1 submission preview ${field}.`)
+  }
+  return text
 }
 
 export function buildSubmissionReviewPreview(
   row: SubmissionReviewPreviewRow,
   resources: SubmissionReviewPreviewResourceRow[]
 ): ListingDetail {
+  const category = requiredTrimmedText(row.category_slug, 'category')
+  const createdAt = requiredText(row.created_at, 'created date')
+  const publishedAt = createdAt.slice(0, 10)
+  if (!PUBLISHED_AT_PATTERN.test(publishedAt)) {
+    throw new Error('Invalid D1 submission preview publication date.')
+  }
+  const logo = assetReference(row.logo_url, 'logo URL')
+  const video = row.video_url ? assetReference(row.video_url, 'video URL') : undefined
+  const resourceLinks = resources.map((resource, index) => ({
+    label: requiredTrimmedText(resource.label, `resource ${index + 1} label`),
+    url: absoluteUrl(resource.url, `resource ${index + 1} URL`)
+  }))
   return {
-    categories: [row.category_slug],
-    category: row.category_slug,
-    content: row.content,
-    description: row.description,
+    categories: [category],
+    category,
+    content: requiredText(row.content, 'content'),
+    description: requiredTrimmedText(row.description, 'description'),
     media: {
-      logo: row.logo_url,
-      ...(row.video_url ? { video: row.video_url } : {})
+      logo,
+      ...(video ? { video } : {})
     },
-    name: row.name,
+    name: requiredTrimmedText(row.name, 'name'),
     nextWebsite: null,
     previousWebsite: null,
-    publishedAt: row.created_at.slice(0, 10),
+    publishedAt,
     relatedWebsites: [],
-    resourceLinks: resources.map(resource => ({ label: resource.label, url: resource.url })),
-    slug: row.slug,
-    website: row.website
+    resourceLinks,
+    slug: requiredTrimmedText(row.slug, 'slug'),
+    website: absoluteUrl(row.website, 'website URL')
   }
 }
 
@@ -308,7 +279,7 @@ export function createSubmissionOperations(config: {
         input.videoUrl,
         ...input.resourceLinks.map(link => link.url)
       ]) {
-        if (value && !isPublicHttpUrl(value)) {
+        if (value && !validatePublicHttpUrl(value).ok) {
           throw new SubmissionError(
             'invalid_url',
             'All submitted URLs must be public HTTP(S) URLs.'

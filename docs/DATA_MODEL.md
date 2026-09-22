@@ -36,6 +36,10 @@ assert their expected row change with a temporary CHECK-constrained guard in tha
 same batch, so stale or concurrent decisions roll back their events and every
 catalog/publication/audit side effect.
 
+Private preview hydration treats even verified staging rows as untrusted persisted
+input. The shared mapper revalidates required listing text, category, date, website,
+media references, and resource URLs before exposing a draft DTO.
+
 D1-specific `STRICT` tables, checks, partial and collated indexes, and cross-table
 publication triggers are preserved in the reviewed generated migration SQL. The
 schema and relations remain the typed application model; reviewed SQL is the authority

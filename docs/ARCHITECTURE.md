@@ -56,7 +56,8 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   Submission intake, capability, rate-limit, verification, draft-preview, repeatable
   field, event, and notification-ledger operations. It receives the database, site
   identity, clock, cache, and observer explicitly; it never imports OpenNext or
-  selects a site from global authority.
+  selects a site from global authority. Its environment-neutral public-URL policy is
+  shared by intake and each Site's badge verifier.
 - `d1/drizzle/` owns the fresh Drizzle-generated schema history applied by Wrangler to
   replacement databases. `d1/migrations/0001`-`0009` remains immutable legacy history
   for the current database generation until the protected cutover is complete.
@@ -104,6 +105,9 @@ public catalog lookup or structured-data slot. Its thin server-only adapter pass
 the validated `DB` binding and Site identity to the shared Submission operations,
 which read normalized staging tables, require `verified` status and a hashed review
 capability, and revoke access on every terminal status.
+Before returning the shared listing-detail DTO, the preview boundary validates the
+required text, category, publication date, website, media, and resource URLs and
+fails closed on malformed migrated or staged data.
 
 Conditional badge verification, rejection, and approval plans create a temporary
 CHECK-constrained guard inside the same D1 batch. Every compare-and-swap transition

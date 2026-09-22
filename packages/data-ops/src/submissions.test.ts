@@ -206,4 +206,147 @@ describe('shared submission data operations', () => {
       operations('serp.software').getReviewPreview({ id: saved.id, token: previewToken })
     ).resolves.toBeNull()
   })
+
+  it('fails closed when a verified migrated preview row contains malformed fields', async () => {
+    const shared = operations('serp.software')
+    const saved = await shared.createSubmission(input)
+    await shared.finishVerification(saved.id, saved.token, { ok: true })
+    const previewToken = 'c'.repeat(43)
+    sqlite.database
+      .prepare(
+        `INSERT INTO listing_submission_notifications
+        (submission_id,channel,external_id,external_url,recipient,preview_token_hash)
+        VALUES (?,'github_issue','43','https://github.com/example/issues/43','reviewer',?)`
+      )
+      .run(saved.id, await hash(previewToken))
+
+    const corruptions = [
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET category_slug='' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET category_slug='tools' WHERE id=?")
+            .run(saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET content='' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET content=? WHERE id=?')
+            .run(input.content, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET description=' ' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET description=? WHERE id=?')
+            .run(input.description, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET name=' ' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET name=? WHERE id=?')
+            .run(input.name, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET slug=' ' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET slug='example.com' WHERE id=?")
+            .run(saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET website='not a URL' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET website=? WHERE id=?')
+            .run(input.website, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET logo_url='not an asset' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET logo_url=? WHERE id=?')
+            .run(input.logoUrl, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET video_url='not an asset' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET video_url=? WHERE id=?')
+            .run(input.videoUrl || null, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET created_at='invalid' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET created_at='2026-08-01 00:00:00' WHERE id=?")
+            .run(saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET label=' ' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET label='Docs' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET url='not a URL' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET url='https://example.com/docs' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id)
+      }
+    ]
+
+    for (const corruption of corruptions) {
+      corruption.corrupt()
+      await expect(shared.getReviewPreview({ id: saved.id, token: previewToken })).rejects.toThrow(
+        /Invalid D1 submission preview/u
+      )
+      corruption.restore()
+    }
+  })
 })

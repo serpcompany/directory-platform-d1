@@ -167,6 +167,8 @@ describe('D1-only repository architecture', () => {
     const plans = readFileSync(resolve('packages/data-ops/src/submission-plans.ts'), 'utf8')
     expect(operations).toContain('createSubmissionOperations')
     expect(operations).toContain('client: SiteDatabase')
+    expect(operations).toContain("from './public-url'")
+    expect(operations).toContain('buildSubmissionReviewPreview')
     expect(operations).toContain('CREATE TEMP TABLE submission_guard')
     expect(plans).toContain('CREATE TEMP TABLE submission_guard')
     expect(plans).toContain('CASE WHEN changes()=1 THEN 1 ELSE 0 END')
@@ -180,6 +182,18 @@ describe('D1-only repository architecture', () => {
     expect(notifier).toContain('@serpdirectory/data-ops/submission-plans')
     expect(approver).toContain('validateApprovalContext')
     expect(notifier).toContain('validateNotificationContext')
+
+    for (const siteId of ['pornvideodownloaders.com', 'serp.software']) {
+      expect(existsSync(resolve(`apps/${siteId}/lib/url-safety.ts`))).toBe(false)
+      const verifier = readFileSync(
+        resolve(`apps/${siteId}/lib/submissions/badge-verifier.ts`),
+        'utf8'
+      )
+      expect(verifier).toContain('@serpdirectory/data-ops/public-url')
+    }
+    const publicUrl = readFileSync(resolve('packages/data-ops/src/public-url.ts'), 'utf8')
+    expect(publicUrl).toContain('validatePublicHttpUrl')
+    expect(publicUrl).not.toMatch(/getCloudflareContext|process\.env|node:net/u)
   })
 
   it('keeps fresh Drizzle migrations isolated and forbids push-based schema mutation', () => {

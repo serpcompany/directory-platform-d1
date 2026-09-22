@@ -23,7 +23,7 @@ export async function getSubmissionReviewPreview(
     NEXT_PUBLIC_SITE_ID: workerEnv.NEXT_PUBLIC_SITE_ID,
     SITE_ID: workerEnv.SITE_ID
   })
-  return (await createSubmissionOperations({
+  return createSubmissionOperations({
     client: createSiteDatabase(workerEnv.DB, siteId)
-  }).getReviewPreview(access)) as WebsiteDetailMetadata | null
+  }).getReviewPreview(access)
 }

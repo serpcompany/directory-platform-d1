@@ -83,7 +83,9 @@ Site Submission adapters may only acquire and validate the OpenNext `DB` binding
 runtime environment, and explicit Site identity. Protected approval/notifier scripts
 may consume pure plans from `submission-plans.ts`, but credentials and remote API
 execution must remain in those guarded scripts. Every conditional transition and
-matching event/audit write belongs in one guarded D1 batch.
+matching event/audit write belongs in one guarded D1 batch. Keep public/local-host
+URL policy in `packages/data-ops/src/public-url.ts`; intake and badge verification
+must use the same environment-neutral validator.
 
 Construct the shared Site-explicit Drizzle client with `createSiteDatabase` before
 creating Catalog operations. Prefer schema-backed Drizzle builders. Typed,
