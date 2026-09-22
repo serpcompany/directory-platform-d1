@@ -29,6 +29,13 @@ and records one deterministic receipt in `migration_runs`. See
   capability. The raw capability is never stored in D1. This table is an operational
   delivery ledger, not the submission source of truth.
 
+Runtime Submission reads and writes are implemented once in `packages/data-ops/`
+through an injected Site-explicit Drizzle client. Multi-row intake and conditional
+state transitions use D1 batches. Verification, rejection, and approval transitions
+assert their expected row change with a temporary CHECK-constrained guard in that
+same batch, so stale or concurrent decisions roll back their events and every
+catalog/publication/audit side effect.
+
 D1-specific `STRICT` tables, checks, partial and collated indexes, and cross-table
 publication triggers are preserved in the reviewed generated migration SQL. The
 schema and relations remain the typed application model; reviewed SQL is the authority

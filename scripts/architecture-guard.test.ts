@@ -151,6 +151,37 @@ describe('D1-only repository architecture', () => {
     expect(contracts).not.toContain('database: D1Database')
   })
 
+  it('keeps Submission SQL and conditional mutation plans in the shared data package', () => {
+    for (const siteId of ['pornvideodownloaders.com', 'serp.software']) {
+      for (const file of ['repository.ts', 'review-preview-repository.ts']) {
+        const adapter = readFileSync(resolve(`apps/${siteId}/lib/submissions/${file}`), 'utf8')
+        expect(adapter).toContain('@serpdirectory/data-ops/submissions')
+        expect(adapter).toContain('createSiteDatabase(workerEnv.DB, siteId)')
+        expect(adapter).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b/u)
+        expect(adapter).not.toContain('.prepare(')
+        expect(adapter).not.toContain('.batch(')
+      }
+    }
+
+    const operations = readFileSync(resolve('packages/data-ops/src/submissions.ts'), 'utf8')
+    const plans = readFileSync(resolve('packages/data-ops/src/submission-plans.ts'), 'utf8')
+    expect(operations).toContain('createSubmissionOperations')
+    expect(operations).toContain('client: SiteDatabase')
+    expect(operations).toContain('CREATE TEMP TABLE submission_guard')
+    expect(plans).toContain('CREATE TEMP TABLE submission_guard')
+    expect(plans).toContain('CASE WHEN changes()=1 THEN 1 ELSE 0 END')
+    expect(`${operations}\n${plans}`).not.toMatch(
+      /getCloudflareContext|process\.env|CLOUDFLARE_API_TOKEN|GITHUB_TOKEN|api\.cloudflare\.com/u
+    )
+
+    const approver = readFileSync(resolve('scripts/d1-submission-approver.ts'), 'utf8')
+    const notifier = readFileSync(resolve('scripts/d1-submission-notifier.ts'), 'utf8')
+    expect(approver).toContain('@serpdirectory/data-ops/submission-plans')
+    expect(notifier).toContain('@serpdirectory/data-ops/submission-plans')
+    expect(approver).toContain('validateApprovalContext')
+    expect(notifier).toContain('validateNotificationContext')
+  })
+
   it('keeps fresh Drizzle migrations isolated and forbids push-based schema mutation', () => {
     const config = readFileSync(resolve('drizzle.config.ts'), 'utf8')
     expect(config).toContain("out: './d1/drizzle'")

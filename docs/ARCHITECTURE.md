@@ -18,9 +18,10 @@ Browser
         -> shared catalog data operations
            -> D1 binding (DB)
               -> public catalog tables
-     -> server-only submission repository
-        -> D1 binding (DB)
-           -> private submission tables
+     -> server-only submission adapter
+        -> shared Submission data operations
+           -> D1 binding (DB)
+              -> private submission tables
 ```
 
 The same repository supplies home/category/product pages, `/api/search`, RSS, and
@@ -38,9 +39,9 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 - `apps/<site-id>/lib/catalog/` owns OpenNext binding acquisition, runtime
   environment validation, explicit site selection, request-local React
   deduplication, and server-only enforcement. It contains no catalog SQL.
-- `apps/<site-id>/lib/submissions/` owns private intake, submitter and reviewer
-  capability access, rate limits, badge verification state, and the D1-backed draft
-  preview mapping.
+- `apps/<site-id>/lib/submissions/` validates the OpenNext binding/runtime
+  environment and explicit Site identity, performs bounded badge HTTP verification,
+  and delegates every Submission database operation to `packages/data-ops/`.
 - `sites/<site-id>/` owns checked-in presentation, route, feature, and public site
   settings.
 - `configs/wrangler/<site-id>/` owns checked-in local, preview, and production Worker
@@ -51,9 +52,11 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 - `packages/data-ops/` owns the shared Drizzle schema and injected, Site-explicit D1
   client as well as public catalog DTOs, eligibility SQL, projection-specific
   hydration, pagination, redirects, related ranking, indexed adjacency, bounded
-  publication-versioned caching contracts, and safe per-statement D1 telemetry. It receives
-  the database, site identity, clock, cache, and observer explicitly; it never
-  imports OpenNext or selects a site from global authority.
+  publication-versioned caching contracts, safe per-statement D1 telemetry, and all
+  Submission intake, capability, rate-limit, verification, draft-preview, repeatable
+  field, event, and notification-ledger operations. It receives the database, site
+  identity, clock, cache, and observer explicitly; it never imports OpenNext or
+  selects a site from global authority.
 - `d1/drizzle/` owns the fresh Drizzle-generated schema history applied by Wrangler to
   replacement databases. `d1/migrations/0001`-`0009` remains immutable legacy history
   for the current database generation until the protected cutover is complete.
@@ -61,7 +64,10 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 - `d1/artifacts/` preserves the immutable initial bootstrap and parity evidence.
 - `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`,
   `scripts/d1-submission-notifier.ts`, and protected workflows own remote release,
-  review, and private admin-notification execution.
+  review, and private admin-notification execution. Approval and notification
+  scripts consume credential-free typed statement plans from `packages/data-ops/`;
+  the protected scripts remain the only layer that acquires credentials or calls
+  remote APIs.
 - `scripts/harness/` owns local feedback, runtime evidence, and worktree isolation.
 - `scripts/migration/` may inspect an explicit external source but is not imported by
   runtime or build code.
@@ -94,10 +100,16 @@ include the explicit site and current publication version; authenticated page
 responses are never inserted into that data cache.
 
 The private admin preview route reuses the public listing-detail renderer but not its
-public catalog lookup or structured-data slot. Its server-only repository reads the
-normalized staging tables through `DB`, requires `verified` status and a hashed
-review capability, and fails closed with the same runtime-environment checks as the
-other D1 boundaries.
+public catalog lookup or structured-data slot. Its thin server-only adapter passes
+the validated `DB` binding and Site identity to the shared Submission operations,
+which read normalized staging tables, require `verified` status and a hashed review
+capability, and revoke access on every terminal status.
+
+Conditional badge verification, rejection, and approval plans create a temporary
+CHECK-constrained guard inside the same D1 batch. Every compare-and-swap transition
+must change exactly one expected row; a stale status, category, publication version,
+or checksum violates the guard and rolls back the Listing, Submission, event,
+publication-state, and audit statements together.
 
 Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local

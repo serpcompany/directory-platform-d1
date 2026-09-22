@@ -1,6 +1,12 @@
 import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  buildApproveSubmissionPlans,
+  buildRejectSubmissionPlans,
+  type SubmissionStatementPlan,
+  selectSubmissionForDecisionPlan
+} from '@serpdirectory/data-ops/submission-plans'
 import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
 interface D1Result {
@@ -12,11 +18,6 @@ interface D1Response {
   errors?: Array<{ message?: string }>
   result?: D1Result[]
   success?: boolean
-}
-
-interface Statement {
-  sql: string
-  params: unknown[]
 }
 
 function required(env: NodeJS.ProcessEnv, name: string): string {
@@ -43,7 +44,7 @@ export function validateApprovalContext(env: NodeJS.ProcessEnv): SiteTarget {
 }
 
 async function query(
-  statements: Statement[],
+  statements: SubmissionStatementPlan[],
   env: NodeJS.ProcessEnv,
   fetcher: typeof fetch
 ): Promise<D1Result[]> {
@@ -90,14 +91,7 @@ export async function approveRemoteSubmission(
   if (!reviewer.trim()) throw new Error('Reviewer identity is required.')
 
   const selected = await query(
-    [
-      {
-        sql: `SELECT s.id,s.slug,s.status,s.listing_id,ps.version,ps.checksum
-          FROM listing_submissions s JOIN publication_state ps ON ps.site_id=s.site_id
-          WHERE s.id=? AND s.site_id=?`,
-        params: [submissionId, siteId]
-      }
-    ],
+    [selectSubmissionForDecisionPlan(submissionId, siteId)],
     env,
     fetcher
   )
@@ -108,22 +102,8 @@ export async function approveRemoteSubmission(
     if (row.status !== 'pending_badge' && row.status !== 'verified') {
       throw new Error('Only a pending or verified submission can be rejected.')
     }
-    await query(
-      [
-        {
-          sql: `UPDATE listing_submissions SET status='rejected',reviewed_at=?,reviewed_by=?,updated_at=?
-            WHERE id=? AND status IN ('pending_badge','verified')`,
-          params: [new Date().toISOString(), reviewer, new Date().toISOString(), submissionId]
-        },
-        {
-          sql: `INSERT INTO listing_submission_events (submission_id,event_type,actor)
-            VALUES (?,'rejected',?)`,
-          params: [submissionId, reviewer]
-        }
-      ],
-      env,
-      fetcher
-    )
+    const now = new Date().toISOString()
+    await query(buildRejectSubmissionPlans({ now, reviewer, siteId, submissionId }), env, fetcher)
     return { idempotent: false, listingId: null }
   }
   const listingId =
@@ -144,88 +124,19 @@ export async function approveRemoteSubmission(
   const now = new Date().toISOString()
 
   await query(
-    [
-      {
-        sql: `INSERT INTO publication_runs
-          (id,site_id,manifest_id,base_version,input_checksum,affected_records,affected_routes,outcome,
-           started_at,actor,workflow,before_checksum,after_checksum)
-          VALUES (?,?,?,?,?,1,?,'started',?,?,?, ?,?)`,
-        params: [
-          runId,
-          siteId,
-          manifestId,
-          row.version,
-          afterChecksum,
-          `/products/${row.slug}/`,
-          now,
-          reviewer,
-          'github/approve-d1-submission',
-          row.checksum,
-          afterChecksum
-        ]
-      },
-      {
-        sql: `INSERT INTO listings
-          (id,site_id,slug,name,description,website,content,is_unofficial,is_featured,is_active,status,
-           source_kind,source_identity,checksum,display_order)
-          SELECT ?,?,slug,name,description,website,content,0,0,1,'draft',
-            'verified-submission',id,?,COALESCE((SELECT MAX(display_order)+1 FROM listings WHERE site_id=?),0)
-          FROM listing_submissions WHERE id=? AND status='verified' AND listing_id IS NULL`,
-        params: [listingId, siteId, afterChecksum, siteId, submissionId]
-      },
-      {
-        sql: `INSERT INTO listing_categories (listing_id,category_id,sort_order,is_primary)
-          SELECT ?,c.id,0,1 FROM listing_submissions s JOIN categories c
-            ON c.site_id=s.site_id AND c.slug=s.category_slug AND c.is_active=1
-          WHERE s.id=?`,
-        params: [listingId, submissionId]
-      },
-      {
-        sql: `INSERT INTO listing_media (listing_id,kind,url,sort_order)
-          SELECT ?,'logo',logo_url,0 FROM listing_submissions WHERE id=?`,
-        params: [listingId, submissionId]
-      },
-      {
-        sql: `INSERT INTO listing_media (listing_id,kind,url,sort_order)
-          SELECT ?,'video',video_url,1 FROM listing_submissions WHERE id=? AND video_url IS NOT NULL`,
-        params: [listingId, submissionId]
-      },
-      {
-        sql: `INSERT INTO listing_resource_links (listing_id,label,url,sort_order)
-          SELECT ?,label,url,sort_order FROM listing_submission_resource_links WHERE submission_id=? ORDER BY sort_order`,
-        params: [listingId, submissionId]
-      },
-      {
-        sql: `INSERT INTO listing_faqs (listing_id,question,answer,sort_order)
-          SELECT ?,question,answer,sort_order FROM listing_submission_faqs WHERE submission_id=? ORDER BY sort_order`,
-        params: [listingId, submissionId]
-      },
-      {
-        sql: `UPDATE listings SET status='approved',published_at=?,updated_at=?
-          WHERE id=? AND source_kind='verified-submission' AND source_identity=?`,
-        params: [now, now, listingId, submissionId]
-      },
-      {
-        sql: `UPDATE listing_submissions SET status='approved',listing_id=?,reviewed_at=?,reviewed_by=?,updated_at=?
-          WHERE id=? AND status='verified'`,
-        params: [listingId, now, reviewer, now, submissionId]
-      },
-      {
-        sql: `INSERT INTO listing_submission_events (submission_id,event_type,actor)
-          VALUES (?,'approved',?)`,
-        params: [submissionId, reviewer]
-      },
-      {
-        sql: `UPDATE publication_state SET version=version+1,manifest_id=?,checksum=?,published_at=?
-          WHERE site_id=? AND version=? AND checksum=?`,
-        params: [manifestId, afterChecksum, now, siteId, row.version, row.checksum]
-      },
-      {
-        sql: `UPDATE publication_runs SET outcome='succeeded',published_version=?,completed_at=?
-          WHERE id=? AND outcome='started'`,
-        params: [row.version + 1, now, runId]
-      }
-    ],
+    buildApproveSubmissionPlans({
+      afterChecksum,
+      beforeChecksum: row.checksum,
+      listingId,
+      manifestId,
+      now,
+      reviewer,
+      runId,
+      siteId,
+      slug: row.slug as string,
+      submissionId,
+      version: row.version
+    }),
     env,
     fetcher
   )

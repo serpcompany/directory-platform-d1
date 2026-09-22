@@ -1,0 +1,585 @@
+import { isIP } from 'node:net'
+import { and, eq, or, sql } from 'drizzle-orm'
+import type { CompiledSiteQuery, SiteDatabase } from './client'
+import type { ListingDetail } from './contracts'
+import {
+  categories,
+  listingSubmissionEvents,
+  listingSubmissionFaqs,
+  listingSubmissionNotifications,
+  listingSubmissionRateLimits,
+  listingSubmissionResourceLinks,
+  listingSubmissions,
+  listings
+} from './schema'
+
+const MAX_ATTEMPTS = 10
+const COOLDOWN_SECONDS = 30
+const SUBMISSION_WINDOW_SECONDS = 60 * 60
+const SUBMISSION_WINDOW_LIMIT = 10
+const REVIEW_CHANNEL = 'github_issue'
+const CONTENT_VERIFICATION_FAILURES = new Set(['badge_missing', 'nofollow', 'wrong_destination'])
+const BLOCKED_HOSTNAMES = new Set([
+  'localhost',
+  'localhost.localdomain',
+  '0.0.0.0',
+  '127.0.0.1',
+  '::1',
+  '::',
+  '169.254.169.254',
+  'metadata.google.internal',
+  'metadata'
+])
+
+export class SubmissionError extends Error {
+  constructor(
+    public readonly code: string,
+    message: string,
+    public readonly status = 400
+  ) {
+    super(message)
+  }
+}
+
+export function isSubmissionError(
+  error: unknown
+): error is Error & { code: string; status: number } {
+  return (
+    error instanceof Error &&
+    typeof (error as { code?: unknown }).code === 'string' &&
+    typeof (error as { status?: unknown }).status === 'number'
+  )
+}
+
+export interface SubmissionInput {
+  category: string
+  content: string
+  description: string
+  faqs: Array<{ answer: string; question: string }>
+  logoUrl: string
+  name: string
+  resourceLinks: Array<{ label: string; url: string }>
+  videoUrl?: string
+  website: string
+}
+
+export interface SubmissionState {
+  badgeVerifiedAt: string | null
+  id: string
+  lastVerificationError: string | null
+  name: string
+  slug: string
+  status: 'approved' | 'pending_badge' | 'rejected' | 'verified'
+  verificationAttempts: number
+  website: string
+}
+
+export type SubmissionVerificationResult =
+  | { ok: true }
+  | {
+      code: string
+      ok: false
+    }
+
+export interface SubmissionOperations {
+  beginVerification(id: string, token: string): Promise<SubmissionState>
+  consumeRateLimit(fingerprint: string): Promise<void>
+  createSubmission(input: SubmissionInput): Promise<SubmissionState & { token: string }>
+  finishVerification(
+    id: string,
+    token: string,
+    result: SubmissionVerificationResult
+  ): Promise<SubmissionState>
+  getReviewPreview(access: { id: string; token: string }): Promise<ListingDetail | null>
+  getSubmission(id: string, token: string): Promise<SubmissionState>
+}
+
+interface SubmissionRow {
+  badge_verified_at: string | null
+  id: string
+  last_verification_at: string | null
+  last_verification_error: string | null
+  name: string
+  slug: string
+  status: SubmissionState['status']
+  verification_attempts: number
+  website: string
+}
+
+export interface SubmissionReviewPreviewRow {
+  category_slug: string
+  content: string
+  created_at: string
+  description: string
+  id: string
+  logo_url: string
+  name: string
+  slug: string
+  video_url: string | null
+  website: string
+}
+
+export interface SubmissionReviewPreviewResourceRow {
+  label: string
+  sort_order: number
+  url: string
+}
+
+function prepare(client: SiteDatabase, query: CompiledSiteQuery): D1PreparedStatement {
+  const compiled = query.toSQL()
+  return client.binding.prepare(compiled.sql).bind(...compiled.params)
+}
+
+function prepareRaw(client: SiteDatabase, text: string, params: unknown[]): D1PreparedStatement {
+  return client.binding.prepare(text).bind(...params)
+}
+
+function toState(row: SubmissionRow): SubmissionState {
+  return {
+    badgeVerifiedAt: row.badge_verified_at,
+    id: row.id,
+    lastVerificationError: row.last_verification_error,
+    name: row.name,
+    slug: row.slug,
+    status: row.status,
+    verificationAttempts: row.verification_attempts,
+    website: row.website
+  }
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  let binary = ''
+  for (const byte of bytes) binary += String.fromCharCode(byte)
+  return btoa(binary).replaceAll('+', '-').replaceAll('/', '_').replace(/=+$/u, '')
+}
+
+async function sha256(value: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(value))
+  return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, '0')).join('')
+}
+
+function parseIPv4(value: string): number[] | null {
+  const parts = value.split('.')
+  if (parts.length !== 4 || parts.some(part => !/^\d{1,3}$/u.test(part))) return null
+  const octets = parts.map(Number)
+  return octets.every(value => value >= 0 && value <= 255) ? octets : null
+}
+
+function isPrivateIPv4(value: string): boolean {
+  const octets = parseIPv4(value)
+  if (!octets) return false
+  const [a, b] = octets
+  return (
+    a === 0 ||
+    a === 10 ||
+    a === 127 ||
+    (a === 100 && b >= 64 && b <= 127) ||
+    (a === 169 && b === 254) ||
+    (a === 172 && b >= 16 && b <= 31) ||
+    (a === 192 && b === 168) ||
+    (a === 198 && (b === 18 || b === 19)) ||
+    a >= 224
+  )
+}
+
+function isPrivateIPv6(value: string): boolean {
+  const normalized = value.toLowerCase()
+  if (normalized === '::1' || normalized === '::') return true
+  if (normalized.startsWith('fc') || normalized.startsWith('fd')) return true
+  if (/^fe[89ab]/u.test(normalized)) return true
+  if (!normalized.startsWith('::ffff:')) return false
+  const mapped = normalized.slice('::ffff:'.length)
+  if (mapped.includes('.')) return isPrivateIPv4(mapped)
+  const parts = mapped.split(':')
+  if (parts.length !== 2) return false
+  const high = Number.parseInt(parts[0] || '', 16)
+  const low = Number.parseInt(parts[1] || '', 16)
+  if (!Number.isInteger(high) || !Number.isInteger(low) || high > 0xffff || low > 0xffff)
+    return false
+  return isPrivateIPv4(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`)
+}
+
+function isPublicHttpUrl(value: string): boolean {
+  let parsed: URL
+  try {
+    parsed = new URL(value)
+  } catch {
+    return false
+  }
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false
+  const hostname = parsed.hostname
+    .trim()
+    .replace(/^\[/u, '')
+    .replace(/\]$/u, '')
+    .replace(/\.$/u, '')
+    .toLowerCase()
+  if (!hostname || BLOCKED_HOSTNAMES.has(hostname)) return false
+  if (hostname.endsWith('.localhost') || hostname.endsWith('.local')) return false
+  const version = isIP(hostname)
+  if (version === 4) return !isPrivateIPv4(hostname)
+  if (version === 6) return !isPrivateIPv6(hostname)
+  return true
+}
+
+function submissionSlug(website: string): string {
+  return new URL(website).hostname.replace(/^www\./u, '').toLowerCase()
+}
+
+export function buildSubmissionReviewPreview(
+  row: SubmissionReviewPreviewRow,
+  resources: SubmissionReviewPreviewResourceRow[]
+): ListingDetail {
+  return {
+    categories: [row.category_slug],
+    category: row.category_slug,
+    content: row.content,
+    description: row.description,
+    media: {
+      logo: row.logo_url,
+      ...(row.video_url ? { video: row.video_url } : {})
+    },
+    name: row.name,
+    nextWebsite: null,
+    previousWebsite: null,
+    publishedAt: row.created_at.slice(0, 10),
+    relatedWebsites: [],
+    resourceLinks: resources.map(resource => ({ label: resource.label, url: resource.url })),
+    slug: row.slug,
+    website: row.website
+  }
+}
+
+function validClock(clock: () => Date): Date {
+  const value = clock()
+  if (Number.isNaN(value.getTime())) throw new Error('Submission clock returned an invalid date.')
+  return value
+}
+
+export function createSubmissionOperations(config: {
+  client: SiteDatabase
+  clock?: () => Date
+}): SubmissionOperations {
+  const { client } = config
+  const clock = config.clock ?? (() => new Date())
+  const { siteId } = client
+
+  async function queryFirst<T>(query: CompiledSiteQuery): Promise<T | null> {
+    const result = await prepare(client, query).first<T>()
+    return result ?? null
+  }
+
+  async function authorizedRow(id: string, token: string): Promise<SubmissionRow> {
+    const row = await queryFirst<SubmissionRow>(
+      client.database
+        .select({
+          badge_verified_at: listingSubmissions.badgeVerifiedAt,
+          id: listingSubmissions.id,
+          last_verification_at: listingSubmissions.lastVerificationAt,
+          last_verification_error: listingSubmissions.lastVerificationError,
+          name: listingSubmissions.name,
+          slug: listingSubmissions.slug,
+          status: listingSubmissions.status,
+          verification_attempts: listingSubmissions.verificationAttempts,
+          website: listingSubmissions.website
+        })
+        .from(listingSubmissions)
+        .where(
+          and(
+            eq(listingSubmissions.id, id),
+            eq(listingSubmissions.siteId, siteId),
+            eq(listingSubmissions.accessTokenHash, await sha256(token))
+          )
+        )
+        .limit(1)
+    )
+    if (!row) throw new SubmissionError('not_found', 'Submission not found.', 404)
+    return row
+  }
+
+  async function getSubmission(id: string, token: string): Promise<SubmissionState> {
+    return toState(await authorizedRow(id, token))
+  }
+
+  return {
+    async createSubmission(input) {
+      for (const value of [
+        input.website,
+        input.logoUrl,
+        input.videoUrl,
+        ...input.resourceLinks.map(link => link.url)
+      ]) {
+        if (value && !isPublicHttpUrl(value)) {
+          throw new SubmissionError(
+            'invalid_url',
+            'All submitted URLs must be public HTTP(S) URLs.'
+          )
+        }
+      }
+      const slug = submissionSlug(input.website)
+      const [category, existing] = await Promise.all([
+        queryFirst(
+          client.database
+            .select({ id: categories.id })
+            .from(categories)
+            .where(
+              and(
+                eq(categories.siteId, siteId),
+                eq(categories.slug, input.category),
+                eq(categories.isActive, true)
+              )
+            )
+            .limit(1)
+        ),
+        queryFirst(
+          client.database
+            .select({ id: listings.id })
+            .from(listings)
+            .where(
+              and(
+                eq(listings.siteId, siteId),
+                or(eq(listings.slug, slug), eq(listings.website, input.website))
+              )
+            )
+            .limit(1)
+        )
+      ])
+      if (!category) throw new SubmissionError('invalid_category', 'Choose an active category.')
+      if (existing)
+        throw new SubmissionError('listing_exists', 'This website is already listed.', 409)
+
+      const id = crypto.randomUUID()
+      const tokenBytes = new Uint8Array(32)
+      crypto.getRandomValues(tokenBytes)
+      const token = bytesToBase64Url(tokenBytes)
+      const tokenHash = await sha256(token)
+      const statements = [
+        prepare(
+          client,
+          client.database.insert(listingSubmissions).values({
+            accessTokenHash: tokenHash,
+            categorySlug: input.category,
+            content: input.content,
+            description: input.description,
+            id,
+            logoUrl: input.logoUrl,
+            name: input.name,
+            siteId,
+            slug,
+            videoUrl: input.videoUrl || null,
+            website: input.website
+          })
+        ),
+        ...input.resourceLinks.map((link, index) =>
+          prepare(
+            client,
+            client.database.insert(listingSubmissionResourceLinks).values({
+              label: link.label,
+              sortOrder: index,
+              submissionId: id,
+              url: link.url
+            })
+          )
+        ),
+        ...input.faqs.map((faq, index) =>
+          prepare(
+            client,
+            client.database.insert(listingSubmissionFaqs).values({
+              answer: faq.answer,
+              question: faq.question,
+              sortOrder: index,
+              submissionId: id
+            })
+          )
+        ),
+        prepare(
+          client,
+          client.database.insert(listingSubmissionEvents).values({
+            actor: 'public-form',
+            eventType: 'created',
+            submissionId: id
+          })
+        )
+      ]
+      try {
+        const results = await client.binding.batch(statements)
+        if (results.some(result => !result.success)) throw new Error('D1 batch failed.')
+      } catch {
+        throw new SubmissionError(
+          'duplicate_submission',
+          'A submission for this website is already awaiting review.',
+          409
+        )
+      }
+      return {
+        badgeVerifiedAt: null,
+        id,
+        lastVerificationError: null,
+        name: input.name,
+        slug,
+        status: 'pending_badge',
+        token,
+        verificationAttempts: 0,
+        website: input.website
+      }
+    },
+
+    async consumeRateLimit(fingerprint) {
+      const fingerprintHash = await sha256(`${siteId}:${fingerprint}`)
+      const now = Math.floor(validClock(clock).getTime() / 1000)
+      const windowStart = now - SUBMISSION_WINDOW_SECONDS
+      const statements = [
+        prepare(
+          client,
+          client.database
+            .insert(listingSubmissionRateLimits)
+            .values({ fingerprintHash, requestCount: 1, windowStartedAt: now })
+            .onConflictDoUpdate({
+              set: {
+                requestCount: sql`CASE WHEN ${listingSubmissionRateLimits.windowStartedAt}<=${windowStart} THEN 1 ELSE ${listingSubmissionRateLimits.requestCount}+1 END`,
+                windowStartedAt: sql`CASE WHEN ${listingSubmissionRateLimits.windowStartedAt}<=${windowStart} THEN ${now} ELSE ${listingSubmissionRateLimits.windowStartedAt} END`
+              },
+              target: listingSubmissionRateLimits.fingerprintHash
+            })
+        ),
+        prepare(
+          client,
+          client.database
+            .select({ request_count: listingSubmissionRateLimits.requestCount })
+            .from(listingSubmissionRateLimits)
+            .where(eq(listingSubmissionRateLimits.fingerprintHash, fingerprintHash))
+            .limit(1)
+        )
+      ]
+      const results = await client.binding.batch<{ request_count?: number }>(statements)
+      const count = results[1]?.results?.[0]?.request_count
+      if (typeof count !== 'number') throw new Error('D1 submission rate limit failed.')
+      if (count > SUBMISSION_WINDOW_LIMIT) {
+        throw new SubmissionError('rate_limited', 'Too many submissions. Try again later.', 429)
+      }
+    },
+
+    getSubmission,
+
+    async beginVerification(id, token) {
+      const row = await authorizedRow(id, token)
+      if (row.status !== 'pending_badge') return toState(row)
+      const lastFailureWasConclusive =
+        !row.last_verification_error ||
+        CONTENT_VERIFICATION_FAILURES.has(row.last_verification_error)
+      if (row.verification_attempts >= MAX_ATTEMPTS && lastFailureWasConclusive) {
+        throw new SubmissionError('attempt_limit', 'Badge verification attempt limit reached.', 429)
+      }
+      if (
+        row.last_verification_at &&
+        validClock(clock).getTime() - Date.parse(`${row.last_verification_at.replace(' ', 'T')}Z`) <
+          COOLDOWN_SECONDS * 1000
+      ) {
+        throw new SubmissionError('cooldown', 'Wait 30 seconds before checking again.', 429)
+      }
+      return toState(row)
+    },
+
+    async finishVerification(id, token, result) {
+      const row = await authorizedRow(id, token)
+      if (row.status !== 'pending_badge') return toState(row)
+      const tokenHash = await sha256(token)
+      const status = result.ok ? 'verified' : 'pending_badge'
+      const error = result.ok ? null : result.code
+      const attemptIncrement = result.ok || CONTENT_VERIFICATION_FAILURES.has(result.code) ? 1 : 0
+      const statements = [
+        prepareRaw(client, 'DROP TABLE IF EXISTS temp.submission_guard', []),
+        prepareRaw(
+          client,
+          'CREATE TEMP TABLE submission_guard (valid INTEGER NOT NULL CHECK (valid=1))',
+          []
+        ),
+        prepareRaw(
+          client,
+          `UPDATE listing_submissions SET status=?, verification_attempts=verification_attempts+?,
+            last_verification_at=CURRENT_TIMESTAMP,last_verification_error=?,
+            badge_verified_at=CASE WHEN ?='verified' THEN CURRENT_TIMESTAMP ELSE badge_verified_at END,
+            updated_at=CURRENT_TIMESTAMP
+          WHERE id=? AND site_id=? AND access_token_hash=? AND status='pending_badge'
+            AND verification_attempts=? AND last_verification_at IS ?`,
+          [
+            status,
+            attemptIncrement,
+            error,
+            status,
+            id,
+            siteId,
+            tokenHash,
+            row.verification_attempts,
+            row.last_verification_at
+          ]
+        ),
+        prepareRaw(
+          client,
+          'INSERT INTO submission_guard VALUES (CASE WHEN changes()=1 THEN 1 ELSE 0 END)',
+          []
+        ),
+        prepareRaw(
+          client,
+          `INSERT INTO listing_submission_events (submission_id,event_type,detail,actor)
+          VALUES (?,?,?,'badge-verifier')`,
+          [id, result.ok ? 'badge_verified' : 'verification_failed', error]
+        ),
+        prepareRaw(client, 'DROP TABLE submission_guard', [])
+      ]
+      const results = await client.binding.batch(statements)
+      if (results.some(item => !item.success)) throw new Error('D1 verification update failed.')
+      return getSubmission(id, token)
+    },
+
+    async getReviewPreview(access) {
+      const tokenHash = await sha256(access.token)
+      const submission = await queryFirst<SubmissionReviewPreviewRow>(
+        client.database
+          .select({
+            category_slug: listingSubmissions.categorySlug,
+            content: listingSubmissions.content,
+            created_at: listingSubmissions.createdAt,
+            description: listingSubmissions.description,
+            id: listingSubmissions.id,
+            logo_url: listingSubmissions.logoUrl,
+            name: listingSubmissions.name,
+            slug: listingSubmissions.slug,
+            video_url: listingSubmissions.videoUrl,
+            website: listingSubmissions.website
+          })
+          .from(listingSubmissions)
+          .innerJoin(
+            listingSubmissionNotifications,
+            and(
+              eq(listingSubmissionNotifications.submissionId, listingSubmissions.id),
+              eq(listingSubmissionNotifications.channel, REVIEW_CHANNEL)
+            )
+          )
+          .where(
+            and(
+              eq(listingSubmissions.id, access.id),
+              eq(listingSubmissions.siteId, siteId),
+              eq(listingSubmissions.status, 'verified'),
+              eq(listingSubmissionNotifications.previewTokenHash, tokenHash)
+            )
+          )
+          .limit(1)
+      )
+      if (!submission) return null
+      const resourceResult = await prepare(
+        client,
+        client.database
+          .select({
+            label: listingSubmissionResourceLinks.label,
+            sort_order: listingSubmissionResourceLinks.sortOrder,
+            url: listingSubmissionResourceLinks.url
+          })
+          .from(listingSubmissionResourceLinks)
+          .where(eq(listingSubmissionResourceLinks.submissionId, submission.id))
+          .orderBy(listingSubmissionResourceLinks.sortOrder, listingSubmissionResourceLinks.id)
+      ).all<SubmissionReviewPreviewResourceRow>()
+      if (!resourceResult.success) throw new Error('D1 submission review preview query failed.')
+      return buildSubmissionReviewPreview(submission, resourceResult.results)
+    }
+  }
+}

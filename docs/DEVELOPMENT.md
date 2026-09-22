@@ -78,6 +78,13 @@ Client Component. Keep `apps/<site-id>/lib/catalog/repository.ts` as the server-
 binding, site-identity, cache, observer, and request-deduplication adapter. A future
 site must instantiate the shared operations rather than copy SQL.
 
+Add Submission database behavior once to `packages/data-ops/src/submissions.ts`.
+Site Submission adapters may only acquire and validate the OpenNext `DB` binding,
+runtime environment, and explicit Site identity. Protected approval/notifier scripts
+may consume pure plans from `submission-plans.ts`, but credentials and remote API
+execution must remain in those guarded scripts. Every conditional transition and
+matching event/audit write belongs in one guarded D1 batch.
+
 Construct the shared Site-explicit Drizzle client with `createSiteDatabase` before
 creating Catalog operations. Prefer schema-backed Drizzle builders. Typed,
 parameterized raw SQL is reserved for statements whose D1 metadata or reviewed

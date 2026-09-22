@@ -68,6 +68,9 @@ importers:
       '@manypkg/cli':
         specifier: ^0.23.0
         version: 0.23.0
+      '@serpdirectory/data-ops':
+        specifier: workspace:*
+        version: link:packages/data-ops
       '@serpdirectory/site-contract':
         specifier: workspace:*
         version: link:packages/site-contract
