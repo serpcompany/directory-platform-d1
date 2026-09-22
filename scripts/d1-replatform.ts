@@ -4,6 +4,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { DatabaseSync, type SQLOutputValue } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { freshDatabaseIds, freshMigrationNames } from './d1-drizzle-local'
+import { configuredFreshD1StateRoot } from './d1-local-state'
 import {
   type ApplicationTableName,
   applicationColumnInventory,
@@ -246,26 +247,6 @@ function assertFreshSchemaObjects(database: DatabaseSync): void {
   }
 }
 
-function defaultTargetStateRoot(siteId: SiteId): string {
-  const siteDirectory = siteId.replaceAll('.', '-')
-  if (process.env.HARNESS_D1_STATE_DIRECTORY) {
-    return resolve(process.env.HARNESS_D1_STATE_DIRECTORY, 'drizzle', siteDirectory)
-  }
-  const manifestPath = resolve('.runtime/manifest.json')
-  if (existsSync(manifestPath)) {
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      d1StateDirectory?: string
-      repositoryPath?: string
-    }
-    if (resolve(manifest.repositoryPath || '') !== resolve('.')) {
-      throw new Error('Runtime manifest belongs to another worktree.')
-    }
-    if (!manifest.d1StateDirectory) throw new Error('Runtime manifest has no D1 state directory.')
-    return resolve(manifest.d1StateDirectory, 'drizzle', siteDirectory)
-  }
-  return resolve('.wrangler/drizzle-state', siteDirectory)
-}
-
 function assertHarnessTargetPath(targetPath: string, stateRoot: string): void {
   if (!existsSync(stateRoot)) {
     throw new Error('Selected Site harness D1 state root does not exist.')
@@ -452,7 +433,7 @@ export function migrateLocalD1(
   }
   assertHarnessTargetPath(
     targetPath,
-    dependencies.targetStateRoot ?? defaultTargetStateRoot(options.siteId)
+    dependencies.targetStateRoot ?? configuredFreshD1StateRoot(options.siteId)
   )
   if (realpathSync(sourcePath) === realpathSync(targetPath)) {
     throw new Error('Source and target database files must be physically distinct.')

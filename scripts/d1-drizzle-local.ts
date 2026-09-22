@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process'
-import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { configuredFreshD1StateRoot } from './d1-local-state'
 import { applicationTableNames } from './d1-replatform-inventory'
 import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
@@ -68,23 +69,7 @@ function pathRelativeToConfig(configPath: string, targetPath: string): string {
 }
 
 function statePath(target: SiteTarget): string {
-  const siteDirectory = target.siteId.replaceAll('.', '-')
-  if (process.env.HARNESS_D1_STATE_DIRECTORY) {
-    return resolve(process.env.HARNESS_D1_STATE_DIRECTORY, 'drizzle', siteDirectory)
-  }
-  const manifestPath = resolve('.runtime/manifest.json')
-  if (existsSync(manifestPath)) {
-    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
-      d1StateDirectory?: string
-      repositoryPath?: string
-    }
-    if (resolve(manifest.repositoryPath || '') !== resolve('.')) {
-      throw new Error('Runtime manifest belongs to another worktree.')
-    }
-    if (!manifest.d1StateDirectory) throw new Error('Runtime manifest has no D1 state directory.')
-    return resolve(manifest.d1StateDirectory, 'drizzle', siteDirectory)
-  }
-  return resolve('.wrangler/drizzle-state', siteDirectory)
+  return configuredFreshD1StateRoot(target.siteId)
 }
 
 export function materializeFreshLocalConfig(target: SiteTarget): {
