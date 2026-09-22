@@ -32,7 +32,8 @@ pnpm harness:fast
 
 This runs documentation health, the D1-only architecture guard, shared catalog
 data-operation contracts and scan benchmark, fresh Drizzle migration/idempotency
-tests, D1 schema/publication contract tests,
+tests, deterministic local D1-to-D1 transfer/parity tests, D1 schema/publication
+contract tests,
 and TypeScript checks. Each step stops on failure and prints the governing document.
 
 ### Full loop

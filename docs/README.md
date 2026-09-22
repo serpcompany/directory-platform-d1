@@ -11,6 +11,7 @@ Validation: `pnpm docs:check`
 |---|---|---|---|---|
 | [Architecture](./ARCHITECTURE.md) | Active | application architecture | 2026-07-30 | `pnpm test:repo` |
 | [Data model](./DATA_MODEL.md) | Active | catalog persistence | 2026-07-30 | `pnpm test:d1` |
+| [D1 replacement transfer](./D1_REPLATFORM.md) | Active | replacement database parity | 2026-09-23 | `pnpm test:d1` |
 | [Development](./DEVELOPMENT.md) | Active | local development | 2026-07-30 | `pnpm harness:fast` |
 | [Build pipeline](./BUILD_PIPELINE.md) | Active | release engineering | 2026-07-30 | `pnpm worker:build` |
 | [Deploy runbook](./DEPLOY_RUNBOOK.md) | Active | release engineering | 2026-07-30 | `pnpm worker:config:validate` |

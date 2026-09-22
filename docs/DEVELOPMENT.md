@@ -19,6 +19,13 @@ and credential-free. Review generated SQL—including D1 `STRICT`, trigger, chec
 collation, and partial-index companion details—before committing it. Never use
 `drizzle-kit push` for a shared environment.
 
+For deterministic transfer from a reviewed, disposable legacy local D1 export into
+an empty fresh local database, use `pnpm d1:replatform:local --` with explicit Site,
+source/target paths, and registered local database IDs. The source is opened
+read-only; the target must already contain only the exact fresh schema and no
+application rows. See [D1 replacement-database transfer](./D1_REPLATFORM.md) for the
+complete inventory, guards, parity contract, and recovery behavior.
+
 Initialize and verify the isolated local database:
 
 ```bash

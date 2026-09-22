@@ -2,29 +2,12 @@ import { execFileSync } from 'node:child_process'
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { applicationTableNames } from './d1-replatform-inventory'
 import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
-export const freshMigrationsDirectory = resolve('d1/drizzle')
+export { applicationTableNames } from './d1-replatform-inventory'
 
-export const applicationTableNames = [
-  'categories',
-  'listing_categories',
-  'listing_faqs',
-  'listing_media',
-  'listing_resource_links',
-  'listing_slug_redirects',
-  'listing_submission_events',
-  'listing_submission_faqs',
-  'listing_submission_notifications',
-  'listing_submission_rate_limits',
-  'listing_submission_resource_links',
-  'listing_submissions',
-  'listings',
-  'migration_runs',
-  'publication_runs',
-  'publication_state',
-  'sites'
-] as const
+export const freshMigrationsDirectory = resolve('d1/drizzle')
 
 export const d1TriggerNames = [
   'listing_categories_prevent_primary_demote',
@@ -75,7 +58,7 @@ interface SchemaObject {
   type: 'index' | 'table' | 'trigger'
 }
 
-const freshDatabaseIds = {
+export const freshDatabaseIds = {
   'pornvideodownloaders.com': '00000000-0000-0000-0000-000000000168',
   'serp.software': '00000000-0000-0000-0000-000000000068'
 } as const

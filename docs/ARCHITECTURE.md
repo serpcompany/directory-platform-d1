@@ -65,6 +65,8 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 - `scripts/harness/` owns local feedback, runtime evidence, and worktree isolation.
 - `scripts/migration/` may inspect an explicit external source but is not imported by
   runtime or build code.
+- `scripts/d1-replatform.ts` owns guarded, local-only transfer and exact parity
+  between an explicit legacy D1 export and an empty fresh-history D1 database.
 
 ## Dependency and trust direction
 

@@ -7,6 +7,12 @@ The released `d1/migrations/0001`-`0009` files remain byte-for-byte immutable le
 history for the current databases and are never scanned or combined with the fresh
 history. `drizzle-kit push` is not an approved shared-environment migration path.
 
+The local replacement transfer preserves every application-owned source column and
+excludes only SQLite, Wrangler, and Cloudflare-owned metadata. It compares canonical
+per-table and whole-snapshot checksums, retains the target's fresh migration ledger,
+and records one deterministic receipt in `migration_runs`. See
+[D1 replacement-database transfer](./D1_REPLATFORM.md).
+
 - `sites` identifies the tenant.
 - `categories` stores active taxonomy rows and display order.
 - `listings` stores public product fields, status, publication time, and stable IDs.
