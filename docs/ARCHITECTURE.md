@@ -119,7 +119,9 @@ Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local
 state subdirectory, production D1 resource, Worker name, route, confirmation strings,
 and protected production environment. PVD also has isolated preview resources. SERP
-does not yet have a proper preview path; future sites must not copy that exception.
+has a checked-in, unprovisioned `serp-software-preview` replacement contract; it is
+not a remote path until separately approved and provisioned. Future sites must not
+copy the old missing-preview exception.
 Shared publication and submission tools bind their SQL to the selected site and
 reject mismatches. Adding a third site still requires the full tenancy and isolation
 work in [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/`

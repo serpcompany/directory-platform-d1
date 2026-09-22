@@ -31,6 +31,10 @@ export interface SiteTarget {
     previewConfigPath: string
     productionConfigPath: string
   }
+  replatform: {
+    previewConfigPath: string
+    productionConfigPath: string
+  }
   siteId: SiteId
 }
 
@@ -65,6 +69,10 @@ export const siteTargets = {
       previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/preview.jsonc',
       productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/production.jsonc'
     },
+    replatform: {
+      previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-preview.jsonc',
+      productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-production.jsonc'
+    },
     siteId: 'pornvideodownloaders.com'
   },
   'serp.software': {
@@ -90,12 +98,16 @@ export const siteTargets = {
     },
     parityReportPath: 'd1/artifacts/serp-software-v1-parity.yaml',
     protectedEnvironment: {
-      preview: 'preview',
+      preview: 'serp-software-preview',
       production: 'production'
     },
     remote: {
       previewConfigPath: 'configs/wrangler/serp.software/preview.jsonc',
       productionConfigPath: 'configs/wrangler/serp.software/production.jsonc'
+    },
+    replatform: {
+      previewConfigPath: 'configs/wrangler/serp.software/replatform-preview.jsonc',
+      productionConfigPath: 'configs/wrangler/serp.software/replatform-production.jsonc'
     },
     siteId: 'serp.software'
   }

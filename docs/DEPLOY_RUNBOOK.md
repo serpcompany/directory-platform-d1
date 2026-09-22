@@ -5,7 +5,7 @@ database. GitHub Pages repo sync and local remote deploys are not supported.
 
 | Site | Deployment workflow | Preview environment | Production environment |
 | --- | --- | --- | --- |
-| `serp.software` | `build-and-deploy.yml` | Not provisioned; use local validation only | `production` |
+| `serp.software` | `build-and-deploy.yml` | `serp-software-preview` prepared, not provisioned | `production` |
 | `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 ## Local verification
@@ -72,8 +72,9 @@ catalog is populated to prove the identical checksum produces an import no-op be
 authorizing production.
 
 Existing exception: `serp.software` predates that requirement and currently has no
-proper preview Worker/D1/protected environment. Do not infer or provision one during
-unrelated maintenance; track it as explicit platform work.
+provisioned preview Worker/D1/protected environment. Issue #72 prepares the explicit
+`serp-software-preview` contract, but it remains inert until separately approved and
+provisioned. See [the replacement cutover contract](./D1_CUTOVER.md).
 
 ## Verified public submissions
 

@@ -36,11 +36,16 @@ pnpm worker:build
 
 The OpenNext build emits one `.open-next/worker.js` and asset set under each app.
 Both sites have separate local and production Wrangler identities and bindings.
-PVD also has separate preview configuration; SERP's missing remote preview path is a
-known follow-up. Configuration validation rejects cross-environment and cross-site
-references. Release tooling materializes ignored environment-specific configuration
+PVD also has separate preview configuration. SERP's `serp-software-preview`
+replacement template is prepared but remains unprovisioned. Configuration validation
+rejects cross-environment and cross-site references. Release tooling materializes
+ignored environment-specific configuration
 under `.wrangler/generated/` and rebases Worker, asset, schema, and migration paths
 relative to that generated configuration.
+
+Replacement templates are separate `replatform-*.jsonc` files and point only at
+`d1/drizzle/`. They do not replace released templates before protected cutover. See
+[the replacement cutover contract](./D1_CUTOVER.md).
 
 ## Protected production release
 
