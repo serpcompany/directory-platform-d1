@@ -100,6 +100,63 @@ describe('D1-only repository architecture', () => {
     expect(sharedOperations).not.toContain('process.env')
   })
 
+  it('owns the only Drizzle schema and client in the shared data package', () => {
+    const files = trackedFiles()
+    const schemaOrClientFiles = files.filter(
+      file => existsSync(resolve(file)) && /(?:^|\/)(?:schema|client)\.ts$/u.test(file)
+    )
+    const drizzleSources = files.filter(file => {
+      if (
+        file === 'scripts/architecture-guard.test.ts' ||
+        !/\.(?:ts|tsx)$/u.test(file) ||
+        !existsSync(resolve(file))
+      )
+        return false
+      return readFileSync(resolve(file), 'utf8').includes('drizzle-orm')
+    })
+
+    expect(schemaOrClientFiles).not.toContain('apps/serp.software/lib/catalog/schema.ts')
+    expect(schemaOrClientFiles).not.toContain('apps/pornvideodownloaders.com/lib/catalog/schema.ts')
+    expect(drizzleSources.every(file => file.startsWith('packages/data-ops/'))).toBe(true)
+    expect(files).toContain('packages/data-ops/src/schema.ts')
+    expect(files).toContain('packages/data-ops/src/client.ts')
+
+    for (const siteId of ['pornvideodownloaders.com', 'serp.software']) {
+      const manifest = JSON.parse(readFileSync(resolve(`apps/${siteId}/package.json`), 'utf8')) as {
+        dependencies?: Record<string, string>
+      }
+      expect(manifest.dependencies?.['drizzle-orm']).toBeUndefined()
+    }
+    const dataOpsManifest = JSON.parse(
+      readFileSync(resolve('packages/data-ops/package.json'), 'utf8')
+    ) as { dependencies?: Record<string, string> }
+    expect(dataOpsManifest.dependencies?.['drizzle-orm']).toMatch(/^\d+\.\d+\.\d+$/u)
+
+    const client = readFileSync(resolve('packages/data-ops/src/client.ts'), 'utf8')
+    expect(client).toContain('binding: D1Database')
+    expect(client).toContain('siteId: ActiveCheckedInSiteId')
+    expect(client).toContain('assertSiteIdIsSupported(siteId)')
+    expect(client).not.toMatch(/getCloudflareContext|process\.env/u)
+  })
+
+  it('keeps fresh Drizzle migrations isolated and forbids push-based schema mutation', () => {
+    const config = readFileSync(resolve('drizzle.config.ts'), 'utf8')
+    expect(config).toContain("out: './d1/drizzle'")
+    expect(config).not.toContain('d1/migrations')
+
+    const guardedFiles = trackedFiles().filter(
+      file =>
+        (file === 'package.json' ||
+          file.startsWith('scripts/') ||
+          file.startsWith('.github/workflows/')) &&
+        existsSync(resolve(file))
+    )
+    const pushViolations = guardedFiles.filter(file =>
+      /drizzle-kit\s+push/u.test(readFileSync(resolve(file), 'utf8'))
+    )
+    expect(pushViolations).toEqual([])
+  })
+
   it('keeps retired public static repositories out of live application links', () => {
     const pornVideoDownloadersConfig = readFileSync(
       resolve('sites/pornvideodownloaders.com/site-config.ts'),

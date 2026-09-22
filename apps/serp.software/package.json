@@ -44,7 +44,6 @@
     "cheerio": "^1.2.0",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
-    "drizzle-orm": "^0.45.2",
     "fast-xml-parser": "^5.3.5",
     "framer-motion": "^12.34.0",
     "fuse.js": "^7.1.0",

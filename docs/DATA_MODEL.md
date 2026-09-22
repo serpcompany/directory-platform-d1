@@ -1,6 +1,11 @@
 # D1 data model
 
-The schema is versioned in `d1/migrations/`.
+The application-owned schema is modeled once in `packages/data-ops/src/schema.ts`.
+`drizzle-kit generate` writes a separate fresh-database history under `d1/drizzle/`,
+and Wrangler applies that SQL while recording its canonical `d1_migrations` ledger.
+The released `d1/migrations/0001`-`0009` files remain byte-for-byte immutable legacy
+history for the current databases and are never scanned or combined with the fresh
+history. `drizzle-kit push` is not an approved shared-environment migration path.
 
 - `sites` identifies the tenant.
 - `categories` stores active taxonomy rows and display order.
@@ -17,6 +22,11 @@ The schema is versioned in `d1/migrations/`.
   for a badge-verified submission and the SHA-256 digest of its private draft-preview
   capability. The raw capability is never stored in D1. This table is an operational
   delivery ledger, not the submission source of truth.
+
+D1-specific `STRICT` tables, checks, partial and collated indexes, and cross-table
+publication triggers are preserved in the reviewed generated migration SQL. The
+schema and relations remain the typed application model; reviewed SQL is the authority
+for D1 features that Drizzle cannot express completely.
 
 Public queries require the Worker-selected site ID, approved status, active rows, and
 a publication time that is not in the future. `serp.software` and

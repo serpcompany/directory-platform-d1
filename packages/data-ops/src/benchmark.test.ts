@@ -41,6 +41,13 @@ function bindSql(sql: string, bindings: unknown[]): string {
   return bound
 }
 
+function scanRows(line: string): number | null {
+  const labelled = /\brows=(\d+)\b/u.exec(line)
+  if (labelled?.[1]) return Number(labelled[1])
+  const columns = /\s+(\d+)\s+(\d+)\s*$/u.exec(line)
+  return columns?.[2] ? Number(columns[2]) : null
+}
+
 function scan(databasePath: string, sql: string): ScanEvidence {
   const output = execFileSync(
     'sqlite3',
@@ -62,8 +69,9 @@ function scan(databasePath: string, sql: string): ScanEvidence {
             !line.includes('candidate_ids') &&
             !line.includes('CONSTANT ROWS')
         )
-        .flatMap(line => [...line.matchAll(/\brows=(\d+)\b/gu)])
-        .reduce((total, match) => total + Number(match[1]), 0)
+        .map(scanRows)
+        .filter((rows): rows is number => rows !== null)
+        .reduce((total, rows) => total + rows, 0)
     : null
   return {
     plan: output

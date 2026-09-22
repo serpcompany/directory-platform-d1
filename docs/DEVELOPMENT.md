@@ -2,6 +2,23 @@
 
 Install dependencies with Node 24 and `pnpm install`.
 
+For the replacement-database Drizzle foundation, generate and exercise the isolated
+fresh lineage with explicit Site commands:
+
+```bash
+pnpm d1:drizzle:local:generate
+pnpm d1:drizzle:local:list
+pnpm d1:drizzle:local:apply
+pnpm d1:drizzle:local:verify
+```
+
+Use the `d1:drizzle:pornvideodownloaders:local:*` variants for the second Site. These
+commands materialize ignored, local-only Wrangler configuration and state, point only
+at `d1/drizzle/`, and never access Preview or Production. Generation is target-neutral
+and credential-free. Review generated SQL—including D1 `STRICT`, trigger, check,
+collation, and partial-index companion details—before committing it. Never use
+`drizzle-kit push` for a shared environment.
+
 Initialize and verify the isolated local database:
 
 ```bash
@@ -60,9 +77,10 @@ pnpm --filter @serpdirectory/data-ops test
 pnpm --filter @serpdirectory/data-ops benchmark
 ```
 
-Add a D1 migration for justified schema changes and a reviewed publication manifest
-for catalog changes. Do not add a default site selection or a file-backed catalog
-path.
+Add justified schema changes to the shared schema and generate a reviewed fresh D1
+migration. Do not edit the released legacy `d1/migrations/0001`-`0009` lineage. Use a
+reviewed publication manifest for catalog changes. Do not add a default site selection
+or a file-backed catalog path.
 
 For an agent-readable isolated runtime:
 

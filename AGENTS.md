@@ -23,7 +23,7 @@ Read in this order:
   templates.
 - `.wrangler/generated/`: ignored, environment-specific Worker configuration
   materialized by protected release tooling.
-- `d1/migrations/`: forward-only database schema changes.
+- `d1/drizzle/`: fresh history; `d1/migrations/`: immutable `0001`-`0009` legacy history.
 - `d1/publications/`: reviewed ongoing catalog mutation manifests.
 - `d1/artifacts/`: immutable initial-bootstrap and parity evidence.
 - `packages/web-core/`: shared page, navigation, search, sitemap, and RSS behavior.
@@ -38,7 +38,6 @@ Read in this order:
 Closer `AGENTS.md` files add local rules without replacing this contract.
 
 ## Agent skills
-
 Repository-specific [issue-tracker](./docs/agents/issue-tracker.md),
 [triage-label](./docs/agents/triage-labels.md), and [domain-doc](./docs/agents/domain.md)
 configuration lives under `docs/agents/`; installed skills own their general workflows.
@@ -87,7 +86,8 @@ GitHub Issues are the source of truth for active planning and execution.
 - Fail closed when the D1 binding or `D1_RUNTIME_ENV` is missing or invalid.
 - Parse untrusted input at its boundary and pass precise values inward.
 - Use prepared statements and bind every runtime value.
-- Add schema changes under `d1/migrations/`.
+- Model tables in `packages/data-ops/src/schema.ts`; generate fresh history under
+  `d1/drizzle/`. Never rewrite or scan legacy `d1/migrations/0001`-`0009` into it.
 - Add reviewed data changes as YAML manifests under `d1/publications/`.
 - Keep search, taxonomy, RSS, sitemap, and submission options derived from D1.
 - Preserve each site's separate local and production identities. Preserve PVD's

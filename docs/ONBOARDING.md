@@ -13,7 +13,9 @@ Start with [`AGENTS.md`](../AGENTS.md), then use the
 [Harness](./HARNESS.md). Checked-in presentation settings live under
 `sites/<site-id>/`; catalog data lives only in that site's D1 database.
 
-Schema work belongs in `d1/migrations/`. Public intake is staged in normalized D1
+Schema work belongs in `packages/data-ops/src/schema.ts` and reviewed generated SQL
+under `d1/drizzle/`; never rewrite the legacy `d1/migrations/0001`-`0009` history.
+Public intake is staged in normalized D1
 submission tables, and maintainer-authored mutations belong in `d1/publications/`.
 Never create a starter/default site, catalog file, source adapter, or file-backed
 fallback.

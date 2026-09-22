@@ -11,7 +11,8 @@ sync in either release path.
 - `sites/<site-id>/site-config.ts`: checked-in application configuration.
 - `configs/wrangler/<site-id>/*.jsonc`: checked-in Worker and D1 binding templates.
 - `packages/content/data/**/*.mdx`: file-authored documentation and legal content.
-- `d1/migrations/`: versioned D1 schema.
+- `d1/drizzle/`: fresh Drizzle-generated D1 history for replacement databases;
+  `d1/migrations/0001`-`0009` remains immutable current-database history until cutover.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
 - `listing_submissions` and child tables: private, badge-gated public intake.
 - `d1/publications/`: approved, versioned mutation manifests.

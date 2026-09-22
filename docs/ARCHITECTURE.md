@@ -48,12 +48,15 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   grouped by lifecycle under `.wrangler/`.
 - `packages/web-core/` owns reusable page/view behavior but never obtains a database
   binding directly.
-- `packages/data-ops/` owns public catalog DTOs, eligibility SQL, projection-specific
+- `packages/data-ops/` owns the shared Drizzle schema and injected, Site-explicit D1
+  client as well as public catalog DTOs, eligibility SQL, projection-specific
   hydration, pagination, redirects, related ranking, indexed adjacency, bounded
   publication-versioned caching contracts, and safe per-statement D1 telemetry. It receives
   the database, site identity, clock, cache, and observer explicitly; it never
   imports OpenNext or selects a site from global authority.
-- `d1/migrations/` owns forward schema history.
+- `d1/drizzle/` owns the fresh Drizzle-generated schema history applied by Wrangler to
+  replacement databases. `d1/migrations/0001`-`0009` remains immutable legacy history
+  for the current database generation until the protected cutover is complete.
 - `d1/publications/` owns reviewed ongoing catalog mutations.
 - `d1/artifacts/` preserves the immutable initial bootstrap and parity evidence.
 - `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`,
@@ -103,3 +106,11 @@ Shared publication and submission tools bind their SQL to the selected site and
 reject mismatches. Adding a third site still requires the full tenancy and isolation
 work in [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/`
 directory.
+
+The shared client is constructed only from an injected `D1Database` and an explicit
+supported Site ID. Applications must not define a schema or construct an app-local
+Drizzle client. `drizzle.config.ts` is target-neutral and credential-free: it generates
+reviewable SQL in `d1/drizzle/`; Wrangler, not Drizzle push, owns migration application
+and the `d1_migrations` ledger. During the replacement-database project, checked-in
+Preview and Production templates continue to point at the immutable legacy history;
+their protected switch to the fresh history is intentionally deferred to the cutover.
