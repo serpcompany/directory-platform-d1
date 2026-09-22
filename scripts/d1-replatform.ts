@@ -1,14 +1,9 @@
 import { createHash } from 'node:crypto'
-import { existsSync, realpathSync, statSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { DatabaseSync, type SQLOutputValue } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
-import {
-  d1TriggerNames,
-  freshDatabaseIds,
-  freshMigrationNames,
-  requiredIndexNames
-} from './d1-drizzle-local'
+import { freshDatabaseIds, freshMigrationNames } from './d1-drizzle-local'
 import {
   type ApplicationTableName,
   applicationColumnInventory,
@@ -42,6 +37,10 @@ interface MigrationOptions {
   sourcePath: string
   targetDatabaseId: string
   targetPath: string
+}
+
+interface MigrationDependencies {
+  targetStateRoot?: string
 }
 
 export interface MigrationResult {
@@ -154,6 +153,38 @@ function schemaTableNames(database: DatabaseSync): string[] {
     .filter(name => !name.startsWith('sqlite_') && !name.startsWith('_cf_'))
 }
 
+function schemaFingerprint(database: DatabaseSync): string {
+  const definitions = database
+    .prepare(
+      `SELECT type, name, tbl_name, sql FROM sqlite_master
+       WHERE sql IS NOT NULL
+         AND name NOT LIKE 'sqlite_%'
+         AND name NOT LIKE '_cf_%'
+         AND name != 'd1_migrations'
+       ORDER BY type, name`
+    )
+    .all()
+    .map(row => ({
+      name: String(row.name),
+      sql: String(row.sql).replaceAll(/\s+/gu, ' ').trim().replace(/;$/u, ''),
+      table: String(row.tbl_name),
+      type: String(row.type)
+    }))
+  return sha256(JSON.stringify(definitions))
+}
+
+function expectedFreshSchemaFingerprint(): string {
+  const expected = new DatabaseSync(':memory:')
+  try {
+    for (const migration of freshMigrationNames()) {
+      expected.exec(readFileSync(resolve('d1/drizzle', migration), 'utf8'))
+    }
+    return schemaFingerprint(expected)
+  } finally {
+    expected.close()
+  }
+}
+
 function assertSchema(database: DatabaseSync, label: string): void {
   const expectedTables = [...applicationTableNames].sort()
   const actualTables = schemaTableNames(database)
@@ -208,39 +239,51 @@ function assertMigrationLedger(
 }
 
 function assertFreshSchemaObjects(database: DatabaseSync): void {
-  const views = database
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'view' ORDER BY name")
-    .all()
-  if (views.length > 0) {
-    throw new Error(`Target contains unexpected views: ${views.map(row => row.name).join(', ')}.`)
-  }
-  const tables = database
-    .prepare(
-      "SELECT name, sql FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' AND name != 'd1_migrations' ORDER BY name"
-    )
-    .all()
-  const nonStrict = tables.filter(row => !String(row.sql).trimEnd().endsWith('STRICT'))
-  if (nonStrict.length > 0) {
+  if (schemaFingerprint(database) !== expectedFreshSchemaFingerprint()) {
     throw new Error(
-      `Target contains non-STRICT application tables: ${nonStrict.map(row => row.name).join(', ')}.`
+      'Target schema definitions do not exactly match the reviewed fresh Drizzle migration.'
     )
   }
-  const triggers = database
-    .prepare("SELECT name FROM sqlite_master WHERE type = 'trigger' ORDER BY name")
-    .all()
-    .map(row => String(row.name))
-  assertExactSet(triggers, d1TriggerNames, 'Target trigger inventory')
-  const indexes = database
-    .prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'index' AND sql IS NOT NULL ORDER BY name"
-    )
-    .all()
-    .map(row => String(row.name))
-  assertExactSet(
-    indexes,
-    [...requiredIndexNames, 'categories_site_slug_unique'],
-    'Target named-index inventory'
-  )
+}
+
+function defaultTargetStateRoot(siteId: SiteId): string {
+  const siteDirectory = siteId.replaceAll('.', '-')
+  if (process.env.HARNESS_D1_STATE_DIRECTORY) {
+    return resolve(process.env.HARNESS_D1_STATE_DIRECTORY, 'drizzle', siteDirectory)
+  }
+  const manifestPath = resolve('.runtime/manifest.json')
+  if (existsSync(manifestPath)) {
+    const manifest = JSON.parse(readFileSync(manifestPath, 'utf8')) as {
+      d1StateDirectory?: string
+      repositoryPath?: string
+    }
+    if (resolve(manifest.repositoryPath || '') !== resolve('.')) {
+      throw new Error('Runtime manifest belongs to another worktree.')
+    }
+    if (!manifest.d1StateDirectory) throw new Error('Runtime manifest has no D1 state directory.')
+    return resolve(manifest.d1StateDirectory, 'drizzle', siteDirectory)
+  }
+  return resolve('.wrangler/drizzle-state', siteDirectory)
+}
+
+function assertHarnessTargetPath(targetPath: string, stateRoot: string): void {
+  if (!existsSync(stateRoot)) {
+    throw new Error('Selected Site harness D1 state root does not exist.')
+  }
+  for (const [root, candidate] of [
+    [resolve(stateRoot), targetPath],
+    [realpathSync(stateRoot), realpathSync(targetPath)]
+  ]) {
+    const containedPath = relative(root, candidate)
+    if (
+      !containedPath ||
+      containedPath === '..' ||
+      containedPath.startsWith(`..${sep}`) ||
+      isAbsolute(containedPath)
+    ) {
+      throw new Error('Target database must be inside the selected Site harness D1 state root.')
+    }
+  }
 }
 
 function assertForeignKeys(database: DatabaseSync, label: string): void {
@@ -314,7 +357,7 @@ function writeSnapshot(
       if (
         table === 'listings' &&
         row.status === 'approved' &&
-        row.is_active === 1 &&
+        row.is_active === 1n &&
         row.published_at !== null
       ) {
         row.status = 'draft'
@@ -323,7 +366,7 @@ function writeSnapshot(
     }
   }
   for (const row of source.tables.listings.rows) {
-    if (row.status === 'approved' && row.is_active === 1 && row.published_at !== null) {
+    if (row.status === 'approved' && row.is_active === 1n && row.published_at !== null) {
       database
         .prepare('UPDATE listings SET status = ? WHERE id = ?')
         .run('approved', row.id ?? null)
@@ -386,7 +429,10 @@ function result(
   }
 }
 
-export function migrateLocalD1(options: MigrationOptions): MigrationResult {
+export function migrateLocalD1(
+  options: MigrationOptions,
+  dependencies: MigrationDependencies = {}
+): MigrationResult {
   const target = resolveSiteTarget(options.siteId)
   if (options.sourceDatabaseId !== target.local.databaseId) {
     throw new Error(
@@ -404,6 +450,10 @@ export function migrateLocalD1(options: MigrationOptions): MigrationResult {
   if (!existsSync(sourcePath) || !existsSync(targetPath)) {
     throw new Error('Source and target database files must already exist locally.')
   }
+  assertHarnessTargetPath(
+    targetPath,
+    dependencies.targetStateRoot ?? defaultTargetStateRoot(options.siteId)
+  )
   if (realpathSync(sourcePath) === realpathSync(targetPath)) {
     throw new Error('Source and target database files must be physically distinct.')
   }
@@ -413,8 +463,8 @@ export function migrateLocalD1(options: MigrationOptions): MigrationResult {
     throw new Error('Source and target database files must be physically distinct.')
   }
 
-  const source = new DatabaseSync(sourcePath, { readOnly: true })
-  const destination = new DatabaseSync(targetPath)
+  const source = new DatabaseSync(sourcePath, { readBigInts: true, readOnly: true })
+  const destination = new DatabaseSync(targetPath, { readBigInts: true })
   let sourceTransaction = false
   let targetTransaction = false
   try {

@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
@@ -237,7 +237,7 @@ function seed(database: DatabaseSync, siteId: SiteId): void {
   })
   insert(database, 'listing_submission_rate_limits', {
     fingerprint_hash: `fingerprint-${suffix}`,
-    window_started_at: 1_772_323_200,
+    window_started_at: 9_007_199_254_740_993n,
     request_count: 2
   })
   insert(database, 'listing_submission_notifications', {
@@ -255,26 +255,32 @@ function seed(database: DatabaseSync, siteId: SiteId): void {
 function fixture(siteId: SiteId): {
   directory: string
   sourcePath: string
+  targetStateRoot: string
   targetPath: string
 } {
   const directory = mkdtempSync(join(tmpdir(), `d1-replatform-${siteId}-`))
   temporaryDirectories.push(directory)
   const sourcePath = join(directory, 'source.sqlite')
-  const targetPath = join(directory, 'target.sqlite')
+  const targetStateRoot = join(directory, 'target-state')
+  mkdirSync(targetStateRoot)
+  const targetPath = join(targetStateRoot, 'target.sqlite')
   createSource(sourcePath, siteId)
   createTarget(targetPath)
-  return { directory, sourcePath, targetPath }
+  return { directory, sourcePath, targetPath, targetStateRoot }
 }
 
 function migrate(siteId: SiteId, sourcePath: string, targetPath: string) {
-  return migrateLocalD1({
-    now: () => '2026-09-23T00:00:00.000Z',
-    siteId,
-    sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
-    sourcePath,
-    targetDatabaseId: freshDatabaseIds[siteId],
-    targetPath
-  })
+  return migrateLocalD1(
+    {
+      now: () => '2026-09-23T00:00:00.000Z',
+      siteId,
+      sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+      sourcePath,
+      targetDatabaseId: freshDatabaseIds[siteId],
+      targetPath
+    },
+    { targetStateRoot: resolve(targetPath, '..') }
+  )
 }
 
 function fileHash(path: string): string {
@@ -297,7 +303,7 @@ describe('local D1-to-D1 replatform migration', () => {
       expect(Object.values(imported.tableCounts).every(count => count > 0)).toBe(true)
 
       const source = new DatabaseSync(sourcePath, { readOnly: true })
-      const target = new DatabaseSync(targetPath, { readOnly: true })
+      const target = new DatabaseSync(targetPath, { readBigInts: true, readOnly: true })
       for (const table of applicationTableNames) {
         const sourceCount = Number(
           source.prepare(`SELECT COUNT(*) AS count FROM ${quoteIdentifier(table)}`).get()?.count
@@ -313,7 +319,7 @@ describe('local D1-to-D1 replatform migration', () => {
             "SELECT COUNT(*) AS count FROM migration_runs WHERE id LIKE 'd1-replatform-v1:%'"
           )
           .get()?.count
-      ).toBe(1)
+      ).toBe(1n)
       expect(
         target
           .prepare('SELECT name FROM d1_migrations')
@@ -326,6 +332,10 @@ describe('local D1-to-D1 replatform migration', () => {
           .all()
           .map(row => row.name)
       ).toEqual(legacyMigrationNames)
+      expect(
+        target.prepare('SELECT window_started_at FROM listing_submission_rate_limits').get()
+          ?.window_started_at
+      ).toBe(9_007_199_254_740_993n)
       source.close()
       target.close()
     }
@@ -355,14 +365,30 @@ describe('local D1-to-D1 replatform migration', () => {
 
     const wrongSite = fixture('pornvideodownloaders.com')
     expect(() =>
-      migrateLocalD1({
-        siteId,
-        sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
-        sourcePath: wrongSite.sourcePath,
-        targetDatabaseId: freshDatabaseIds[siteId],
-        targetPath: wrongSite.targetPath
-      })
+      migrateLocalD1(
+        {
+          siteId,
+          sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+          sourcePath: wrongSite.sourcePath,
+          targetDatabaseId: freshDatabaseIds[siteId],
+          targetPath: wrongSite.targetPath
+        },
+        { targetStateRoot: wrongSite.targetStateRoot }
+      )
     ).toThrow(/explicit Site identity/u)
+
+    expect(() =>
+      migrateLocalD1(
+        {
+          siteId,
+          sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+          sourcePath: wrongIdentity.sourcePath,
+          targetDatabaseId: freshDatabaseIds[siteId],
+          targetPath: wrongIdentity.targetPath
+        },
+        { targetStateRoot: join(wrongIdentity.directory, 'different-state-root') }
+      )
+    ).toThrow(/harness D1 state root/u)
 
     const dirty = fixture(siteId)
     const dirtyDatabase = new DatabaseSync(dirty.targetPath)
@@ -442,5 +468,41 @@ describe('local D1-to-D1 replatform migration', () => {
       ).toBe(0)
     }
     target.close()
+  })
+
+  it.each([
+    [
+      'trigger',
+      `DROP TRIGGER listings_require_primary_on_insert;
+       CREATE TRIGGER listings_require_primary_on_insert AFTER INSERT ON listings
+       BEGIN SELECT 1; END;`
+    ],
+    [
+      'index',
+      `DROP INDEX listings_publication_idx;
+       CREATE INDEX listings_publication_idx ON listings (site_id);`
+    ],
+    [
+      'table',
+      `DROP TABLE listing_submission_rate_limits;
+       CREATE TABLE listing_submission_rate_limits (
+         fingerprint_hash TEXT PRIMARY KEY NOT NULL,
+         window_started_at TEXT NOT NULL,
+         request_count INTEGER NOT NULL
+       ) STRICT;`
+    ]
+  ])('rejects a same-named target %s with a changed definition', (_label, sql) => {
+    const siteId = 'serp.software'
+    const { sourcePath, targetPath } = fixture(siteId)
+    const target = new DatabaseSync(targetPath)
+    target.exec(sql)
+    target.close()
+
+    expect(() => migrate(siteId, sourcePath, targetPath)).toThrow(
+      /schema definitions do not exactly match/u
+    )
+    const unchanged = new DatabaseSync(targetPath, { readOnly: true })
+    expect(unchanged.prepare('SELECT COUNT(*) AS count FROM sites').get()?.count).toBe(0)
+    unchanged.close()
   })
 })

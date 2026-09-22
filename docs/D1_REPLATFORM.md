@@ -57,28 +57,34 @@ pnpm d1:replatform:local -- \
   --site serp.software \
   --source /absolute/path/to/source.sqlite \
   --source-database-id 00000000-0000-0000-0000-000000000002 \
-  --target /absolute/path/to/fresh-target.sqlite \
+  --target /absolute/harness-d1-state/drizzle/serp-software/fresh-target.sqlite \
   --target-database-id 00000000-0000-0000-0000-000000000068
 ```
 
 Use the registered PVD local IDs for `pornvideodownloaders.com`. Source and target
-must be existing, distinct local SQLite files. The source opens read-only with
-`query_only` enabled. The command accepts no remote environment, URL, credential,
-Wrangler config, or default Site.
+must be existing, distinct local SQLite files. The target must be contained by the
+selected Site's isolated fresh state root resolved from `HARNESS_D1_STATE_DIRECTORY`,
+the current worktree's `.runtime/manifest.json`, or the ignored default
+`.wrangler/drizzle-state/<site>/` directory. An arbitrary target path is rejected.
+The source opens read-only with `query_only` enabled. The command accepts no remote
+environment, URL, credential, Wrangler config, or default Site.
 
 Before the first write the command proves:
 
 - the source and target IDs match the selected Site's registered local identities;
 - the source contains exactly that one Site and the immutable `0001`-`0009` ledger;
-- the target contains the exact fresh ledger, application tables, named indexes,
-  triggers, column order, and `STRICT` tables;
+- every target table, index, trigger, foreign key, check, default, declared type,
+  predicate, and SQL body has the exact normalized schema fingerprint produced by
+  the reviewed fresh migration;
 - the source has no foreign-key violations or reserved receipt; and
 - every target application table is empty.
 
-The import is one transaction. It preserves all relationships and fails on any
-duplicate or target constraint. After commit, parity verifies exact canonical row
-checksums and counts for every table, Listing ID and slug sets, Category slug sets,
-foreign keys, state, ordering, timestamps, checksums, and audit provenance.
+The import is one transaction. Integer reads use SQLite 64-bit `bigint` values so
+valid values outside JavaScript's safe-number range are preserved. It preserves all
+relationships and fails on any duplicate or target constraint. After commit, parity
+verifies exact canonical row checksums and counts for every table, Listing ID and
+slug sets, Category slug sets, foreign keys, state, ordering, timestamps, checksums,
+and audit provenance.
 
 A repeat is a no-op only when the receipt identity, source checksum, target checksum,
 and complete parity all match. A populated target without a receipt, different
