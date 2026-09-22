@@ -100,6 +100,8 @@ describe('D1-only repository architecture', () => {
     const sharedOperations = readFileSync(resolve('packages/data-ops/src/catalog.ts'), 'utf8')
     expect(sharedOperations).toContain('createCatalogOperations')
     expect(sharedOperations).toContain('runSiteQuery')
+    expect(sharedOperations).toContain('statement: CompiledSiteQuery | SQL<T>')
+    expect(sharedOperations).not.toContain('query: CompiledSiteQuery | SQL<T> | string')
     expect(sharedOperations).toContain('siteId')
     expect(sharedOperations).not.toContain('.prepare(')
     expect(sharedOperations).not.toContain('getCloudflareContext')

@@ -398,16 +398,11 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
   async function queryAll<T>(
     operation: CatalogOperation,
     queryShape: CatalogQueryShape,
-    query: CompiledSiteQuery | SQL<T> | string,
-    bindings: unknown[]
+    statement: CompiledSiteQuery | SQL<T>
   ): Promise<T[]> {
     const startedAt = performance.now()
     let eventEmitted = false
     try {
-      const statement = typeof query === 'string' ? parameterizedQuery<T>(query, bindings) : query
-      if (typeof query !== 'string' && bindings.length > 0) {
-        throw new Error('Compiled Catalog queries must own their Drizzle parameters.')
-      }
       const result = await runSiteQuery<T>(client, statement)
       const meta = result.meta as QueryMeta
       const event: CatalogQueryEvent = {
@@ -501,14 +496,16 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     const rows = await queryAll<SummaryRow>(
       operation,
       queryShape,
-      `SELECT ${summaryColumns} FROM listings l WHERE ${publicEligibilitySql()}${extraWhere} ORDER BY ${orderBy}${pagination}`,
-      [
-        siteId,
-        asOf,
-        ...extraBindings,
-        ...(limit === undefined ? [] : [limit]),
-        ...(offset === undefined ? [] : [offset])
-      ]
+      parameterizedQuery<SummaryRow>(
+        `SELECT ${summaryColumns} FROM listings l WHERE ${publicEligibilitySql()}${extraWhere} ORDER BY ${orderBy}${pagination}`,
+        [
+          siteId,
+          asOf,
+          ...extraBindings,
+          ...(limit === undefined ? [] : [limit]),
+          ...(offset === undefined ? [] : [offset])
+        ]
+      )
     )
     return rows.map(mapSummary)
   }
@@ -521,8 +518,7 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
         .select({ version: publicationState.version })
         .from(publicationState)
         .where(eq(publicationState.siteId, siteId))
-        .limit(1),
-      []
+        .limit(1)
     )
     return requireNonNegativeInteger(rows[0]?.version, `publication state for ${siteId}`)
   }
@@ -544,7 +540,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     const rows = await queryAll<ShellRow>(
       'shell-stats',
       'shell-stats',
-      `SELECT
+      parameterizedQuery<ShellRow>(
+        `SELECT
         COALESCE((
           SELECT json_group_array(json_object(
             'slug', counts.slug,
@@ -575,7 +572,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
           FROM listings l
           WHERE ${publicEligibilitySql()} AND l.is_featured = 1
         ) AS featured_count`,
-      [siteId, asOf, siteId, siteId, asOf]
+        [siteId, asOf, siteId, siteId, asOf]
+      )
     )
     const row = rows[0]
     if (!row) throw new Error('Missing D1 shell statistics.')
@@ -659,7 +657,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       const rows = await queryAll<NavigationRow>(
         'listing-detail',
         branch.shape,
-        `SELECT
+        parameterizedQuery<NavigationRow>(
+          `SELECT
         l.slug,
         l.name,
         l.website,
@@ -672,7 +671,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       WHERE ${publicEligibilitySql()} AND ${branch.predicate}
       ORDER BY ${branch.order}
       LIMIT 1`,
-        [siteId, asOf, ...branch.bindings]
+          [siteId, asOf, ...branch.bindings]
+        )
       )
       if (rows[0]) return mapNavigation(rows[0])
     }
@@ -684,7 +684,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
     const rows = await queryAll<DetailRow>(
       'listing-detail',
       'listing-detail',
-      `SELECT
+      parameterizedQuery<DetailRow>(
+        `SELECT
         ${summaryColumns},
         l.content,
         l.entity_type,
@@ -713,7 +714,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       FROM listings l
       WHERE ${publicEligibilitySql()} AND l.slug = ?
       LIMIT 1`,
-      [siteId, asOf, slug]
+        [siteId, asOf, slug]
+      )
     )
     const row = rows[0]
     if (!row) return null
@@ -727,7 +729,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
         ...(await queryAll<SummaryRow>(
           'listing-detail',
           'related-single-category',
-          `SELECT
+          parameterizedQuery<SummaryRow>(
+            `SELECT
              l.id,
              l.slug,
              l.name,
@@ -756,7 +759,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
              )
            ORDER BY l.name ASC, l.slug ASC
            LIMIT 4`,
-          [siteId, asOf, row.id, row.id]
+            [siteId, asOf, row.id, row.id]
+          )
         ))
       )
     }
@@ -768,7 +772,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       const scoreRows = await queryAll<SummaryRow>(
         'listing-detail',
         'related-ranked-seek',
-        `SELECT
+        parameterizedQuery<SummaryRow>(
+          `SELECT
            l.id,
            l.slug,
            l.name,
@@ -797,7 +802,8 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
            ) = ?
          ORDER BY l.name ASC, l.slug ASC
          LIMIT ?`,
-        [siteId, asOf, row.id, row.id, score, 4 - relatedRows.length]
+          [siteId, asOf, row.id, row.id, score, 4 - relatedRows.length]
+        )
       )
       relatedRows.push(...scoreRows)
     }
@@ -806,12 +812,14 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       ? await queryAll<RelatedLogoRow>(
           'listing-detail',
           'related-logos',
-          `SELECT listing_id, url
+          parameterizedQuery<RelatedLogoRow>(
+            `SELECT listing_id, url
            FROM listing_media
            WHERE listing_id IN (${relatedIds.map(() => '?').join(', ')})
              AND kind = 'logo'
            ORDER BY listing_id ASC, sort_order ASC`,
-          relatedIds
+            relatedIds
+          )
         )
       : []
     const logos = new Map<string, string>()
@@ -895,14 +903,18 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
       queryAll<SummaryRow>(
         'listing-page',
         'listing-page-items',
-        `SELECT ${summaryColumns} FROM listings l WHERE ${publicEligibilitySql()} ORDER BY ${PUBLICATION_ORDER} LIMIT ? OFFSET ?`,
-        [siteId, asOf, safePageSize, (safePage - 1) * safePageSize]
+        parameterizedQuery<SummaryRow>(
+          `SELECT ${summaryColumns} FROM listings l WHERE ${publicEligibilitySql()} ORDER BY ${PUBLICATION_ORDER} LIMIT ? OFFSET ?`,
+          [siteId, asOf, safePageSize, (safePage - 1) * safePageSize]
+        )
       ),
       queryAll<{ total: number }>(
         'listing-page',
         'listing-page-count',
-        `SELECT COUNT(*) AS total FROM listings l WHERE ${publicEligibilitySql()}`,
-        [siteId, asOf]
+        parameterizedQuery<{ total: number }>(
+          `SELECT COUNT(*) AS total FROM listings l WHERE ${publicEligibilitySql()}`,
+          [siteId, asOf]
+        )
       )
     ])
     return {
@@ -967,8 +979,7 @@ export function createCatalogOperations(config: CatalogOperationsConfig): Catalo
               sql`${listings.publishedAt} <= ${asOf}`
             )
           )
-          .limit(1),
-        []
+          .limit(1)
       )
       return rows[0]?.slug || null
     },
