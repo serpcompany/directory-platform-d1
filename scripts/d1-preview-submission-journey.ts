@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto'
-import { writeFileSync } from 'node:fs'
+import { renameSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import {
   createReplatformPreviewCapability,
@@ -120,9 +120,9 @@ async function createAndVerify(base: URL, siteId: string, suffix: string) {
   return { id, token: submissionToken, slug: String(verified.slug) }
 }
 async function main(): Promise<void> {
-  const [siteValue, output] = process.argv.slice(2)
-  if (!siteValue || !output)
-    throw new Error('Usage: d1-preview-submission-journey.ts <site> <output.json>')
+  const [siteValue, output, journalPath] = process.argv.slice(2)
+  if (!siteValue || !output || !journalPath)
+    throw new Error('Usage: d1-preview-submission-journey.ts <site> <output.json> <journal.json>')
   const siteId = resolveSiteTarget(siteValue).siteId
   const base = new URL(required('PREVIEW_BASE_URL'))
   if (base.protocol !== 'https:' || base.hostname === siteId)
@@ -158,8 +158,43 @@ async function main(): Promise<void> {
     typeof publication.checksum !== 'string'
   )
     throw new Error('Missing Preview publication snapshot.')
+  const rehearsalRunId = required('REPLATFORM_PREVIEW_RUN_ID')
+  const publicationRunIds =
+    (await d1(targetId, [plan('SELECT id FROM publication_runs ORDER BY id')]))[0]?.results?.map(
+      row => String(row.id)
+    ) ?? []
+  const journal = {
+    version: 1,
+    siteId,
+    runId: rehearsalRunId,
+    phase: 'before-intake',
+    originalPublicationState: publication,
+    originalPublicationRunIds: publicationRunIds,
+    sourcePrivateBefore: sourceBefore,
+    targetPrivateBefore: targetBefore,
+    rateFingerprintsBefore: [...rateBefore],
+    submissions: [] as Array<{ id: string; listingId: string; publicationRunId: string }>,
+    ownedRateFingerprint: null as string | null
+  }
+  const persistJournal = (): void => {
+    const temporary = `${journalPath}.tmp`
+    writeFileSync(resolve(temporary), `${JSON.stringify(journal, null, 2)}\n`, { mode: 0o600 })
+    renameSync(resolve(temporary), resolve(journalPath))
+  }
+  persistJournal()
 
-  const approved = await createAndVerify(base, siteId, randomBytes(4).toString('hex'))
+  const approved = await createAndVerify(
+    base,
+    siteId,
+    `${rehearsalRunId}:approved:${randomBytes(4).toString('hex')}`
+  )
+  journal.submissions.push({
+    id: approved.id,
+    listingId: `submission_${approved.id}`,
+    publicationRunId: `submission_publish_${approved.id}`
+  })
+  journal.phase = 'after-approved-intake'
+  persistJournal()
   const rateAfterFirstRequest =
     (
       await d1(targetId, [plan('SELECT fingerprint_hash FROM listing_submission_rate_limits')])
@@ -168,6 +203,8 @@ async function main(): Promise<void> {
     [...rateBefore],
     rateAfterFirstRequest
   )
+  journal.ownedRateFingerprint = ownedRateFingerprint
+  persistJournal()
   const previewToken = randomBytes(32).toString('base64url')
   const previewHash = createHash('sha256').update(previewToken).digest('hex')
   await d1(targetId, [
@@ -184,6 +221,8 @@ async function main(): Promise<void> {
       ]
     )
   ])
+  journal.phase = 'after-notification'
+  persistJournal()
   const previewResponse = await fetch(
     new URL(`/admin/submissions/${approved.id}/preview/${previewToken}/`, base)
   )
@@ -219,6 +258,8 @@ async function main(): Promise<void> {
     await d1(targetId, [plan('SELECT status FROM listing_submissions WHERE id=?', [approved.id])])
   )[0]?.results?.[0]
   if (approvedRow?.status !== 'approved') throw new Error('Preview approval journey failed.')
+  journal.phase = 'after-approval'
+  persistJournal()
   const targetPeak = measuredPrivateCounts(
     (await d1(targetId, [plan(privateSql)]))[0]?.results?.[0],
     'Target peak'
@@ -252,7 +293,18 @@ async function main(): Promise<void> {
     plan('DELETE FROM listing_submissions WHERE id=?', [approved.id])
   ])
 
-  const rejected = await createAndVerify(base, siteId, randomBytes(4).toString('hex'))
+  const rejected = await createAndVerify(
+    base,
+    siteId,
+    `${rehearsalRunId}:rejected:${randomBytes(4).toString('hex')}`
+  )
+  journal.submissions.push({
+    id: rejected.id,
+    listingId: `submission_${rejected.id}`,
+    publicationRunId: `submission_publish_${rejected.id}`
+  })
+  journal.phase = 'after-rejected-intake'
+  persistJournal()
   await d1(
     targetId,
     buildRejectSubmissionPlans({
@@ -266,7 +318,11 @@ async function main(): Promise<void> {
     await d1(targetId, [plan('SELECT status FROM listing_submissions WHERE id=?', [rejected.id])])
   )[0]?.results?.[0]
   if (rejectedRow?.status !== 'rejected') throw new Error('Preview rejection journey failed.')
+  journal.phase = 'after-rejection'
+  persistJournal()
   const rateLimitEvidence = await exerciseRateLimit(base)
+  journal.phase = 'after-rate-limit'
+  persistJournal()
   await d1(targetId, [
     plan('DELETE FROM listing_submission_events WHERE submission_id=?', [rejected.id]),
     plan('DELETE FROM listing_submission_resource_links WHERE submission_id=?', [rejected.id]),
@@ -304,6 +360,8 @@ async function main(): Promise<void> {
   }
   if (Object.values(targetAfter ?? {}).some(value => Number(value) !== 0))
     throw new Error('Preview journey cleanup left private rows behind.')
+  journal.phase = 'inline-cleanup-complete'
+  persistJournal()
   writeFileSync(
     resolve(output),
     `${JSON.stringify({ siteId, intake: true, rateLimit: rateLimitEvidence.status === 429, rateLimitEvidence: { ...rateLimitEvidence, ownedFingerprint: ownedRateFingerprint }, badgeVerification: true, privatePreview: true, approval: true, rejection: true, sourceUnchanged: true, targetPrivateRowsAfterCleanup: targetAfter, deletedOnlyGeneratedIds: [approved.id, rejected.id, listingId, runId, ownedRateFingerprint], copiedProduction: targetBefore, previewGenerated: generated }, null, 2)}\n`

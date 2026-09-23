@@ -93,6 +93,22 @@ secrets to prove every transient name is absent, queries D1 to prove the binding
 is absent, and negatively probes both temporary endpoints for HTTP 404. Any remaining
 authority fails the protected workflow.
 
+Before the first Submission write, the workflow atomically persists an external
+recovery journal containing the run identity, exact Publication state, Publication
+audit IDs, private-state baseline, rate fingerprints, and subsequently discovered
+Submission/Listings IDs. Each phase advances that journal before the next mutation.
+An idempotent recovery command consumes it after a successful journey and again from
+the `always()` cleanup, covering interruption after intake, notification, approval,
+rejection, or rate limiting. It restores the exact journaled Publication/audit state
+and deletes only recorded or exact run-discovered rows.
+
+The final cleanup first performs a fresh full identity verification. If that fails,
+it performs zero Cloudflare/D1 cleanup mutations, retains the journal plus a
+`MANUAL_RECOVERY_REQUIRED` artifact, and fails explicitly. On a verified target it
+uses one still-unexpired token to prove both temporary endpoints return 200 before
+authority removal; the same token and badge-verifier User-Agent must return 404 after
+secret/marker deletion. This distinguishes real revocation from an invalid probe.
+
 ## Production cutover
 
 Workflow preparation never executes Production mutation. A future Production

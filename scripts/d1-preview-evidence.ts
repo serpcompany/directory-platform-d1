@@ -51,6 +51,7 @@ const repeatMeasured = readJson(required(values, '--repeat-measurement'))
 const postJourneyMeasured = readJson(required(values, '--post-journey-measurement'))
 const catalog = readJson(required(values, '--catalog-journeys'))
 const submission = readJson(required(values, '--submission-journeys'))
+const submissionCleanup = readJson(required(values, '--submission-cleanup'))
 const rollbackSource = readJson(required(values, '--rollback-source'))
 const rollbackTarget = readJson(required(values, '--rollback-target'))
 if (JSON.stringify(first) !== JSON.stringify(repeat))
@@ -102,6 +103,8 @@ for (const key of [
   'sourceUnchanged'
 ])
   if (submission[key] !== true) throw new Error(`Submission journey ${key} did not pass.`)
+if (submissionCleanup.recovered !== true)
+  throw new Error('Idempotent external Submission recovery did not complete.')
 const rateLimitEvidence = submission.rateLimitEvidence as Record<string, unknown>
 if (
   !rateLimitEvidence ||

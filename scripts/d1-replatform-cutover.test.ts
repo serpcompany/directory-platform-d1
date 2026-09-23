@@ -397,8 +397,16 @@ describe('D1 replatform cutover preparation', () => {
     )
     expect(raw).toContain('replatform-secret-names-after-cleanup.json')
     expect(raw).toContain('d1-preview-attestation-marker.ts assert-absent')
-    expect(raw).toContain('[ "$badge_status" = \'404\' ]')
-    expect(raw).toContain('[ "$attestation_status" = \'404\' ]')
+    expect(raw).toContain('d1-preview-authority-probe.ts before')
+    expect(raw).toContain('d1-preview-authority-probe.ts after')
+    expect(raw).toContain('MANUAL_RECOVERY_REQUIRED.txt')
+    const cleanupIdentity = raw.lastIndexOf('verify-preview-identity')
+    const identityFailureExit = raw.indexOf('exit 1', cleanupIdentity)
+    const firstCleanupMutation = raw.indexOf('d1-preview-submission-recovery.ts', cleanupIdentity)
+    expect(cleanupIdentity).toBeGreaterThan(0)
+    expect(identityFailureExit).toBeGreaterThan(cleanupIdentity)
+    expect(firstCleanupMutation).toBeGreaterThan(identityFailureExit)
+    expect(raw).toContain('Retain cleanup and manual-recovery evidence')
   })
 
   it('keeps the controlled badge fixture Preview-only and capability-gated', () => {
@@ -438,5 +446,15 @@ describe('D1 replatform cutover preparation', () => {
       /exactParity:\s*true|freshMigrationLedger:\s*true|nothingDeleted:\s*true/u
     )
     expect(source).not.toMatch(/copiedProduction:\s*\{[^}]*:\s*0/u)
+  })
+
+  it('reuses a still-valid authority token for positive-before and negative-after probes', () => {
+    const source = readFileSync('scripts/d1-preview-authority-probe.ts', 'utf8')
+    expect(source).toContain('BADGE_VERIFIER_USER_AGENT')
+    expect(source).toContain('beforeBadgeStatus !== 200')
+    expect(source).toContain('beforeAttestationStatus !== 200')
+    expect(source).toContain('afterBadgeStatus !== 404')
+    expect(source).toContain('afterAttestationStatus !== 404')
+    expect(source).toContain('expired before negative verification')
   })
 })

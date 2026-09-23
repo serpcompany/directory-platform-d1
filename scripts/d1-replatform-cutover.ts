@@ -326,7 +326,12 @@ export async function verifyPreviewRemoteIdentity(
     targetDatabaseName: targetInfo.name,
     workerName: worker.name ?? worker.id
   }
-  const identity = { expected: exactIdentity, observed }
+  const identity = {
+    expected: exactIdentity,
+    observed,
+    runId: env.REPLATFORM_PREVIEW_RUN_ID,
+    verifiedAt: new Date().toISOString()
+  }
   assertRemoteIdentity(siteId, 'preview', identity)
   return identity
 }
