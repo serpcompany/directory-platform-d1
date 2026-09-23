@@ -1,6 +1,7 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { createReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
 import {
   buildApproveSubmissionPlans,
   buildRejectSubmissionPlans,
@@ -64,11 +65,29 @@ async function post(url: URL, body: unknown): Promise<Record<string, unknown>> {
   if (!response.ok) throw new Error(`Preview submission request failed (${response.status}).`)
   return payload
 }
+async function exerciseRateLimit(base: URL): Promise<{ attempts: number; status: number }> {
+  for (let attempt = 1; attempt <= 12; attempt += 1) {
+    const response = await fetch(new URL('/api/submissions', base), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ invalid: true })
+    })
+    if (response.status === 429) return { attempts: attempt, status: response.status }
+    if (response.status !== 400)
+      throw new Error(`Unexpected rate-limit probe status ${response.status}.`)
+  }
+  throw new Error('Preview Submission rate limit did not fail closed with 429.')
+}
 async function createAndVerify(base: URL, siteId: string, suffix: string) {
   const hostname = base.hostname
-  const capability = encodeURIComponent(required('REPLATFORM_PREVIEW_CAPABILITY'))
+  const capabilityToken = await createReplatformPreviewCapability({
+    expiresAt: Math.floor(Date.now() / 1000) + 10 * 60,
+    runId: required('REPLATFORM_PREVIEW_RUN_ID'),
+    secret: required('REPLATFORM_PREVIEW_SIGNING_SECRET'),
+    slug: hostname
+  })
   const website = new URL(
-    `/api/replatform/badge-fixture?slug=${hostname}&capability=${capability}`,
+    `/api/replatform/badge-fixture?slug=${hostname}&token=${capabilityToken}`,
     base
   ).toString()
   const created = await post(new URL('/api/submissions', base), {
@@ -83,11 +102,13 @@ async function createAndVerify(base: URL, siteId: string, suffix: string) {
     website
   })
   const id = String(created.id)
-  const token = String(created.token)
-  const verified = await post(new URL(`/api/submissions/${id}/verify`, base), { token })
+  const submissionToken = String(created.token)
+  const verified = await post(new URL(`/api/submissions/${id}/verify`, base), {
+    token: submissionToken
+  })
   if (verified.status !== 'verified')
     throw new Error('Real Preview badge verification did not reach verified state.')
-  return { id, token, slug: String(verified.slug) }
+  return { id, token: submissionToken, slug: String(verified.slug) }
 }
 async function main(): Promise<void> {
   const [siteValue, output] = process.argv.slice(2)
@@ -228,6 +249,7 @@ async function main(): Promise<void> {
     await d1(targetId, [plan('SELECT status FROM listing_submissions WHERE id=?', [rejected.id])])
   )[0]?.results?.[0]
   if (rejectedRow?.status !== 'rejected') throw new Error('Preview rejection journey failed.')
+  const rateLimitEvidence = await exerciseRateLimit(base)
   await d1(targetId, [
     plan('DELETE FROM listing_submission_events WHERE submission_id=?', [rejected.id]),
     plan('DELETE FROM listing_submission_resource_links WHERE submission_id=?', [rejected.id]),
@@ -275,7 +297,7 @@ async function main(): Promise<void> {
     throw new Error('Preview journey cleanup left private rows behind.')
   writeFileSync(
     resolve(output),
-    `${JSON.stringify({ siteId, intake: true, rateLimit: generated.rateLimitRows > 0, badgeVerification: true, privatePreview: true, approval: true, rejection: true, sourceUnchanged: true, targetPrivateRowsAfterCleanup: targetAfter, deletedOnlyGeneratedIds: [approved.id, rejected.id, listingId, runId, ...generatedRateFingerprints], copiedProduction: targetBefore, previewGenerated: generated }, null, 2)}\n`
+    `${JSON.stringify({ siteId, intake: true, rateLimit: rateLimitEvidence.status === 429, rateLimitEvidence, badgeVerification: true, privatePreview: true, approval: true, rejection: true, sourceUnchanged: true, targetPrivateRowsAfterCleanup: targetAfter, deletedOnlyGeneratedIds: [approved.id, rejected.id, listingId, runId, ...generatedRateFingerprints], copiedProduction: targetBefore, previewGenerated: generated }, null, 2)}\n`
   )
 }
 void main().catch(error => {

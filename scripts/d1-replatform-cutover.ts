@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { createReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
 import { resolveSiteTarget, type SiteId } from './site-targets'
 
 export type CutoverEnvironment = 'preview' | 'production'
@@ -32,7 +33,6 @@ export interface EvidenceTrust {
 interface IdentityDependencies {
   fetchAccount(accountId: string, token: string): Promise<unknown>
   fetchWorker(accountId: string, workerName: string, token: string): Promise<unknown>
-  fetchPreviewHostname(baseUrl: string): Promise<string>
   readD1Info(databaseName: string): unknown
   readGit(command: 'head' | 'status'): string
 }
@@ -52,11 +52,6 @@ const defaultIdentityDependencies: IdentityDependencies = {
     )
     if (!response.ok) throw new Error('Cloudflare Worker identity request failed.')
     return response.json()
-  },
-  async fetchPreviewHostname(baseUrl) {
-    const response = await fetch(baseUrl, { method: 'HEAD', redirect: 'manual' })
-    if (!response.ok) throw new Error('Preview hostname observation failed.')
-    return new URL(response.url).hostname
   },
   readD1Info(databaseName) {
     const result = spawnSync('pnpm', ['exec', 'wrangler', 'd1', 'info', databaseName, '--json'], {
@@ -97,8 +92,7 @@ const identityFields = [
   'sourceDatabaseName',
   'targetDatabaseId',
   'targetDatabaseName',
-  'workerName',
-  'workerHostname'
+  'workerName'
 ] as const
 
 function object(value: unknown, label: string): Record<string, unknown> {
@@ -312,9 +306,6 @@ export async function verifyPreviewRemoteIdentity(
     await dependencies.fetchWorker(accountId, expectedWorkerName, token),
     'Cloudflare Worker identity'
   )
-  const previewBaseUrl = text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL')
-  const expectedPreviewHostname = new URL(previewBaseUrl).hostname
-  const observedPreviewHostname = await dependencies.fetchPreviewHostname(previewBaseUrl)
   const exactIdentity = {
     siteId,
     environment: 'preview',
@@ -325,8 +316,7 @@ export async function verifyPreviewRemoteIdentity(
     sourceDatabaseName,
     targetDatabaseId,
     targetDatabaseName,
-    workerName: expectedWorkerName,
-    workerHostname: expectedPreviewHostname
+    workerName: expectedWorkerName
   }
   const observed = {
     ...exactIdentity,
@@ -334,12 +324,44 @@ export async function verifyPreviewRemoteIdentity(
     sourceDatabaseName: sourceInfo.name,
     targetDatabaseId: targetInfo.uuid,
     targetDatabaseName: targetInfo.name,
-    workerName: worker.name ?? worker.id,
-    workerHostname: observedPreviewHostname
+    workerName: worker.name ?? worker.id
   }
   const identity = { expected: exactIdentity, observed }
   assertRemoteIdentity(siteId, 'preview', identity)
   return identity
+}
+
+export async function attestPreviewWorker(
+  siteId: SiteId,
+  env: NodeJS.ProcessEnv,
+  fetcher: typeof fetch = fetch
+): Promise<Record<string, unknown>> {
+  const target = resolveSiteTarget(siteId)
+  const baseUrl = new URL(text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL'))
+  const runId = text(env.REPLATFORM_PREVIEW_RUN_ID, 'REPLATFORM_PREVIEW_RUN_ID')
+  const token = await createReplatformPreviewCapability({
+    expiresAt: Math.floor(Date.now() / 1000) + 5 * 60,
+    runId,
+    secret: text(env.REPLATFORM_PREVIEW_SIGNING_SECRET, 'REPLATFORM_PREVIEW_SIGNING_SECRET'),
+    slug: baseUrl.hostname
+  })
+  const url = new URL('/api/replatform/attestation', baseUrl)
+  url.searchParams.set('token', token)
+  const response = await fetcher(url, { headers: { Accept: 'application/json' } })
+  if (!response.ok) throw new Error('Deployed Preview Worker attestation failed.')
+  const observed = object(await response.json(), 'Preview Worker attestation')
+  const expected = {
+    bindingNonce: text(env.REPLATFORM_PREVIEW_BINDING_NONCE, 'REPLATFORM_PREVIEW_BINDING_NONCE'),
+    commit: text(env.GITHUB_SHA, 'GITHUB_SHA'),
+    environment: 'preview',
+    hostname: baseUrl.hostname,
+    run: runId,
+    service: text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME'),
+    siteId: target.siteId
+  }
+  for (const [key, value] of Object.entries(expected))
+    if (observed[key] !== value) throw new Error(`Preview Worker attestation ${key} mismatch.`)
+  return { expected, observed }
 }
 
 export function assertRemoteIdentity(
@@ -453,6 +475,30 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
   if (checksum !== freshMigrationChecksum())
     throw new Error('Evidence migration checksum does not match this checkout.')
   assertRemoteIdentity(siteId, environment, root.identity)
+  const identity = object(root.identity, 'identity')
+  const attestation = object(identity.attestation, 'identity.attestation')
+  const expectedAttestation = object(attestation.expected, 'identity.attestation.expected')
+  const observedAttestation = object(attestation.observed, 'identity.attestation.observed')
+  exactKeys(
+    expectedAttestation,
+    ['bindingNonce', 'commit', 'environment', 'hostname', 'run', 'service', 'siteId'],
+    'identity.attestation.expected'
+  )
+  exactKeys(
+    observedAttestation,
+    ['bindingNonce', 'commit', 'environment', 'hostname', 'run', 'service', 'siteId'],
+    'identity.attestation.observed'
+  )
+  if (canonicalJson(expectedAttestation) !== canonicalJson(observedAttestation))
+    throw new Error('Deployed Preview Worker attestation does not match expected identity.')
+  if (
+    expectedAttestation.siteId !== siteId ||
+    expectedAttestation.commit !== commitSha ||
+    expectedAttestation.environment !== environment
+  )
+    throw new Error(
+      'Worker attestation is not bound to the evidence Site, commit, and environment.'
+    )
   const migration = object(root.migration, 'migration')
   sha256(migration.finalSnapshotSha256, 'migration.finalSnapshotSha256')
   sha256(migration.sourceSnapshotChecksum, 'migration.sourceSnapshotChecksum')
@@ -535,6 +581,10 @@ async function runCli(): Promise<void> {
         await verifyPreviewRemoteIdentity(resolveSiteTarget(siteFlag).siteId, process.env)
       )
     )
+  } else if (command === 'attest-preview' && value === '--site') {
+    console.log(
+      JSON.stringify(await attestPreviewWorker(resolveSiteTarget(siteFlag).siteId, process.env))
+    )
   } else if (
     (command === 'seal-preview' || command === 'validate-evidence') &&
     value === '--file'
@@ -558,7 +608,7 @@ async function runCli(): Promise<void> {
     )
   } else {
     throw new Error(
-      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | verify-preview-identity --site <site> | <seal-preview|validate-evidence> --file <json>'
+      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <verify-preview-identity|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
     )
   }
 }

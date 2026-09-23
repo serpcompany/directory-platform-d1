@@ -71,6 +71,19 @@ The account, source D1, replacement D1, Worker service name, and live Preview ho
 are observed again immediately before each remote mutation group. Missing or unknown
 `D1_RELEASE_GENERATION` in the rehearsal fails closed rather than selecting legacy.
 
+The job generates a per-run signing secret and binding nonce, installs the required
+Worker secrets only after the protected identity gate, and removes them plus the
+target marker in an `always()` cleanup. Badge and attestation URLs contain only an
+expiring HMAC token bound to the exact run and hostname; the reusable signing secret
+is never placed in a URL or Submission row. A capability-secured Preview-only
+attestation route reads the nonce through the active `DB` binding and returns the
+exact Site, service, commit, run, hostname, and binding nonce. This proves the public
+Preview hostname is serving the intended deployed Worker and replacement binding.
+
+The rate-limit journey makes at most twelve bounded requests and requires a real HTTP
+429. It records and removes only the exact new fingerprint row created by that run;
+it never deletes a set inferred solely from elapsed time or a broad row-count delta.
+
 ## Production cutover
 
 Workflow preparation never executes Production mutation. A future Production

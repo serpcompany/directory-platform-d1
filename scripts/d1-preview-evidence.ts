@@ -41,6 +41,7 @@ const values = argumentsMap(process.argv.slice(2))
 const siteId = resolveSiteTarget(required(values, '--site')).siteId
 const target = resolveSiteTarget(siteId)
 const identity = readJson(required(values, '--identity'))
+const workerAttestation = readJson(required(values, '--worker-attestation'))
 const firstImport = readFileSync(resolve(required(values, '--first-import')), 'utf8')
 const first = readJson(required(values, '--first-parity'))
 const repeat = readJson(required(values, '--repeat-parity'))
@@ -101,6 +102,15 @@ for (const key of [
   'sourceUnchanged'
 ])
   if (submission[key] !== true) throw new Error(`Submission journey ${key} did not pass.`)
+const rateLimitEvidence = submission.rateLimitEvidence as Record<string, unknown>
+if (
+  !rateLimitEvidence ||
+  rateLimitEvidence.status !== 429 ||
+  typeof rateLimitEvidence.attempts !== 'number' ||
+  rateLimitEvidence.attempts < 1 ||
+  rateLimitEvidence.attempts > 12
+)
+  throw new Error('Submission rate-limit evidence is not a bounded real 429 result.')
 allTrue(rollbackSource, 'Source rollback route gates')
 allTrue(rollbackTarget, 'Replacement restoration route gates')
 const copiedProduction = measured.privateCounts as Record<string, unknown>
@@ -130,7 +140,7 @@ const evidence = {
   environment: 'preview',
   commitSha: process.env.GITHUB_SHA,
   migrationChecksum: freshMigrationChecksum(),
-  identity,
+  identity: { ...identity, attestation: workerAttestation },
   migration: {
     finalSnapshotSha256,
     sourceSnapshotChecksum: measuredSource.checksum,

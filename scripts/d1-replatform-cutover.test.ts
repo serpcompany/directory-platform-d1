@@ -3,6 +3,7 @@ import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
 import {
   assertRemoteIdentity,
+  attestPreviewWorker,
   buildCutoverPlan,
   freshMigrationChecksum,
   previewReceiptSha256,
@@ -27,8 +28,16 @@ function baseEvidence(environment: 'preview' | 'production') {
     sourceDatabaseName: 'source-name',
     targetDatabaseId: 'target-uuid',
     targetDatabaseName: 'target-name',
-    workerName: 'worker-name',
-    workerHostname: 'preview.example.test'
+    workerName: 'worker-name'
+  }
+  const exactAttestation = {
+    bindingNonce: 'binding-nonce',
+    commit: commitSha,
+    environment,
+    hostname: `${environment}.example.test`,
+    run: 'run-1',
+    service: 'worker-name',
+    siteId
   }
   return {
     siteId,
@@ -37,7 +46,8 @@ function baseEvidence(environment: 'preview' | 'production') {
     migrationChecksum: checksum,
     identity: {
       expected: exactIdentity,
-      observed: { ...exactIdentity }
+      observed: { ...exactIdentity },
+      attestation: { expected: exactAttestation, observed: { ...exactAttestation } }
     },
     migration: {
       finalSnapshotSha256: 'b'.repeat(64),
@@ -189,7 +199,6 @@ describe('D1 replatform cutover preparation', () => {
     const dependencies = {
       fetchAccount: async () => ({ success: true, result: { id: 'account-id' } }),
       fetchWorker: async () => ({ success: true, result: { name: 'worker-name' } }),
-      fetchPreviewHostname: async () => 'preview.example.test',
       readD1Info: (name: string) =>
         name === 'source-name' ? { name, uuid: 'source-uuid' } : { name, uuid: 'target-uuid' },
       readGit: (command: 'head' | 'status') => (command === 'head' ? commitSha : '')
@@ -204,6 +213,37 @@ describe('D1 replatform cutover preparation', () => {
         dependencies
       )
     ).rejects.toThrow('checked-out HEAD')
+  })
+
+  it('binds deployed Worker attestation to service, host, commit, run, and target marker', async () => {
+    const env = {
+      PREVIEW_BASE_URL: 'https://preview.example.test/',
+      REPLATFORM_PREVIEW_RUN_ID: 'run-1',
+      REPLATFORM_PREVIEW_SIGNING_SECRET: 's'.repeat(32),
+      REPLATFORM_PREVIEW_BINDING_NONCE: 'nonce-1',
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'target-id',
+      CLOUDFLARE_WORKER_PREVIEW_NAME: 'worker-name',
+      GITHUB_SHA: commitSha
+    }
+    const observed = {
+      bindingNonce: 'nonce-1',
+      commit: commitSha,
+      environment: 'preview',
+      hostname: 'preview.example.test',
+      run: 'run-1',
+      service: 'worker-name',
+      siteId: 'serp.software'
+    }
+    const fetcher = async () => Response.json(observed)
+    await expect(attestPreviewWorker('serp.software', env, fetcher)).resolves.toEqual({
+      expected: observed,
+      observed
+    })
+    await expect(
+      attestPreviewWorker('serp.software', env, async () =>
+        Response.json({ ...observed, commit: 'd'.repeat(40) })
+      )
+    ).rejects.toThrow('commit mismatch')
   })
 
   it('accepts controlled Preview evidence and rejects private state', () => {
@@ -345,6 +385,11 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('d1-preview-submission-journey.ts')
     expect(raw).not.toContain('submission-verification.spec.ts')
     expect(raw.match(/verify-preview-identity/gu)?.length).toBeGreaterThanOrEqual(7)
+    expect(raw).toContain('Install transient Preview rehearsal secrets')
+    expect(raw).toContain('Remove transient Preview rehearsal authority and binding marker')
+    expect(raw).toContain('if: always()')
+    expect(raw).toContain('wrangler secret delete')
+    expect(raw).toContain('attest-preview')
   })
 
   it('keeps the controlled badge fixture Preview-only and capability-gated', () => {
@@ -354,7 +399,9 @@ describe('D1 replatform cutover preparation', () => {
         'utf8'
       )
       expect(source).toContain("D1_RUNTIME_ENV !== 'preview'")
-      expect(source).toContain('REPLATFORM_PREVIEW_CAPABILITY')
+      expect(source).toContain('REPLATFORM_PREVIEW_SIGNING_SECRET')
+      expect(source).toContain('REPLATFORM_PREVIEW_RUN_ID')
+      expect(source).toContain("searchParams.get('token')")
       expect(source).toContain('BADGE_VERIFIER_USER_AGENT')
       expect(source).not.toMatch(/(?:INSERT|UPDATE|DELETE|DB\.)/u)
     }
