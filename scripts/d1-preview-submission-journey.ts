@@ -1,7 +1,10 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
-import { createReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
+import {
+  createReplatformPreviewCapability,
+  resolveRehearsalRateFingerprint
+} from '@serpdirectory/data-ops/replatform-preview-capability'
 import {
   buildApproveSubmissionPlans,
   buildRejectSubmissionPlans,
@@ -58,7 +61,10 @@ function measuredPrivateCounts(value: Record<string, unknown> | undefined, label
 async function post(url: URL, body: unknown): Promise<Record<string, unknown>> {
   const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: {
+      'Content-Type': 'application/json',
+      'x-replatform-preview-intake': required('REPLATFORM_PREVIEW_INTAKE_SECRET')
+    },
     body: JSON.stringify(body)
   })
   const payload = (await response.json()) as Record<string, unknown>
@@ -69,7 +75,10 @@ async function exerciseRateLimit(base: URL): Promise<{ attempts: number; status:
   for (let attempt = 1; attempt <= 12; attempt += 1) {
     const response = await fetch(new URL('/api/submissions', base), {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+        'x-replatform-preview-intake': required('REPLATFORM_PREVIEW_INTAKE_SECRET')
+      },
       body: JSON.stringify({ invalid: true })
     })
     if (response.status === 429) return { attempts: attempt, status: response.status }
@@ -151,6 +160,14 @@ async function main(): Promise<void> {
     throw new Error('Missing Preview publication snapshot.')
 
   const approved = await createAndVerify(base, siteId, randomBytes(4).toString('hex'))
+  const rateAfterFirstRequest =
+    (
+      await d1(targetId, [plan('SELECT fingerprint_hash FROM listing_submission_rate_limits')])
+    )[0]?.results?.map(row => String(row.fingerprint_hash)) ?? []
+  const ownedRateFingerprint = resolveRehearsalRateFingerprint(
+    [...rateBefore],
+    rateAfterFirstRequest
+  )
   const previewToken = randomBytes(32).toString('base64url')
   const previewHash = createHash('sha256').update(previewToken).digest('hex')
   await d1(targetId, [
@@ -256,19 +273,11 @@ async function main(): Promise<void> {
     plan('DELETE FROM listing_submission_faqs WHERE submission_id=?', [rejected.id]),
     plan('DELETE FROM listing_submissions WHERE id=?', [rejected.id])
   ])
-  const rateAfterRows =
-    (await d1(targetId, [plan('SELECT fingerprint_hash FROM listing_submission_rate_limits')]))[0]
-      ?.results ?? []
-  const generatedRateFingerprints = rateAfterRows
-    .map(row => String(row.fingerprint_hash))
-    .filter(fingerprint => !rateBefore.has(fingerprint))
-  if (generatedRateFingerprints.length > 0)
-    await d1(
-      targetId,
-      generatedRateFingerprints.map(fingerprint =>
-        plan('DELETE FROM listing_submission_rate_limits WHERE fingerprint_hash=?', [fingerprint])
-      )
-    )
+  await d1(targetId, [
+    plan('DELETE FROM listing_submission_rate_limits WHERE fingerprint_hash=?', [
+      ownedRateFingerprint
+    ])
+  ])
   const sourceAfter = measuredPrivateCounts(
     (await d1(sourceId, [plan(privateSql)]))[0]?.results?.[0],
     'Source after'
@@ -297,7 +306,7 @@ async function main(): Promise<void> {
     throw new Error('Preview journey cleanup left private rows behind.')
   writeFileSync(
     resolve(output),
-    `${JSON.stringify({ siteId, intake: true, rateLimit: rateLimitEvidence.status === 429, rateLimitEvidence, badgeVerification: true, privatePreview: true, approval: true, rejection: true, sourceUnchanged: true, targetPrivateRowsAfterCleanup: targetAfter, deletedOnlyGeneratedIds: [approved.id, rejected.id, listingId, runId, ...generatedRateFingerprints], copiedProduction: targetBefore, previewGenerated: generated }, null, 2)}\n`
+    `${JSON.stringify({ siteId, intake: true, rateLimit: rateLimitEvidence.status === 429, rateLimitEvidence: { ...rateLimitEvidence, ownedFingerprint: ownedRateFingerprint }, badgeVerification: true, privatePreview: true, approval: true, rejection: true, sourceUnchanged: true, targetPrivateRowsAfterCleanup: targetAfter, deletedOnlyGeneratedIds: [approved.id, rejected.id, listingId, runId, ownedRateFingerprint], copiedProduction: targetBefore, previewGenerated: generated }, null, 2)}\n`
   )
 }
 void main().catch(error => {

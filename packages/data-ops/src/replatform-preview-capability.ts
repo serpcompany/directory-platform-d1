@@ -76,3 +76,14 @@ export async function verifyReplatformPreviewCapability(input: {
     parsed.slug === input.slug
   )
 }
+
+export function resolveRehearsalRateFingerprint(
+  before: readonly string[],
+  afterFirstControlledRequest: readonly string[]
+): string {
+  if (before.length !== 0 || afterFirstControlledRequest.length !== 1)
+    throw new Error('Rehearsal rate fingerprint requires isolated empty state and exactly one row.')
+  const [fingerprint] = afterFirstControlledRequest
+  if (!fingerprint) throw new Error('Rehearsal rate fingerprint is missing.')
+  return fingerprint
+}

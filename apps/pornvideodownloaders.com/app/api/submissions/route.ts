@@ -29,6 +29,15 @@ export async function POST(request: Request): Promise<NextResponse> {
     )
   }
   try {
+    const { env } = await getCloudflareContext({ async: true })
+    const workerEnv = env as CloudflareEnv & { REPLATFORM_PREVIEW_INTAKE_SECRET?: string }
+    if (
+      workerEnv.D1_RUNTIME_ENV === 'preview' &&
+      workerEnv.REPLATFORM_PREVIEW_INTAKE_SECRET &&
+      request.headers.get('x-replatform-preview-intake') !==
+        workerEnv.REPLATFORM_PREVIEW_INTAKE_SECRET
+    )
+      return NextResponse.json({ code: 'not_found', error: 'Not found.' }, { status: 404 })
     await consumeSubmissionRateLimit(request.headers.get('cf-connecting-ip') || 'local-development')
     const parsed = submissionRequestSchema.safeParse(await request.json())
     if (!parsed.success) {
@@ -46,3 +55,5 @@ export async function POST(request: Request): Promise<NextResponse> {
     return failure(error)
   }
 }
+
+import { getCloudflareContext } from '@opennextjs/cloudflare'

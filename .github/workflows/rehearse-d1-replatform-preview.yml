@@ -47,6 +47,7 @@ jobs:
       CLOUDFLARE_WORKER_PREVIEW_NAME: ${{ secrets.CLOUDFLARE_WORKER_PREVIEW_NAME }}
       PREVIEW_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
       REPLATFORM_PREVIEW_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
+      REPLATFORM_EVIDENCE_DIR: ${{ runner.temp }}/d1-replatform-evidence
     steps:
       - name: Checkout exact reviewed commit
         uses: actions/checkout@v6
@@ -63,23 +64,30 @@ jobs:
       - name: Build exact-commit Worker
         run: pnpm --filter "${{ inputs.site_id }}" build:worker
 
+      - name: Prepare external evidence directory
+        run: mkdir -p "$REPLATFORM_EVIDENCE_DIR"
+
       - name: Verify observed account, source D1, replacement D1, and Worker identity
-        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity.json
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
 
       - name: Install transient Preview rehearsal secrets
         run: |
           set -euo pipefail
           signing_secret="$(openssl rand -hex 32)"
           binding_nonce="$(openssl rand -hex 32)"
+          intake_secret="$(openssl rand -hex 32)"
           echo "::add-mask::$signing_secret"
           echo "::add-mask::$binding_nonce"
+          echo "::add-mask::$intake_secret"
           {
             echo "REPLATFORM_PREVIEW_SIGNING_SECRET=$signing_secret"
             echo "REPLATFORM_PREVIEW_BINDING_NONCE=$binding_nonce"
+            echo "REPLATFORM_PREVIEW_INTAKE_SECRET=$intake_secret"
           } >> "$GITHUB_ENV"
           for entry in \
             "REPLATFORM_PREVIEW_SIGNING_SECRET=$signing_secret" \
             "REPLATFORM_PREVIEW_BINDING_NONCE=$binding_nonce" \
+            "REPLATFORM_PREVIEW_INTAKE_SECRET=$intake_secret" \
             "REPLATFORM_PREVIEW_RUN_ID=$REPLATFORM_PREVIEW_RUN_ID" \
             "REPLATFORM_PREVIEW_COMMIT_SHA=$GITHUB_SHA" \
             "REPLATFORM_PREVIEW_WORKER_NAME=$CLOUDFLARE_WORKER_PREVIEW_NAME"
@@ -96,15 +104,15 @@ jobs:
           node -e '
             const fs = require("node:fs");
             const names = new Set(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).map(item => item.name));
-            const required = ["REPLATFORM_PREVIEW_SIGNING_SECRET", "REPLATFORM_PREVIEW_BINDING_NONCE", "REPLATFORM_PREVIEW_RUN_ID", "REPLATFORM_PREVIEW_COMMIT_SHA", "REPLATFORM_PREVIEW_WORKER_NAME"];
+            const required = ["REPLATFORM_PREVIEW_SIGNING_SECRET", "REPLATFORM_PREVIEW_BINDING_NONCE", "REPLATFORM_PREVIEW_INTAKE_SECRET", "REPLATFORM_PREVIEW_RUN_ID", "REPLATFORM_PREVIEW_COMMIT_SHA", "REPLATFORM_PREVIEW_WORKER_NAME"];
             if (required.some(name => !names.has(name))) throw new Error("Transient Preview Worker secrets are incomplete.");
           ' "$RUNNER_TEMP/replatform-secret-names.json"
 
       - name: Measure empty target or trusted prior receipt
-        run: pnpm tsx scripts/d1-preview-measure.ts preflight "${{ inputs.site_id }}" preview-preflight.json
+        run: pnpm tsx scripts/d1-preview-measure.ts preflight "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json"
 
       - name: Re-observe identities before backup mutation group
-        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-backup.json
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-backup.json"
 
       - name: Retain source Preview backup
         env:
@@ -125,19 +133,19 @@ jobs:
       - name: Apply fresh schema, import controlled data, and verify exact parity
         run: |
           set -euo pipefail
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-migration.json
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-migration.json"
           pnpm tsx scripts/worker-release.ts migrate preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee preview-first-import.txt
-          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee preview-first-parity.json
+          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt"
+          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json"
           pnpm tsx scripts/worker-release.ts check-schema preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" preview-parity-measurement.json
+          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json"
           pnpm tsx scripts/d1-preview-attestation-marker.ts install
 
       - name: Deploy replacement binding from exact commit
         run: |
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-deploy.json
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-deploy.json"
           pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > preview-worker-attestation.json
+          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json"
 
       - name: Run critical Catalog and Submission browser journeys
         env:
@@ -149,49 +157,49 @@ jobs:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node -e "setInterval(() => {}, 1000)"
         run: |
           pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" catalog-journeys.json
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json"
 
       - name: Repeat import and prove verified no-op with unchanged parity
         run: |
           set -euo pipefail
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-repeat.json
-          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > preview-attestation-before-repeat.json
-          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee preview-repeat-import.txt
-          grep -F "import is a no-op" preview-repeat-import.txt
-          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee preview-repeat-parity.json
-          cmp preview-first-parity.json preview-repeat-parity.json
-          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" preview-repeat-measurement.json
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-repeat.json"
+          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-attestation-before-repeat.json"
+          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/preview-repeat-import.txt"
+          grep -F "import is a no-op" "$REPLATFORM_EVIDENCE_DIR/preview-repeat-import.txt"
+          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json"
+          cmp "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json"
+          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json"
 
       - name: Run real isolated D1-backed Submission journeys
         run: |
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-submissions.json
-          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > preview-attestation-before-submissions.json
-          pnpm tsx scripts/d1-preview-submission-journey.ts "${{ inputs.site_id }}" submission-journeys.json
-          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" preview-post-journey-measurement.json
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-submissions.json"
+          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-attestation-before-submissions.json"
+          pnpm tsx scripts/d1-preview-submission-journey.ts "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json"
+          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json"
 
       - name: Rehearse nondestructive old-binding rollback and restoration
         run: |
           set -euo pipefail
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-rollback.json
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-rollback.json"
           D1_RELEASE_GENERATION=legacy pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" rollback-source.json
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-restoration.json
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-source.json"
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-restoration.json"
           pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > preview-attestation-after-restoration.json
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" rollback-target.json
+          pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-attestation-after-restoration.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
 
       - name: Build and validate sealed exact-commit Preview receipt
-        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity preview-identity.json --worker-attestation preview-worker-attestation.json --preflight preview-preflight.json --first-import preview-first-import.txt --first-parity preview-first-parity.json --measurement preview-parity-measurement.json --repeat-parity preview-repeat-parity.json --repeat-measurement preview-repeat-measurement.json --post-journey-measurement preview-post-journey-measurement.json --catalog-journeys catalog-journeys.json --submission-journeys submission-journeys.json --rollback-source rollback-source.json --rollback-target rollback-target.json --output preview-evidence.json
+        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
 
       - name: Seal trusted Preview evidence
-        run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file preview-evidence.json > preview-receipt.json
+        run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json" > "$REPLATFORM_EVIDENCE_DIR/preview-receipt.json"
 
       - name: Retain sealed Preview evidence and browser artifacts
         uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.site_id }}-d1-replatform-preview-evidence-${{ github.sha }}
           path: |
-            preview-receipt.json
+            ${{ runner.temp }}/d1-replatform-evidence/
             apps/e2e/playwright-report/
             apps/e2e/test-results/
           if-no-files-found: error
@@ -207,11 +215,24 @@ jobs:
           for key in \
             REPLATFORM_PREVIEW_SIGNING_SECRET \
             REPLATFORM_PREVIEW_BINDING_NONCE \
+            REPLATFORM_PREVIEW_INTAKE_SECRET \
             REPLATFORM_PREVIEW_RUN_ID \
             REPLATFORM_PREVIEW_COMMIT_SHA \
             REPLATFORM_PREVIEW_WORKER_NAME
           do
             pnpm exec wrangler secret delete "$key" --name "$CLOUDFLARE_WORKER_PREVIEW_NAME" || cleanup_status=1
           done
+          pnpm exec wrangler secret list --name "$CLOUDFLARE_WORKER_PREVIEW_NAME" --format json > "$RUNNER_TEMP/replatform-secret-names-after-cleanup.json" || cleanup_status=1
+          node -e '
+            const fs = require("node:fs");
+            const names = new Set(JSON.parse(fs.readFileSync(process.argv[1], "utf8")).map(item => item.name));
+            const removed = ["REPLATFORM_PREVIEW_SIGNING_SECRET", "REPLATFORM_PREVIEW_BINDING_NONCE", "REPLATFORM_PREVIEW_INTAKE_SECRET", "REPLATFORM_PREVIEW_RUN_ID", "REPLATFORM_PREVIEW_COMMIT_SHA", "REPLATFORM_PREVIEW_WORKER_NAME"];
+            if (removed.some(name => names.has(name))) throw new Error("Transient Preview Worker authority remains installed.");
+          ' "$RUNNER_TEMP/replatform-secret-names-after-cleanup.json" || cleanup_status=1
+          pnpm tsx scripts/d1-preview-attestation-marker.ts assert-absent || cleanup_status=1
+          badge_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PREVIEW_BASE_URL/api/replatform/badge-fixture?slug=cleanup.invalid")"
+          attestation_status="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' "$PREVIEW_BASE_URL/api/replatform/attestation")"
+          [ "$badge_status" = '404' ] || cleanup_status=1
+          [ "$attestation_status" = '404' ] || cleanup_status=1
           rm -f "$RUNNER_TEMP"/REPLATFORM_PREVIEW_*
           exit "$cleanup_status"

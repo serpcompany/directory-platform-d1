@@ -81,8 +81,17 @@ exact Site, service, commit, run, hostname, and binding nonce. This proves the p
 Preview hostname is serving the intended deployed Worker and replacement binding.
 
 The rate-limit journey makes at most twelve bounded requests and requires a real HTTP
-429. It records and removes only the exact new fingerprint row created by that run;
-it never deletes a set inferred solely from elapsed time or a broad row-count delta.
+429. While the transient intake secret exists, unrelated Preview intake is rejected,
+so the first controlled request must create exactly one fingerprint in otherwise
+empty private state. The workflow records and removes only that exact fingerprint;
+if any concurrent unrelated fingerprint appears, it is preserved and parity fails.
+It never deletes a set inferred solely from elapsed time or a broad row-count delta.
+
+All evidence is written beneath the runner temporary directory, never the checkout,
+so repeated clean-tree identity gates remain meaningful. Final cleanup re-lists Worker
+secrets to prove every transient name is absent, queries D1 to prove the binding marker
+is absent, and negatively probes both temporary endpoints for HTTP 404. Any remaining
+authority fails the protected workflow.
 
 ## Production cutover
 

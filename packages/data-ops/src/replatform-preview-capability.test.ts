@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   createReplatformPreviewCapability,
+  resolveRehearsalRateFingerprint,
   verifyReplatformPreviewCapability
 } from './replatform-preview-capability'
 
@@ -39,5 +40,15 @@ describe('replatform Preview capability', () => {
           ...changed
         })
       ).resolves.toBe(false)
+  })
+
+  it('captures exactly one owned rate fingerprint and refuses concurrent unrelated rows', () => {
+    expect(resolveRehearsalRateFingerprint([], ['owned'])).toBe('owned')
+    const concurrent = ['owned', 'unrelated']
+    expect(() => resolveRehearsalRateFingerprint([], concurrent)).toThrow('exactly one row')
+    expect(concurrent).toEqual(['owned', 'unrelated'])
+    expect(() => resolveRehearsalRateFingerprint(['existing'], ['existing'])).toThrow(
+      'isolated empty state'
+    )
   })
 })

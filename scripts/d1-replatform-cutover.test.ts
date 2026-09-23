@@ -390,6 +390,15 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('if: always()')
     expect(raw).toContain('wrangler secret delete')
     expect(raw).toContain('attest-preview')
+    expect(raw).toContain('REPLATFORM_EVIDENCE_DIR: $' + '{{ runner.temp }}/d1-replatform-evidence')
+    expect(raw).not.toMatch(/(?:>|tee)\s+preview-[a-z-]+\.(?:json|txt)/u)
+    expect(raw).not.toMatch(
+      /scripts\/d1-[^\n]+\s+(?:preview-|catalog-|submission-|rollback-)[^/$"\s]+\.(?:json|txt)/u
+    )
+    expect(raw).toContain('replatform-secret-names-after-cleanup.json')
+    expect(raw).toContain('d1-preview-attestation-marker.ts assert-absent')
+    expect(raw).toContain('[ "$badge_status" = \'404\' ]')
+    expect(raw).toContain('[ "$attestation_status" = \'404\' ]')
   })
 
   it('keeps the controlled badge fixture Preview-only and capability-gated', () => {
@@ -405,6 +414,19 @@ describe('D1 replatform cutover preparation', () => {
       expect(source).toContain('BADGE_VERIFIER_USER_AGENT')
       expect(source).not.toMatch(/(?:INSERT|UPDATE|DELETE|DB\.)/u)
     }
+  })
+
+  it('freezes unrelated Preview intake while the rehearsal owns its exact fingerprint', () => {
+    for (const siteId of ['serp.software', 'pornvideodownloaders.com']) {
+      const source = readFileSync(`apps/${siteId}/app/api/submissions/route.ts`, 'utf8')
+      expect(source).toContain("D1_RUNTIME_ENV === 'preview'")
+      expect(source).toContain('REPLATFORM_PREVIEW_INTAKE_SECRET')
+      expect(source).toContain("request.headers.get('x-replatform-preview-intake')")
+    }
+    const journey = readFileSync('scripts/d1-preview-submission-journey.ts', 'utf8')
+    expect(journey).toContain('resolveRehearsalRateFingerprint')
+    expect(journey).toContain('DELETE FROM listing_submission_rate_limits WHERE fingerprint_hash=?')
+    expect(journey).not.toContain('generatedRateFingerprints')
   })
 
   it('derives sealed evidence from measured D1 and journey artifacts', () => {

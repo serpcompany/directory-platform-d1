@@ -108,7 +108,9 @@ if (
   rateLimitEvidence.status !== 429 ||
   typeof rateLimitEvidence.attempts !== 'number' ||
   rateLimitEvidence.attempts < 1 ||
-  rateLimitEvidence.attempts > 12
+  rateLimitEvidence.attempts > 12 ||
+  typeof rateLimitEvidence.ownedFingerprint !== 'string' ||
+  !rateLimitEvidence.ownedFingerprint
 )
   throw new Error('Submission rate-limit evidence is not a bounded real 429 result.')
 allTrue(rollbackSource, 'Source rollback route gates')
