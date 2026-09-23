@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { parse } from 'yaml'
 import {
   assertSchemaCompatible,
+  parseDatabaseGeneration,
   requiredMigrationNames,
   runWorkerRelease,
   validateWorkerConfig,
@@ -34,6 +35,17 @@ function dependencies(
 }
 
 describe('Worker release guard', () => {
+  it('parses database generation strictly and requires it in replatform execution', () => {
+    expect(parseDatabaseGeneration(undefined, { requireExplicit: false })).toBe('legacy')
+    expect(parseDatabaseGeneration('legacy', { requireExplicit: true })).toBe('legacy')
+    expect(parseDatabaseGeneration('replatform', { requireExplicit: true })).toBe('replatform')
+    expect(() => parseDatabaseGeneration(undefined, { requireExplicit: true })).toThrow(
+      'must explicitly equal'
+    )
+    expect(() => parseDatabaseGeneration('replatfrom', { requireExplicit: false })).toThrow(
+      'must explicitly equal'
+    )
+  })
   it('validates isolated checked-in placeholder configs', () => {
     expect(() => validateWorkerConfig('preview', 'serp.software')).not.toThrow()
     expect(() => validateWorkerConfig('production', 'serp.software')).not.toThrow()

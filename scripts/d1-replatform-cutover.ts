@@ -31,6 +31,8 @@ export interface EvidenceTrust {
 
 interface IdentityDependencies {
   fetchAccount(accountId: string, token: string): Promise<unknown>
+  fetchWorker(accountId: string, workerName: string, token: string): Promise<unknown>
+  fetchPreviewHostname(baseUrl: string): Promise<string>
   readD1Info(databaseName: string): unknown
   readGit(command: 'head' | 'status'): string
 }
@@ -42,6 +44,19 @@ const defaultIdentityDependencies: IdentityDependencies = {
     })
     if (!response.ok) throw new Error('Cloudflare account identity request failed.')
     return response.json()
+  },
+  async fetchWorker(accountId, workerName, token) {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/services/${encodeURIComponent(workerName)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw new Error('Cloudflare Worker identity request failed.')
+    return response.json()
+  },
+  async fetchPreviewHostname(baseUrl) {
+    const response = await fetch(baseUrl, { method: 'HEAD', redirect: 'manual' })
+    if (!response.ok) throw new Error('Preview hostname observation failed.')
+    return new URL(response.url).hostname
   },
   readD1Info(databaseName) {
     const result = spawnSync('pnpm', ['exec', 'wrangler', 'd1', 'info', databaseName, '--json'], {
@@ -82,7 +97,8 @@ const identityFields = [
   'sourceDatabaseName',
   'targetDatabaseId',
   'targetDatabaseName',
-  'workerName'
+  'workerName',
+  'workerHostname'
 ] as const
 
 function object(value: unknown, label: string): Record<string, unknown> {
@@ -288,6 +304,17 @@ export async function verifyPreviewRemoteIdentity(
   )
   const sourceInfo = object(dependencies.readD1Info(sourceDatabaseName), 'Source D1 info')
   const targetInfo = object(dependencies.readD1Info(targetDatabaseName), 'Target D1 info')
+  const expectedWorkerName = text(
+    env.CLOUDFLARE_WORKER_PREVIEW_NAME,
+    'CLOUDFLARE_WORKER_PREVIEW_NAME'
+  )
+  const worker = cloudflareResult(
+    await dependencies.fetchWorker(accountId, expectedWorkerName, token),
+    'Cloudflare Worker identity'
+  )
+  const previewBaseUrl = text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL')
+  const expectedPreviewHostname = new URL(previewBaseUrl).hostname
+  const observedPreviewHostname = await dependencies.fetchPreviewHostname(previewBaseUrl)
   const exactIdentity = {
     siteId,
     environment: 'preview',
@@ -298,14 +325,17 @@ export async function verifyPreviewRemoteIdentity(
     sourceDatabaseName,
     targetDatabaseId,
     targetDatabaseName,
-    workerName: text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME')
+    workerName: expectedWorkerName,
+    workerHostname: expectedPreviewHostname
   }
   const observed = {
     ...exactIdentity,
     sourceDatabaseId: sourceInfo.uuid,
     sourceDatabaseName: sourceInfo.name,
     targetDatabaseId: targetInfo.uuid,
-    targetDatabaseName: targetInfo.name
+    targetDatabaseName: targetInfo.name,
+    workerName: worker.name ?? worker.id,
+    workerHostname: observedPreviewHostname
   }
   const identity = { expected: exactIdentity, observed }
   assertRemoteIdentity(siteId, 'preview', identity)

@@ -121,6 +121,15 @@ function parseEnvironment(value: string | undefined): WorkerEnvironment {
   throw new Error('Worker environment must be "preview" or "production".')
 }
 
+export function parseDatabaseGeneration(
+  value: string | undefined,
+  options: { requireExplicit: boolean }
+): DatabaseGeneration {
+  if (value === 'legacy' || value === 'replatform') return value
+  if (value === undefined && !options.requireExplicit) return 'legacy'
+  throw new Error('D1_RELEASE_GENERATION must explicitly equal legacy or replatform.')
+}
+
 function readTemplate(
   target: SiteTarget,
   environment: WorkerEnvironment,
@@ -410,8 +419,11 @@ function runRemote(
   dependencies: WorkerReleaseDependencies
 ): void {
   assertProtectedWorkflow(target, environment, env, dependencies)
-  const generation: DatabaseGeneration =
-    env.D1_RELEASE_GENERATION === 'replatform' ? 'replatform' : 'legacy'
+  const generation = parseDatabaseGeneration(env.D1_RELEASE_GENERATION, {
+    requireExplicit: Boolean(
+      env.GITHUB_WORKFLOW_REF?.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+    )
+  })
   const { configPath, databaseName } = materializeConfig(target, environment, env, generation)
   if (command === 'upload' || command === 'deploy') {
     runChecked(dependencies, 'pnpm', [

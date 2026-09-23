@@ -46,6 +46,7 @@ jobs:
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME }}
       CLOUDFLARE_WORKER_PREVIEW_NAME: ${{ secrets.CLOUDFLARE_WORKER_PREVIEW_NAME }}
       PREVIEW_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
+      REPLATFORM_PREVIEW_CAPABILITY: ${{ secrets.REPLATFORM_PREVIEW_CAPABILITY }}
     steps:
       - name: Checkout exact reviewed commit
         uses: actions/checkout@v6
@@ -64,6 +65,12 @@ jobs:
 
       - name: Verify observed account, source D1, replacement D1, and Worker identity
         run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity.json
+
+      - name: Measure empty target or trusted prior receipt
+        run: pnpm tsx scripts/d1-preview-measure.ts preflight "${{ inputs.site_id }}" preview-preflight.json
+
+      - name: Re-observe identities before backup mutation group
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-backup.json
 
       - name: Retain source Preview backup
         env:
@@ -84,13 +91,17 @@ jobs:
       - name: Apply fresh schema, import controlled data, and verify exact parity
         run: |
           set -euo pipefail
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-migration.json
           pnpm tsx scripts/worker-release.ts migrate preview --site "${{ inputs.site_id }}"
           pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee preview-first-import.txt
           pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee preview-first-parity.json
           pnpm tsx scripts/worker-release.ts check-schema preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" preview-parity-measurement.json
 
       - name: Deploy replacement binding from exact commit
-        run: pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+        run: |
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-deploy.json
+          pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
 
       - name: Run critical Catalog and Submission browser journeys
         env:
@@ -101,26 +112,37 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
           PLAYWRIGHT_WEB_SERVER_COMMAND: node -e "setInterval(() => {}, 1000)"
         run: |
-          pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts tests/submission-verification.spec.ts --project=chromium
+          pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" catalog-journeys.json
 
       - name: Repeat import and prove verified no-op with unchanged parity
         run: |
           set -euo pipefail
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-repeat.json
           pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee preview-repeat-import.txt
           grep -F "import is a no-op" preview-repeat-import.txt
           pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee preview-repeat-parity.json
           cmp preview-first-parity.json preview-repeat-parity.json
+          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" preview-repeat-measurement.json
+
+      - name: Run real isolated D1-backed Submission journeys
+        run: |
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-submissions.json
+          pnpm tsx scripts/d1-preview-submission-journey.ts "${{ inputs.site_id }}" submission-journeys.json
+          pnpm tsx scripts/d1-preview-measure.ts parity "${{ inputs.site_id }}" preview-post-journey-measurement.json
 
       - name: Rehearse nondestructive old-binding rollback and restoration
         run: |
           set -euo pipefail
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-rollback.json
           D1_RELEASE_GENERATION=legacy pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL"
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" rollback-source.json
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity-before-restoration.json
           pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL"
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" rollback-target.json
 
       - name: Build and validate sealed exact-commit Preview receipt
-        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity preview-identity.json --first-import preview-first-import.txt --first-parity preview-first-parity.json --repeat-parity preview-repeat-parity.json --output preview-evidence.json
+        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity preview-identity.json --preflight preview-preflight.json --first-import preview-first-import.txt --first-parity preview-first-parity.json --measurement preview-parity-measurement.json --repeat-parity preview-repeat-parity.json --repeat-measurement preview-repeat-measurement.json --post-journey-measurement preview-post-journey-measurement.json --catalog-journeys catalog-journeys.json --submission-journeys submission-journeys.json --rollback-source rollback-source.json --rollback-target rollback-target.json --output preview-evidence.json
 
       - name: Seal trusted Preview evidence
         run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file preview-evidence.json > preview-receipt.json

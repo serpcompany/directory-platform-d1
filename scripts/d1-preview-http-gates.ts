@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs'
+import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse } from 'yaml'
 import { resolveSiteTarget } from './site-targets'
@@ -32,7 +32,18 @@ export async function runPreviewHttpGates(siteValue: string, baseUrlValue: strin
   ])
 }
 
-const [siteValue, baseUrlValue] = process.argv.slice(2)
-if (!siteValue || !baseUrlValue)
-  throw new Error('Usage: d1-preview-http-gates.ts <site> <https-preview-base-url>')
-await runPreviewHttpGates(siteValue, baseUrlValue)
+async function main(): Promise<void> {
+  const [siteValue, baseUrlValue, output] = process.argv.slice(2)
+  if (!siteValue || !baseUrlValue)
+    throw new Error('Usage: d1-preview-http-gates.ts <site> <https-preview-base-url> [output]')
+  await runPreviewHttpGates(siteValue, baseUrlValue)
+  if (output)
+    writeFileSync(
+      resolve(output),
+      `${JSON.stringify({ home: true, category: true, detail: true, search: true, rss: true, sitemap: true, legacyRedirect: true })}\n`
+    )
+}
+void main().catch(error => {
+  console.error(error instanceof Error ? error.message : String(error))
+  process.exitCode = 1
+})

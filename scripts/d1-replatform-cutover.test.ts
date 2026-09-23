@@ -27,7 +27,8 @@ function baseEvidence(environment: 'preview' | 'production') {
     sourceDatabaseName: 'source-name',
     targetDatabaseId: 'target-uuid',
     targetDatabaseName: 'target-name',
-    workerName: 'worker-name'
+    workerName: 'worker-name',
+    workerHostname: 'preview.example.test'
   }
   return {
     siteId,
@@ -182,10 +183,13 @@ describe('D1 replatform cutover preparation', () => {
       CLOUDFLARE_D1_PREVIEW_DATABASE_NAME: 'source-name',
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'target-uuid',
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'target-name',
-      CLOUDFLARE_WORKER_PREVIEW_NAME: 'worker-name'
+      CLOUDFLARE_WORKER_PREVIEW_NAME: 'worker-name',
+      PREVIEW_BASE_URL: 'https://preview.example.test/'
     }
     const dependencies = {
       fetchAccount: async () => ({ success: true, result: { id: 'account-id' } }),
+      fetchWorker: async () => ({ success: true, result: { name: 'worker-name' } }),
+      fetchPreviewHostname: async () => 'preview.example.test',
       readD1Info: (name: string) =>
         name === 'source-name' ? { name, uuid: 'source-uuid' } : { name, uuid: 'target-uuid' },
       readGit: (command: 'head' | 'status') => (command === 'head' ? commitSha : '')
@@ -338,5 +342,32 @@ describe('D1 replatform cutover preparation', () => {
     expect(ordered).toEqual([...ordered].sort((left, right) => left - right))
     expect(raw).toContain('D1_RELEASE_GENERATION: replatform')
     expect(raw).toContain('validate-replatform preview')
+    expect(raw).toContain('d1-preview-submission-journey.ts')
+    expect(raw).not.toContain('submission-verification.spec.ts')
+    expect(raw.match(/verify-preview-identity/gu)?.length).toBeGreaterThanOrEqual(7)
+  })
+
+  it('keeps the controlled badge fixture Preview-only and capability-gated', () => {
+    for (const siteId of ['serp.software', 'pornvideodownloaders.com']) {
+      const source = readFileSync(
+        `apps/${siteId}/app/api/replatform/badge-fixture/route.ts`,
+        'utf8'
+      )
+      expect(source).toContain("D1_RUNTIME_ENV !== 'preview'")
+      expect(source).toContain('REPLATFORM_PREVIEW_CAPABILITY')
+      expect(source).toContain('BADGE_VERIFIER_USER_AGENT')
+      expect(source).not.toMatch(/(?:INSERT|UPDATE|DELETE|DB\.)/u)
+    }
+  })
+
+  it('derives sealed evidence from measured D1 and journey artifacts', () => {
+    const source = readFileSync('scripts/d1-preview-evidence.ts', 'utf8')
+    expect(source).toContain("required(values, '--measurement')")
+    expect(source).toContain("required(values, '--submission-journeys')")
+    expect(source).toContain("required(values, '--post-journey-measurement')")
+    expect(source).not.toMatch(
+      /exactParity:\s*true|freshMigrationLedger:\s*true|nothingDeleted:\s*true/u
+    )
+    expect(source).not.toMatch(/copiedProduction:\s*\{[^}]*:\s*0/u)
   })
 })
