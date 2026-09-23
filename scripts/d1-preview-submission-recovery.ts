@@ -1,6 +1,8 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { resolveRehearsalRateFingerprint } from '@serpdirectory/data-ops/replatform-preview-capability'
 import type { SubmissionStatementPlan } from '@serpdirectory/data-ops/submission-plans'
+import { type ApplicationSnapshot, readRemoteApplicationSnapshot } from './d1-preview-snapshot'
 import { resolveSiteTarget, type SiteId } from './site-targets'
 
 export interface RecoveryJournal {
@@ -11,9 +13,45 @@ export interface RecoveryJournal {
   runId: string
   siteId: SiteId
   sourcePrivateBefore: Record<string, unknown>
+  sourceSnapshotChecksum: string
   submissions: Array<{ id: string; listingId: string; publicationRunId: string }>
   targetPrivateBefore: Record<string, unknown>
+  targetSnapshotChecksum: string
   version: number
+}
+
+export function assertRecoveredApplicationSnapshots(
+  journal: RecoveryJournal,
+  source: ApplicationSnapshot,
+  target: ApplicationSnapshot
+): void {
+  if (
+    journal.sourceSnapshotChecksum !== journal.targetSnapshotChecksum ||
+    source.checksum !== journal.sourceSnapshotChecksum ||
+    target.checksum !== journal.targetSnapshotChecksum ||
+    source.checksum !== target.checksum
+  )
+    throw new Error('Recovered full application snapshot does not match journaled parity.')
+}
+
+export function adoptRecoveryRateFingerprint(
+  journal: RecoveryJournal,
+  discoveredSubmissionIds: readonly string[],
+  currentFingerprints: readonly string[]
+): RecoveryJournal {
+  if (journal.ownedRateFingerprint) return journal
+  if (discoveredSubmissionIds.length === 0) {
+    if (JSON.stringify(currentFingerprints) !== JSON.stringify(journal.rateFingerprintsBefore))
+      throw new Error('Unowned rate fingerprint state changed; manual recovery is required.')
+    return journal
+  }
+  return {
+    ...journal,
+    ownedRateFingerprint: resolveRehearsalRateFingerprint(
+      journal.rateFingerprintsBefore,
+      currentFingerprints
+    )
+  }
 }
 
 interface Result {
@@ -137,7 +175,14 @@ async function main(): Promise<void> {
     ])
   ])
   const discoveredIds = (discovered[0]?.results ?? []).map(row => String(row.id))
-  await d1(targetId, buildRecoveryPlans(journal, discoveredIds))
+  const fingerprintResult = await d1(targetId, [
+    plan('SELECT fingerprint_hash FROM listing_submission_rate_limits ORDER BY fingerprint_hash')
+  ])
+  const currentFingerprints = (fingerprintResult[0]?.results ?? []).map(row =>
+    String(row.fingerprint_hash)
+  )
+  const recoveryJournal = adoptRecoveryRateFingerprint(journal, discoveredIds, currentFingerprints)
+  await d1(targetId, buildRecoveryPlans(recoveryJournal, discoveredIds))
   const audit = await d1(targetId, [
     plan('SELECT id FROM publication_runs ORDER BY id'),
     plan('SELECT * FROM publication_state WHERE site_id=?', [journal.siteId]),
@@ -152,9 +197,14 @@ async function main(): Promise<void> {
     JSON.stringify(fingerprints) !== JSON.stringify(journal.rateFingerprintsBefore)
   )
     throw new Error('Preview recovery did not restore exact journaled state.')
+  const sourceSnapshot = await readRemoteApplicationSnapshot(
+    required('CLOUDFLARE_D1_PREVIEW_DATABASE_ID')
+  )
+  const targetSnapshot = await readRemoteApplicationSnapshot(targetId)
+  assertRecoveredApplicationSnapshots(recoveryJournal, sourceSnapshot, targetSnapshot)
   writeFileSync(
     resolve(outputPath),
-    `${JSON.stringify({ recovered: true, discoveredSubmissionIds: discoveredIds, deletedSubmissionIds: [...new Set([...journal.submissions.map(item => item.id), ...discoveredIds])], restoredPublicationState: state, restoredPublicationRunIds: runIds, restoredRateFingerprints: fingerprints }, null, 2)}\n`
+    `${JSON.stringify({ recovered: true, adoptedRateFingerprint: journal.ownedRateFingerprint === null ? recoveryJournal.ownedRateFingerprint : null, applicationSnapshotChecksum: targetSnapshot.checksum, discoveredSubmissionIds: discoveredIds, deletedSubmissionIds: [...new Set([...journal.submissions.map(item => item.id), ...discoveredIds])], restoredPublicationState: state, restoredPublicationRunIds: runIds, restoredRateFingerprints: fingerprints }, null, 2)}\n`
   )
 }
 if (process.argv[1]?.endsWith('d1-preview-submission-recovery.ts'))

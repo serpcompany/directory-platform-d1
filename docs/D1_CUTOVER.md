@@ -100,7 +100,18 @@ Submission/Listings IDs. Each phase advances that journal before the next mutati
 An idempotent recovery command consumes it after a successful journey and again from
 the `always()` cleanup, covering interruption after intake, notification, approval,
 rejection, or rate limiting. It restores the exact journaled Publication/audit state
-and deletes only recorded or exact run-discovered rows.
+and deletes only recorded or exact run-discovered rows. If intake committed before
+its fingerprint could be journaled, recovery may adopt a fingerprint only when the
+recorded baseline was empty, an exact run-owned Submission is discovered, and exactly
+one current fingerprint exists. Zero, multiple, or preexisting/mismatched candidates
+stop for manual recovery without deleting any fingerprint.
+
+The journal also records the shared canonical digest of every application table in
+both source and target before the journey. Recovery recomputes that same digest after
+cleanup and may emit `recovered: true` only when source, target, and both recorded
+digests match. This covers Listings, relationships, redirects, Submission children,
+events, notifications, rate limits, Publication state, and audit tables—not merely a
+small set of cleanup counters.
 
 The final cleanup first performs a fresh full identity verification. If that fails,
 it performs zero Cloudflare/D1 cleanup mutations, retains the journal plus a

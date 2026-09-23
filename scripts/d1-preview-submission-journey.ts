@@ -11,6 +11,7 @@ import {
   type SubmissionStatementPlan,
   selectSubmissionForDecisionPlan
 } from '@serpdirectory/data-ops/submission-plans'
+import { readRemoteApplicationSnapshot } from './d1-preview-snapshot'
 import { resolveSiteTarget } from './site-targets'
 
 interface Result {
@@ -163,6 +164,10 @@ async function main(): Promise<void> {
     (await d1(targetId, [plan('SELECT id FROM publication_runs ORDER BY id')]))[0]?.results?.map(
       row => String(row.id)
     ) ?? []
+  const sourceSnapshot = await readRemoteApplicationSnapshot(sourceId)
+  const targetSnapshot = await readRemoteApplicationSnapshot(targetId)
+  if (sourceSnapshot.checksum !== targetSnapshot.checksum)
+    throw new Error('Pre-journey source and target application snapshots differ.')
   const journal = {
     version: 1,
     siteId,
@@ -171,7 +176,9 @@ async function main(): Promise<void> {
     originalPublicationState: publication,
     originalPublicationRunIds: publicationRunIds,
     sourcePrivateBefore: sourceBefore,
+    sourceSnapshotChecksum: sourceSnapshot.checksum,
     targetPrivateBefore: targetBefore,
+    targetSnapshotChecksum: targetSnapshot.checksum,
     rateFingerprintsBefore: [...rateBefore],
     submissions: [] as Array<{ id: string; listingId: string; publicationRunId: string }>,
     ownedRateFingerprint: null as string | null
