@@ -32,7 +32,18 @@ Preview journey and never copied from Production.
 The protected Preview executor is
 `.github/workflows/rehearse-d1-replatform-preview.yml`. Dispatch is inert until the
 selected protected environment has its exact resources, variables, secrets, reviewer,
-and `rehearse-<site>-preview` approval configured. It then:
+and `rehearse-<site>-preview` approval configured.
+
+The rehearsal intentionally runs before merge from exactly
+`refs/heads/codex/issue-72-preview-cutover`. The workflow checks out the dispatched
+`GITHUB_SHA`, and both identity and release guards require that exact ref, workflow
+source ref, clean checkout, and matching `HEAD`. `main`, other `codex/*` branches,
+tags, and pull-request merge refs cannot run this Preview executor. This exception is
+Preview-only: Production, publication, Submission approval, notification, and every
+other remote mutation remain strictly protected `refs/heads/main` operations with
+their independent confirmations.
+
+The approved Preview run then:
 
 1. verify account, Site, environment, source D1, replacement D1, and Worker identity;
 2. retain identified source and target backups;

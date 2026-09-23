@@ -4,7 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
-import { resolveSiteTarget, type SiteId } from './site-targets'
+import { replatformPreviewRef, resolveSiteTarget, type SiteId } from './site-targets'
 
 export type CutoverEnvironment = 'preview' | 'production'
 
@@ -256,8 +256,10 @@ export async function verifyPreviewRemoteIdentity(
   if (
     env.GITHUB_ACTIONS !== 'true' ||
     env.CI !== 'true' ||
-    env.GITHUB_REF !== 'refs/heads/main' ||
-    !env.GITHUB_WORKFLOW_REF?.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+    env.GITHUB_REF !== replatformPreviewRef ||
+    !env.GITHUB_WORKFLOW_REF?.endsWith(
+      `/.github/workflows/rehearse-d1-replatform-preview.yml@${replatformPreviewRef}`
+    )
   )
     throw new Error('Preview identity verification requires the protected rehearsal workflow.')
   const commitSha = text(env.GITHUB_SHA, 'GITHUB_SHA')

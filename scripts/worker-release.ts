@@ -5,7 +5,7 @@ import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { validateReplatformTemplate } from './d1-replatform-cutover'
-import { resolveSiteTarget, type SiteTarget } from './site-targets'
+import { replatformPreviewRef, resolveSiteTarget, type SiteTarget } from './site-targets'
 
 const environments = ['preview', 'production'] as const
 type WorkerEnvironment = (typeof environments)[number]
@@ -208,6 +208,9 @@ function assertProtectedWorkflow(
     workflowRef.includes('/.github/workflows/build-and-deploy.yml@') ||
     workflowRef.includes('/.github/workflows/deploy-pornvideodownloaders.yml@') ||
     workflowRef.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+  const isReplatformPreviewWorkflow = workflowRef.includes(
+    '/.github/workflows/rehearse-d1-replatform-preview.yml@'
+  )
   const isPublicationWorkflow = workflowRef.includes('/.github/workflows/publish-d1.yml@')
   const isSubmissionApprovalWorkflow = workflowRef.includes(
     '/.github/workflows/approve-d1-submission.yml@'
@@ -218,15 +221,24 @@ function assertProtectedWorkflow(
     (!isDeployWorkflow && !isPublicationWorkflow && !isSubmissionApprovalWorkflow)
   )
     throw new Error('Remote execution is authorized only by a protected GitHub Actions workflow.')
-  if (env.GITHUB_REF !== 'refs/heads/main' || !env.GITHUB_SHA)
-    throw new Error('Remote execution requires the main branch and a nonempty GitHub SHA.')
+  if (!env.GITHUB_SHA) throw new Error('Remote execution requires a nonempty GitHub SHA.')
+  if (isReplatformPreviewWorkflow) {
+    if (
+      environment !== 'preview' ||
+      env.GITHUB_REF !== replatformPreviewRef ||
+      !workflowRef.endsWith(`@${replatformPreviewRef}`)
+    )
+      throw new Error('Replatform Preview execution requires the exact checked-in integration ref.')
+  } else if (env.GITHUB_REF !== 'refs/heads/main') {
+    throw new Error('Remote execution requires the main branch.')
+  }
   if (environment === 'preview' && (isPublicationWorkflow || isSubmissionApprovalWorkflow))
     throw new Error('Publication and submission approval are production-only operations.')
   const expectedConfirmation = isPublicationWorkflow
     ? target.confirmation.publish
     : isSubmissionApprovalWorkflow
       ? target.confirmation.submission
-      : workflowRef.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+      : isReplatformPreviewWorkflow
         ? target.confirmation.replatform[environment]
         : target.confirmation.deploy[environment]
   if (env.WORKER_PRODUCTION_CONFIRM !== expectedConfirmation)

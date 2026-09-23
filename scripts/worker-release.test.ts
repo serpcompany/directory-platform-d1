@@ -353,7 +353,8 @@ describe('Worker release guard', () => {
     const previewEnv = {
       ...productionEnv,
       GITHUB_WORKFLOW_REF:
-        'serpcompany/directory-platform-d1/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/main',
+        'serpcompany/directory-platform-d1/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/codex/issue-72-preview-cutover',
+      GITHUB_REF: 'refs/heads/codex/issue-72-preview-cutover',
       WORKER_PRODUCTION_CONFIRM: 'rehearse-serp.software-preview',
       D1_RELEASE_GENERATION: 'replatform',
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'replacement-preview-id',
@@ -381,5 +382,45 @@ describe('Worker release guard', () => {
     expect(process.run.mock.calls[2]?.[1]).toEqual(
       expect.arrayContaining(['migrations', 'apply', 'replacement-preview-name', '--remote'])
     )
+  })
+
+  it('rejects arbitrary branches, tags, PR refs, and Production from the Preview rehearsal workflow', () => {
+    const base = {
+      ...productionEnv,
+      WORKER_PRODUCTION_CONFIRM: 'rehearse-serp.software-preview',
+      D1_RELEASE_GENERATION: 'replatform',
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'replacement-preview-id',
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'replacement-preview-name',
+      CLOUDFLARE_WORKER_PREVIEW_NAME: 'serp-preview-worker'
+    }
+    for (const ref of [
+      'refs/heads/main',
+      'refs/heads/codex/other-branch',
+      'refs/tags/preview',
+      'refs/pull/72/merge'
+    ])
+      expect(() =>
+        runWorkerRelease(
+          ['migrate', 'preview', '--site', 'serp.software'],
+          {
+            ...base,
+            GITHUB_REF: ref,
+            GITHUB_WORKFLOW_REF: `owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@${ref}`
+          },
+          dependencies()
+        )
+      ).toThrow('exact checked-in integration ref')
+    expect(() =>
+      runWorkerRelease(
+        ['migrate', 'production', '--site', 'serp.software'],
+        {
+          ...base,
+          GITHUB_REF: 'refs/heads/codex/issue-72-preview-cutover',
+          GITHUB_WORKFLOW_REF:
+            'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/codex/issue-72-preview-cutover'
+        },
+        dependencies()
+      )
+    ).toThrow('exact checked-in integration ref')
   })
 })

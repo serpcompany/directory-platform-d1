@@ -181,10 +181,10 @@ describe('D1 replatform cutover preparation', () => {
     const env = {
       GITHUB_ACTIONS: 'true',
       CI: 'true',
-      GITHUB_REF: 'refs/heads/main',
+      GITHUB_REF: 'refs/heads/codex/issue-72-preview-cutover',
       GITHUB_SHA: commitSha,
       GITHUB_WORKFLOW_REF:
-        'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/main',
+        'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/codex/issue-72-preview-cutover',
       WORKER_PRODUCTION_CONFIRM: 'rehearse-serp.software-preview',
       CLOUDFLARE_ACCOUNT_ID: 'account-id',
       CLOUDFLARE_EXPECTED_ACCOUNT_ID: 'account-id',
@@ -213,6 +213,23 @@ describe('D1 replatform cutover preparation', () => {
         dependencies
       )
     ).rejects.toThrow('checked-out HEAD')
+    for (const ref of [
+      'refs/heads/main',
+      'refs/heads/codex/other',
+      'refs/tags/preview',
+      'refs/pull/72/merge'
+    ])
+      await expect(
+        verifyPreviewRemoteIdentity(
+          'serp.software',
+          {
+            ...env,
+            GITHUB_REF: ref,
+            GITHUB_WORKFLOW_REF: `owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@${ref}`
+          },
+          dependencies
+        )
+      ).rejects.toThrow('protected rehearsal workflow')
   })
 
   it('binds deployed Worker attestation to service, host, commit, run, and target marker', async () => {
@@ -364,7 +381,9 @@ describe('D1 replatform cutover preparation', () => {
     }
     const job = workflow.jobs.rehearse
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    expect(job.if).toContain("github.ref == 'refs/heads/main'")
+    expect(job.if).toContain("github.ref == 'refs/heads/codex/issue-72-preview-cutover'")
+    expect(job.if).not.toContain("github.ref == 'refs/heads/main'")
+    expect(raw).toContain('ref: $' + '{{ github.sha }}')
     expect(job.environment.name).toContain('serp-software-preview')
     expect(raw).not.toContain('cutover-')
     const names = job.steps.map(step => step.name)

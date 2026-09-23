@@ -80,7 +80,10 @@ The separately protected `rehearse-d1-replatform-preview.yml` workflow is the on
 prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
 the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,
 and rehearses the old binding before restoring the replacement binding. It contains
-no Production mutation path.
+no Production mutation path. It runs only from the reviewed integration ref
+`refs/heads/codex/issue-72-preview-cutover` before merge; arbitrary branches, tags,
+pull-request refs, and `main` are rejected by both workflow and release guards.
+Production and every other remote mutation remain `refs/heads/main`-only.
 
 ## Verified public submissions
 

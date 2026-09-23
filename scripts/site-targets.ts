@@ -1,5 +1,6 @@
 export const siteIds = ['pornvideodownloaders.com', 'serp.software'] as const
 export type SiteId = (typeof siteIds)[number]
+export const replatformPreviewRef = 'refs/heads/codex/issue-72-preview-cutover' as const
 
 export interface SiteTarget {
   appPackageName: SiteId
