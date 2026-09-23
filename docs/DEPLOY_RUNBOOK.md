@@ -76,6 +76,12 @@ provisioned preview Worker/D1/protected environment. Issue #72 prepares the expl
 `serp-software-preview` contract, but it remains inert until separately approved and
 provisioned. See [the replacement cutover contract](./D1_CUTOVER.md).
 
+The separately protected `rehearse-d1-replatform-preview.yml` workflow is the only
+prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
+the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,
+and rehearses the old binding before restoring the replacement binding. It contains
+no Production mutation path.
+
 ## Verified public submissions
 
 Public submissions are staged in normalized D1 tables and require a successful badge

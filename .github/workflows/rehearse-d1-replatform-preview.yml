@@ -1,0 +1,137 @@
+name: Rehearse protected D1 replatform Preview
+
+on:
+  workflow_dispatch:
+    inputs:
+      site_id:
+        description: 'Explicit Site Preview target'
+        required: true
+        type: choice
+        options:
+          - serp.software
+          - pornvideodownloaders.com
+      confirmation:
+        description: 'Type rehearse-<site>-preview'
+        required: true
+        type: string
+
+concurrency:
+  group: d1-replatform-preview-${{ inputs.site_id }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  rehearse:
+    name: Rehearse ${{ inputs.site_id }} replacement Preview
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == format('rehearse-{0}-preview', inputs.site_id)
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ inputs.site_id == 'serp.software' && 'serp-software-preview' || 'pornvideodownloaders-preview' }}
+    env:
+      CI: 'true'
+      GITHUB_REF: ${{ github.ref }}
+      GITHUB_SHA: ${{ github.sha }}
+      WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
+      D1_RELEASE_GENERATION: replatform
+      D1_PREVIEW_DATA_POLICY: controlled-fixtures
+      D1_PROTECTED_ENVIRONMENT: ${{ inputs.site_id == 'serp.software' && 'serp-software-preview' || 'pornvideodownloaders-preview' }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+      CLOUDFLARE_EXPECTED_ACCOUNT_ID: ${{ vars.CLOUDFLARE_EXPECTED_ACCOUNT_ID }}
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_D1_PREVIEW_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PREVIEW_DATABASE_ID }}
+      CLOUDFLARE_D1_PREVIEW_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_PREVIEW_DATABASE_NAME }}
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID }}
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME }}
+      CLOUDFLARE_WORKER_PREVIEW_NAME: ${{ secrets.CLOUDFLARE_WORKER_PREVIEW_NAME }}
+      PREVIEW_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
+    steps:
+      - name: Checkout exact reviewed commit
+        uses: actions/checkout@v6
+
+      - name: Install pinned dependencies
+        uses: ./.github/actions/install
+
+      - name: Validate contracts and fresh replacement template
+        run: |
+          pnpm harness:fast
+          pnpm tsx scripts/worker-release.ts validate-replatform preview --site "${{ inputs.site_id }}"
+          pnpm d1:replatform:config:validate
+
+      - name: Build exact-commit Worker
+        run: pnpm --filter "${{ inputs.site_id }}" build:worker
+
+      - name: Verify observed account, source D1, replacement D1, and Worker identity
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > preview-identity.json
+
+      - name: Retain source Preview backup
+        env:
+          D1_RELEASE_GENERATION: legacy
+        run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
+
+      - name: Retain empty replacement Preview backup
+        run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
+
+      - name: Upload nondestructive Preview backups
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.site_id }}-d1-replatform-preview-backups-${{ github.sha }}
+          path: .wrangler/backups/**/preview/${{ github.sha }}*.sql
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Apply fresh schema, import controlled data, and verify exact parity
+        run: |
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts migrate preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee preview-first-import.txt
+          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee preview-first-parity.json
+          pnpm tsx scripts/worker-release.ts check-schema preview --site "${{ inputs.site_id }}"
+
+      - name: Deploy replacement binding from exact commit
+        run: pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+
+      - name: Run critical Catalog and Submission browser journeys
+        env:
+          E2E_SITE_ID: ${{ inputs.site_id }}
+          E2E_SITE_NAME: ${{ inputs.site_id == 'serp.software' && 'SERP Software' || 'Porn Video Downloaders' }}
+          E2E_LISTING_COUNT: ${{ inputs.site_id == 'serp.software' && '339' || '286' }}
+          E2E_CATEGORY_SLUG: video-downloaders
+          PLAYWRIGHT_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node -e "setInterval(() => {}, 1000)"
+        run: |
+          pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts tests/submission-verification.spec.ts --project=chromium
+
+      - name: Repeat import and prove verified no-op with unchanged parity
+        run: |
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee preview-repeat-import.txt
+          grep -F "import is a no-op" preview-repeat-import.txt
+          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee preview-repeat-parity.json
+          cmp preview-first-parity.json preview-repeat-parity.json
+
+      - name: Rehearse nondestructive old-binding rollback and restoration
+        run: |
+          set -euo pipefail
+          D1_RELEASE_GENERATION=legacy pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL"
+          pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL"
+
+      - name: Build and validate sealed exact-commit Preview receipt
+        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity preview-identity.json --first-import preview-first-import.txt --first-parity preview-first-parity.json --repeat-parity preview-repeat-parity.json --output preview-evidence.json
+
+      - name: Seal trusted Preview evidence
+        run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file preview-evidence.json > preview-receipt.json
+
+      - name: Retain sealed Preview evidence and browser artifacts
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.site_id }}-d1-replatform-preview-evidence-${{ github.sha }}
+          path: |
+            preview-receipt.json
+            apps/e2e/playwright-report/
+            apps/e2e/test-results/
+          if-no-files-found: error
+          retention-days: 30

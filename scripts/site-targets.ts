@@ -14,6 +14,10 @@ export interface SiteTarget {
       production: string
     }
     publish: string
+    replatform: {
+      preview: string
+      production: string
+    }
     submission: string
   }
   local: {
@@ -52,6 +56,10 @@ export const siteTargets = {
         production: 'plan-pornvideodownloaders.com-production'
       },
       publish: 'publish-pornvideodownloaders.com-production',
+      replatform: {
+        preview: 'rehearse-pornvideodownloaders.com-preview',
+        production: 'cutover-pornvideodownloaders.com-production'
+      },
       submission: 'approve-pornvideodownloaders.com-submission-production'
     },
     local: {
@@ -88,6 +96,10 @@ export const siteTargets = {
         production: 'plan-serp.software-production'
       },
       publish: 'publish-serp.software-production',
+      replatform: {
+        preview: 'rehearse-serp.software-preview',
+        production: 'cutover-serp.software-production'
+      },
       submission: 'approve-serp.software-submission-production'
     },
     local: {

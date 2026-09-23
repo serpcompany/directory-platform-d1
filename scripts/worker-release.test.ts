@@ -336,4 +336,38 @@ describe('Worker release guard', () => {
       resolve('.wrangler/generated/pornvideodownloaders-com.preview.jsonc')
     )
   })
+
+  it('materializes the fresh-history replacement config only in the protected Preview rehearsal', () => {
+    const previewEnv = {
+      ...productionEnv,
+      GITHUB_WORKFLOW_REF:
+        'serpcompany/directory-platform-d1/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/main',
+      WORKER_PRODUCTION_CONFIRM: 'rehearse-serp.software-preview',
+      D1_RELEASE_GENERATION: 'replatform',
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'replacement-preview-id',
+      CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'replacement-preview-name',
+      CLOUDFLARE_WORKER_PREVIEW_NAME: 'serp-preview-worker'
+    }
+    const process = dependencies([
+      { status: 0, stdout: '' },
+      { status: 0, stdout: sha },
+      { status: 0, stdout: '' }
+    ])
+    expect(() =>
+      runWorkerRelease(['migrate', 'preview', '--site', 'serp.software'], previewEnv, process)
+    ).not.toThrow()
+    const generatedPath = resolve('.wrangler/generated/serp-software.preview.replatform.jsonc')
+    const generated = JSON.parse(readFileSync(generatedPath, 'utf8')) as {
+      d1_databases: Array<{ database_id: string; migrations_dir: string }>
+    }
+    expect(generated.d1_databases[0]).toEqual(
+      expect.objectContaining({
+        database_id: 'replacement-preview-id',
+        migrations_dir: '../../d1/drizzle'
+      })
+    )
+    expect(process.run.mock.calls[2]?.[1]).toEqual(
+      expect.arrayContaining(['migrations', 'apply', 'replacement-preview-name', '--remote'])
+    )
+  })
 })

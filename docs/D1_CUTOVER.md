@@ -29,7 +29,10 @@ Sanitization must leave zero Production capability rows, notification-secret row
 and rate-limit rows. Raw Preview capabilities are generated only for the isolated
 Preview journey and never copied from Production.
 
-The protected Preview executor, once separately reviewed and enabled, must:
+The protected Preview executor is
+`.github/workflows/rehearse-d1-replatform-preview.yml`. Dispatch is inert until the
+selected protected environment has its exact resources, variables, secrets, reviewer,
+and `rehearse-<site>-preview` approval configured. It then:
 
 1. verify account, Site, environment, source D1, replacement D1, and Worker identity;
 2. retain identified source and target backups;
@@ -42,9 +45,18 @@ The protected Preview executor, once separately reviewed and enabled, must:
 9. repeat and prove `verified-no-op` with unchanged data checksums; and
 10. rehearse the old binding rollback without deleting either database.
 
-Seal the exact Site, full commit SHA, fresh-migration checksum, identity fingerprints,
-source snapshot digest, parity, first import, repeated no-op, browser run, and rollback
-run. Production rejects evidence from another Site, commit, or migration checksum.
+The workflow derives the commit from trusted `GITHUB_SHA`, proves checked-out `HEAD`
+matches it, and seals the complete evidence object with SHA-256. The receipt contains
+the exact Site, full commit SHA, fresh-migration checksum, expected and observed
+identity, controlled source digest, parity, first import, repeated no-op, browser run,
+and rollback run. Production must revalidate the complete embedded Preview evidence
+and match its digest to a separately configured protected value; matching only three
+labels is insufficient.
+
+For sanitized data, `copiedProduction` capability, notification-secret, and rate-limit
+counts must all be zero. `previewGenerated` records separate nonnegative counts for
+isolated Preview rows created by the journey itself; those are allowed and are never
+represented as copied Production state.
 
 ## Production cutover
 
@@ -75,8 +87,14 @@ These commands are credential-free and non-mutating. This preparation does not
 authorize `wrangler whoami`, remote D1 list/create/export/execute/migrate, Worker
 deploy, GitHub environment mutation, binding changes, or Production operations.
 
+The Preview workflow is the only prepared remote executor. There is deliberately no
+Production mutation job in either preparation workflow. A later Production executor
+must consume the trusted sealed Preview receipt and implement every Production gate
+above under a separate `cutover-<site>-production` approval.
+
 Before remote rehearsal, the Maintainer must choose and approve the concrete SERP
 Preview Worker/D1 names, Preview URL or route, Cloudflare account, protected
-environment reviewer, controlled-fixture versus sanitized-snapshot policy, backup
-retention, rollback-window duration, and responsible Maintainer. Confirm the same
+environment reviewer, backup retention, rollback-window duration, and responsible
+Maintainer. The prepared executor uses controlled fixtures; a sanitized-snapshot
+executor requires its own reviewed implementation. Confirm the same
 choices independently for PVD without replacing its existing Preview identity.

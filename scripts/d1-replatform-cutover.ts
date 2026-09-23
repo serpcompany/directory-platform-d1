@@ -1,10 +1,62 @@
+import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { resolveSiteTarget, type SiteId } from './site-targets'
 
 export type CutoverEnvironment = 'preview' | 'production'
+
+interface ReplatformWorkerConfig {
+  $schema?: string
+  assets?: { binding?: string; directory?: string }
+  compatibility_date?: string
+  compatibility_flags?: string[]
+  d1_databases?: Array<{
+    binding?: string
+    database_id?: string
+    database_name?: string
+    migrations_dir?: string
+  }>
+  main?: string
+  name?: string
+  routes?: Array<{ pattern?: string; zone_name?: string }>
+  vars?: Record<string, string>
+}
+
+export interface EvidenceTrust {
+  commitSha: string
+  previewReceiptSha256?: string
+}
+
+interface IdentityDependencies {
+  fetchAccount(accountId: string, token: string): Promise<unknown>
+  readD1Info(databaseName: string): unknown
+  readGit(command: 'head' | 'status'): string
+}
+
+const defaultIdentityDependencies: IdentityDependencies = {
+  async fetchAccount(accountId, token) {
+    const response = await fetch(`https://api.cloudflare.com/client/v4/accounts/${accountId}`, {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+    if (!response.ok) throw new Error('Cloudflare account identity request failed.')
+    return response.json()
+  },
+  readD1Info(databaseName) {
+    const result = spawnSync('pnpm', ['exec', 'wrangler', 'd1', 'info', databaseName, '--json'], {
+      encoding: 'utf8'
+    })
+    if (result.status !== 0) throw new Error('Cloudflare D1 identity request failed.')
+    return JSON.parse(result.stdout)
+  },
+  readGit(command) {
+    const args = command === 'head' ? ['rev-parse', 'HEAD'] : ['status', '--porcelain']
+    const result = spawnSync('git', args, { encoding: 'utf8' })
+    if (result.status !== 0) throw new Error('Unable to verify the checked-out commit.')
+    return result.stdout.trim()
+  }
+}
 
 const requiredCatalogJourneys = [
   'home',
@@ -60,6 +112,204 @@ function sha256(value: unknown, label: string): string {
   const parsed = text(value, label)
   if (!/^[0-9a-f]{64}$/u.test(parsed)) throw new Error(`${label} must be a lowercase SHA-256.`)
   return parsed
+}
+
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  label: string
+): void {
+  exactArray(Object.keys(value), expected, `${label} keys`)
+}
+
+function pathRelativeToConfig(configPath: string, targetPath: string): string {
+  return relative(dirname(configPath), targetPath).replaceAll(sep, '/')
+}
+
+export function validateReplatformTemplate(
+  siteId: SiteId,
+  environment: CutoverEnvironment,
+  configPath?: string,
+  sourceOverride?: string
+): void {
+  const target = resolveSiteTarget(siteId)
+  const selectedPath =
+    configPath ??
+    (environment === 'preview'
+      ? target.replatform.previewConfigPath
+      : target.replatform.productionConfigPath)
+  const source = sourceOverride ?? readFileSync(resolve(selectedPath), 'utf8')
+  const config = JSON.parse(source) as ReplatformWorkerConfig
+  const rootKeys = [
+    '$schema',
+    'name',
+    'main',
+    'compatibility_date',
+    'compatibility_flags',
+    ...(environment === 'production' ? ['routes'] : []),
+    'assets',
+    'vars',
+    'd1_databases'
+  ]
+  exactKeys(config as Record<string, unknown>, rootKeys, 'Wrangler template')
+  if (
+    config.$schema !==
+    pathRelativeToConfig(selectedPath, 'node_modules/wrangler/config-schema.json')
+  )
+    throw new Error('Unexpected Wrangler schema path.')
+  const appRoot = `apps/${target.appPackageName}/.open-next`
+  if (config.main !== pathRelativeToConfig(selectedPath, `${appRoot}/worker.js`))
+    throw new Error('Unexpected Worker entrypoint.')
+  if (config.compatibility_date !== '2026-07-13')
+    throw new Error('Replatform templates must preserve the released compatibility date.')
+  if (JSON.stringify(config.compatibility_flags) !== JSON.stringify(['nodejs_compat']))
+    throw new Error('Unexpected compatibility flags.')
+  if (!config.assets) throw new Error('Missing assets binding.')
+  exactKeys(config.assets as Record<string, unknown>, ['directory', 'binding'], 'assets')
+  if (
+    config.assets.binding !== 'ASSETS' ||
+    config.assets.directory !== pathRelativeToConfig(selectedPath, `${appRoot}/assets`)
+  )
+    throw new Error('Unexpected OpenNext assets contract.')
+  if (!config.vars) throw new Error('Missing Worker vars.')
+  exactKeys(
+    config.vars,
+    ['AUTH_TRUST_HOST', 'SITE_ID', 'NEXT_PUBLIC_SITE_ID', 'D1_RUNTIME_ENV'],
+    'vars'
+  )
+  if (
+    config.vars.AUTH_TRUST_HOST !== 'true' ||
+    config.vars.SITE_ID !== siteId ||
+    config.vars.NEXT_PUBLIC_SITE_ID !== siteId ||
+    config.vars.D1_RUNTIME_ENV !== environment
+  )
+    throw new Error('Worker vars do not match the explicit Site and environment.')
+  if (!Array.isArray(config.d1_databases) || config.d1_databases.length !== 1)
+    throw new Error('Exactly one replacement D1 binding is required.')
+  const binding = object(config.d1_databases[0], 'D1 binding')
+  exactKeys(binding, ['binding', 'database_name', 'database_id', 'migrations_dir'], 'D1 binding')
+  const upper = environment.toUpperCase()
+  if (
+    binding.binding !== 'DB' ||
+    binding.database_name !== `\${CLOUDFLARE_D1_REPLACEMENT_${upper}_DATABASE_NAME}` ||
+    binding.database_id !== `\${CLOUDFLARE_D1_REPLACEMENT_${upper}_DATABASE_ID}` ||
+    binding.migrations_dir !== pathRelativeToConfig(selectedPath, 'd1/drizzle')
+  )
+    throw new Error('Replacement D1 binding does not match the fresh-history contract.')
+  if (config.name !== `\${CLOUDFLARE_WORKER_${upper}_NAME}`)
+    throw new Error('Unexpected Worker name placeholder.')
+  if (environment === 'production') {
+    if (
+      !Array.isArray(config.routes) ||
+      config.routes.length !== 1 ||
+      config.routes[0]?.pattern !== `${siteId}/*` ||
+      config.routes[0]?.zone_name !== siteId ||
+      Object.keys(config.routes[0]).sort().join('\0') !== ['pattern', 'zone_name'].sort().join('\0')
+    )
+      throw new Error('Production route must exactly own the selected Site apex.')
+  } else if (config.routes !== undefined) throw new Error('Preview templates must not own routes.')
+  const otherSite = siteId === 'serp.software' ? 'pornvideodownloaders.com' : 'serp.software'
+  if (source.includes(otherSite))
+    throw new Error('Replacement template contains a cross-Site reference.')
+  const otherEnvironment = environment === 'preview' ? 'PRODUCTION' : 'PREVIEW'
+  if (source.includes(otherEnvironment))
+    throw new Error('Replacement template contains a cross-environment placeholder.')
+}
+
+function canonicalJson(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (value && typeof value === 'object') {
+    const entries = Object.entries(value as Record<string, unknown>).sort(([left], [right]) =>
+      left < right ? -1 : left > right ? 1 : 0
+    )
+    return `{${entries.map(([key, item]) => `${JSON.stringify(key)}:${canonicalJson(item)}`).join(',')}}`
+  }
+  return JSON.stringify(value)
+}
+
+export function previewReceiptSha256(evidence: unknown): string {
+  return createHash('sha256').update(canonicalJson(evidence)).digest('hex')
+}
+
+function cloudflareResult(value: unknown, label: string): Record<string, unknown> {
+  const envelope = object(value, label)
+  if (envelope.success !== true) throw new Error(`${label} was not successful.`)
+  return object(envelope.result, `${label}.result`)
+}
+
+export async function verifyPreviewRemoteIdentity(
+  siteId: SiteId,
+  env: NodeJS.ProcessEnv,
+  dependencies: IdentityDependencies = defaultIdentityDependencies
+): Promise<Record<string, unknown>> {
+  const target = resolveSiteTarget(siteId)
+  if (
+    env.GITHUB_ACTIONS !== 'true' ||
+    env.CI !== 'true' ||
+    env.GITHUB_REF !== 'refs/heads/main' ||
+    !env.GITHUB_WORKFLOW_REF?.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+  )
+    throw new Error('Preview identity verification requires the protected rehearsal workflow.')
+  const commitSha = text(env.GITHUB_SHA, 'GITHUB_SHA')
+  if (dependencies.readGit('status'))
+    throw new Error('Preview rehearsal requires a clean checkout.')
+  if (dependencies.readGit('head') !== commitSha)
+    throw new Error('GITHUB_SHA must match checked-out HEAD.')
+  if (env.WORKER_PRODUCTION_CONFIRM !== target.confirmation.replatform.preview)
+    throw new Error('Explicit Preview rehearsal confirmation is required.')
+  const accountId = text(env.CLOUDFLARE_ACCOUNT_ID, 'CLOUDFLARE_ACCOUNT_ID')
+  const expectedAccountId = text(
+    env.CLOUDFLARE_EXPECTED_ACCOUNT_ID,
+    'CLOUDFLARE_EXPECTED_ACCOUNT_ID'
+  )
+  if (accountId !== expectedAccountId) throw new Error('Cloudflare account IDs do not match.')
+  const token = text(env.CLOUDFLARE_API_TOKEN, 'CLOUDFLARE_API_TOKEN')
+  const account = cloudflareResult(
+    await dependencies.fetchAccount(accountId, token),
+    'Cloudflare account identity'
+  )
+  if (account.id !== expectedAccountId)
+    throw new Error('Observed Cloudflare account does not match.')
+  const sourceDatabaseId = text(
+    env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID,
+    'CLOUDFLARE_D1_PREVIEW_DATABASE_ID'
+  )
+  const sourceDatabaseName = text(
+    env.CLOUDFLARE_D1_PREVIEW_DATABASE_NAME,
+    'CLOUDFLARE_D1_PREVIEW_DATABASE_NAME'
+  )
+  const targetDatabaseId = text(
+    env.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID,
+    'CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID'
+  )
+  const targetDatabaseName = text(
+    env.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME,
+    'CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME'
+  )
+  const sourceInfo = object(dependencies.readD1Info(sourceDatabaseName), 'Source D1 info')
+  const targetInfo = object(dependencies.readD1Info(targetDatabaseName), 'Target D1 info')
+  const exactIdentity = {
+    siteId,
+    environment: 'preview',
+    protectedEnvironment: target.protectedEnvironment.preview,
+    allowedSiteIds: [siteId],
+    accountId: expectedAccountId,
+    sourceDatabaseId,
+    sourceDatabaseName,
+    targetDatabaseId,
+    targetDatabaseName,
+    workerName: text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME')
+  }
+  const observed = {
+    ...exactIdentity,
+    sourceDatabaseId: sourceInfo.uuid,
+    sourceDatabaseName: sourceInfo.name,
+    targetDatabaseId: targetInfo.uuid,
+    targetDatabaseName: targetInfo.name
+  }
+  const identity = { expected: exactIdentity, observed }
+  assertRemoteIdentity(siteId, 'preview', identity)
+  return identity
 }
 
 export function assertRemoteIdentity(
@@ -124,7 +374,7 @@ export function buildCutoverPlan(siteId: SiteId, environment: CutoverEnvironment
     migrationChecksum: freshMigrationChecksum(),
     previewDataPolicy:
       environment === 'preview'
-        ? 'controlled-fixture-or-explicitly-sanitized; private capabilities, notification secrets, and rate-limit rows must be zero'
+        ? 'controlled-fixture-or-explicitly-sanitized; copied Production capability, notification-secret, and rate-limit counts must be zero; isolated Preview-generated counts are recorded separately'
         : undefined,
     orderedGates:
       environment === 'preview'
@@ -157,7 +407,7 @@ export function buildCutoverPlan(siteId: SiteId, environment: CutoverEnvironment
   }
 }
 
-export function validateCutoverEvidence(input: unknown): void {
+export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): void {
   const root = object(input, 'Evidence')
   const siteId = text(root.siteId, 'siteId') as SiteId
   resolveSiteTarget(siteId)
@@ -167,6 +417,8 @@ export function validateCutoverEvidence(input: unknown): void {
   const commitSha = text(root.commitSha, 'commitSha')
   if (!/^[0-9a-f]{40}$/u.test(commitSha))
     throw new Error('commitSha must be a full lowercase SHA-1.')
+  if (commitSha !== trust.commitSha)
+    throw new Error('Evidence commitSha does not match trusted GITHUB_SHA and checked-out HEAD.')
   const checksum = text(root.migrationChecksum, 'migrationChecksum')
   if (checksum !== freshMigrationChecksum())
     throw new Error('Evidence migration checksum does not match this checkout.')
@@ -177,8 +429,13 @@ export function validateCutoverEvidence(input: unknown): void {
   sha256(migration.targetSnapshotChecksum, 'migration.targetSnapshotChecksum')
   if (migration.sourceSnapshotChecksum !== migration.targetSnapshotChecksum)
     throw new Error('Source and target snapshot checksums must match.')
-  if (migration.firstRunMode !== 'imported' || migration.repeatRunMode !== 'verified-no-op')
-    throw new Error('Evidence must show an import followed by a verified no-op.')
+  if (
+    (migration.firstRunMode !== 'imported' && migration.firstRunMode !== 'verified-no-op') ||
+    migration.repeatRunMode !== 'verified-no-op'
+  )
+    throw new Error(
+      'Evidence must show an import or prior verified state followed by a verified no-op.'
+    )
   bool(migration.exactParity, 'migration.exactParity')
   bool(migration.freshMigrationLedger, 'migration.freshMigrationLedger')
   exactArray(root.catalogJourneys, requiredCatalogJourneys, 'catalogJourneys')
@@ -189,19 +446,33 @@ export function validateCutoverEvidence(input: unknown): void {
     const policy = object(root.previewData, 'previewData')
     if (policy.policy !== 'controlled-fixtures' && policy.policy !== 'sanitized-snapshot')
       throw new Error('Preview data must use controlled-fixtures or sanitized-snapshot.')
-    for (const key of ['capabilityRows', 'notificationSecretRows', 'rateLimitRows'])
-      if (policy[key] !== 0) throw new Error(`Preview ${key} must be zero.`)
+    const copied = object(policy.copiedProduction, 'previewData.copiedProduction')
+    const generated = object(policy.previewGenerated, 'previewData.previewGenerated')
+    for (const key of ['capabilityRows', 'notificationSecretRows', 'rateLimitRows']) {
+      if (copied[key] !== 0) throw new Error(`Preview copied Production ${key} must be zero.`)
+      if (
+        typeof generated[key] !== 'number' ||
+        !Number.isInteger(generated[key]) ||
+        generated[key] < 0
+      )
+        throw new Error(`Preview-generated ${key} must be a nonnegative isolated-row count.`)
+    }
     return
   }
-  const preview = object(root.previewEvidence, 'previewEvidence')
+  const receipt = object(root.previewReceipt, 'previewReceipt')
+  const previewEvidence = object(receipt.evidence, 'previewReceipt.evidence')
+  const receiptDigest = sha256(receipt.sha256, 'previewReceipt.sha256')
+  if (!trust.previewReceiptSha256 || receiptDigest !== trust.previewReceiptSha256)
+    throw new Error('Preview receipt digest does not match the protected trusted digest.')
+  if (previewReceiptSha256(previewEvidence) !== receiptDigest)
+    throw new Error('Preview receipt content does not match its digest.')
+  validateCutoverEvidence(previewEvidence, { commitSha: trust.commitSha })
   if (
-    preview.siteId !== siteId ||
-    preview.commitSha !== commitSha ||
-    preview.migrationChecksum !== checksum
+    previewEvidence.siteId !== siteId ||
+    previewEvidence.commitSha !== commitSha ||
+    previewEvidence.migrationChecksum !== checksum
   )
-    throw new Error(
-      'Production evidence must bind to the exact Preview Site, commit, and migration checksum.'
-    )
+    throw new Error('Production evidence must bind to the complete exact Preview receipt.')
   bool(root.separateProductionApproval, 'separateProductionApproval')
   const production = object(root.production, 'production')
   bool(production.siteWideMutationLock, 'production.siteWideMutationLock')
@@ -218,18 +489,53 @@ export function validateCutoverEvidence(input: unknown): void {
   text(production.responsibleMaintainer, 'production.responsibleMaintainer')
 }
 
-function parseArgs(args: string[]): { environment: CutoverEnvironment; siteId: SiteId } {
-  const [command, environment, siteFlag, siteValue] = args
+async function runCli(): Promise<void> {
+  const [command, value, siteFlag, siteValue] = process.argv.slice(2)
   if (
-    command !== 'plan' ||
-    (environment !== 'preview' && environment !== 'production') ||
-    siteFlag !== '--site'
-  )
-    throw new Error('Usage: d1-replatform-cutover.ts plan <preview|production> --site <site>')
-  return { environment, siteId: resolveSiteTarget(siteValue).siteId }
+    command === 'plan' &&
+    (value === 'preview' || value === 'production') &&
+    siteFlag === '--site'
+  ) {
+    console.log(
+      JSON.stringify(buildCutoverPlan(resolveSiteTarget(siteValue).siteId, value), null, 2)
+    )
+  } else if (command === 'verify-preview-identity' && value === '--site') {
+    console.log(
+      JSON.stringify(
+        await verifyPreviewRemoteIdentity(resolveSiteTarget(siteFlag).siteId, process.env)
+      )
+    )
+  } else if (
+    (command === 'seal-preview' || command === 'validate-evidence') &&
+    value === '--file'
+  ) {
+    const evidence = JSON.parse(readFileSync(resolve(siteFlag), 'utf8')) as unknown
+    const trustedCommit = text(process.env.GITHUB_SHA, 'GITHUB_SHA')
+    if (defaultIdentityDependencies.readGit('status'))
+      throw new Error('Evidence validation requires a clean checkout.')
+    if (defaultIdentityDependencies.readGit('head') !== trustedCommit)
+      throw new Error('GITHUB_SHA must match checked-out HEAD.')
+    validateCutoverEvidence(evidence, {
+      commitSha: trustedCommit,
+      previewReceiptSha256: process.env.PREVIEW_RECEIPT_SHA256
+    })
+    console.log(
+      JSON.stringify(
+        command === 'seal-preview'
+          ? { evidence, sha256: previewReceiptSha256(evidence) }
+          : { status: 'valid' }
+      )
+    )
+  } else {
+    throw new Error(
+      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | verify-preview-identity --site <site> | <seal-preview|validate-evidence> --file <json>'
+    )
+  }
 }
 
 if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
-  const parsed = parseArgs(process.argv.slice(2))
-  console.log(JSON.stringify(buildCutoverPlan(parsed.siteId, parsed.environment), null, 2))
+  void runCli().catch(error => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })
 }

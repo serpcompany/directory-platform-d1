@@ -2,7 +2,7 @@
   "$schema": "../../../node_modules/wrangler/config-schema.json",
   "name": "${CLOUDFLARE_WORKER_PRODUCTION_NAME}",
   "main": "../../../apps/pornvideodownloaders.com/.open-next/worker.js",
-  "compatibility_date": "2026-09-23",
+  "compatibility_date": "2026-07-13",
   "compatibility_flags": ["nodejs_compat"],
   "routes": [{ "pattern": "pornvideodownloaders.com/*", "zone_name": "pornvideodownloaders.com" }],
   "assets": {
