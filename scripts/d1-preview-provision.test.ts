@@ -31,6 +31,7 @@ function workflowEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessE
     CLOUDFLARE_API_TOKEN: 'masked-token',
     CLOUDFLARE_D1_PREVIEW_DATABASE_ID: sourceId,
     CLOUDFLARE_D1_PREVIEW_DATABASE_NAME: sourceName,
+    CLOUDFLARE_D1_PREVIEW_PLACEMENT: 'region:apac',
     CLOUDFLARE_WORKER_PREVIEW_NAME: workerName,
     ...overrides
   }
@@ -39,10 +40,8 @@ function workflowEnvironment(overrides: NodeJS.ProcessEnv = {}): NodeJS.ProcessE
 function dependencies(options: { existing?: boolean; sourceJurisdiction?: string } = {}) {
   const events: string[] = []
   let databases = [
-    { created_in_region: 'APAC', name: sourceName, uuid: sourceId },
-    ...(options.existing
-      ? [{ created_in_region: 'APAC', name: replacementName, uuid: replacementId }]
-      : [])
+    { name: sourceName, uuid: sourceId },
+    ...(options.existing ? [{ name: replacementName, uuid: replacementId }] : [])
   ]
   const deps = {
     async createDatabase(
@@ -52,7 +51,6 @@ function dependencies(options: { existing?: boolean; sourceJurisdiction?: string
     ) {
       events.push(`create:${JSON.stringify(body)}`)
       const created = {
-        created_in_region: body.primary_location_hint?.toUpperCase(),
         jurisdiction: body.jurisdiction,
         name: body.name,
         uuid: replacementId
@@ -71,7 +69,7 @@ function dependencies(options: { existing?: boolean; sourceJurisdiction?: string
       return envelope({
         ...found,
         ...(id === sourceId && options.sourceJurisdiction
-          ? { created_in_region: undefined, jurisdiction: options.sourceJurisdiction }
+          ? { jurisdiction: options.sourceJurisdiction }
           : {})
       })
     },
@@ -139,7 +137,7 @@ describe('PVD replacement Preview D1 provisioning', () => {
     const { deps, events } = dependencies({ sourceJurisdiction: 'eu' })
     const evidence = await provisionPvdReplacementPreview(
       'pornvideodownloaders.com',
-      workflowEnvironment(),
+      workflowEnvironment({ CLOUDFLARE_D1_PREVIEW_PLACEMENT: 'jurisdiction:eu' }),
       deps
     )
     expect(events.filter(item => item.startsWith('create:'))).toEqual([
@@ -212,6 +210,28 @@ describe('PVD replacement Preview D1 provisioning', () => {
     ).rejects.toThrow('configured but is not present')
   })
 
+  it('fails closed when protected placement is absent or contradicts observed jurisdiction', async () => {
+    const absent = dependencies()
+    await expect(
+      provisionPvdReplacementPreview(
+        'pornvideodownloaders.com',
+        workflowEnvironment({ CLOUDFLARE_D1_PREVIEW_PLACEMENT: '' }),
+        absent.deps
+      )
+    ).rejects.toThrow('CLOUDFLARE_D1_PREVIEW_PLACEMENT must be nonempty')
+    expect(absent.events).toEqual([])
+
+    const mismatched = dependencies({ sourceJurisdiction: 'eu' })
+    await expect(
+      provisionPvdReplacementPreview(
+        'pornvideodownloaders.com',
+        workflowEnvironment({ CLOUDFLARE_D1_PREVIEW_PLACEMENT: 'region:apac' }),
+        mismatched.deps
+      )
+    ).rejects.toThrow('does not match the observed D1 jurisdiction')
+    expect(mismatched.events.some(item => item.startsWith('create:'))).toBe(false)
+  })
+
   it('rejects any non-main, wrong-workflow, wrong-environment, or wrong-confirmation execution', async () => {
     const cases: Array<[string, NodeJS.ProcessEnv]> = [
       ['branch', { GITHUB_REF: 'refs/heads/topic' }],
@@ -266,6 +286,9 @@ describe('PVD replacement Preview provisioning workflow contract', () => {
     expect(job.environment.name).toBe('pornvideodownloaders-preview')
     expect(commands).toContain('scripts/d1-preview-provision.ts')
     expect(commands).toContain('--site pornvideodownloaders.com')
+    expect(raw).toContain(
+      'CLOUDFLARE_D1_PREVIEW_PLACEMENT: $' + '{{ vars.CLOUDFLARE_D1_PREVIEW_PLACEMENT }}'
+    )
     expect(commands).not.toMatch(
       /worker-release|wrangler|d1\s+(?:execute|migrations|delete)|gh secret|production/iu
     )

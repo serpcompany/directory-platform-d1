@@ -16,10 +16,8 @@ type Jurisdiction = (typeof jurisdictions)[number]
 
 interface D1Database {
   created_at?: string
-  created_in_region?: string
   jurisdiction?: string | null
   name?: string
-  primary_location_hint?: string
   uuid?: string
 }
 
@@ -102,13 +100,8 @@ function database(
   const item = object(value, label)
   return {
     created_at: optionalText(item.created_at, `${label}.created_at`),
-    created_in_region: optionalText(item.created_in_region, `${label}.created_in_region`),
     jurisdiction: optionalText(item.jurisdiction, `${label}.jurisdiction`),
     name: nonempty(item.name, `${label}.name`),
-    primary_location_hint: optionalText(
-      item.primary_location_hint,
-      `${label}.primary_location_hint`
-    ),
     uuid: uuid(item.uuid, `${label}.uuid`)
   }
 }
@@ -204,30 +197,66 @@ const defaultDependencies: ProvisionDependencies = {
 }
 
 function placement(
-  source: D1Database
+  source: D1Database,
+  protectedPlacement: string
 ):
-  | { create: { jurisdiction: Jurisdiction }; jurisdiction: Jurisdiction; region: null }
-  | { create: { primary_location_hint: LocationHint }; jurisdiction: null; region: LocationHint } {
+  | {
+      create: { jurisdiction: Jurisdiction }
+      jurisdiction: Jurisdiction
+      proof: 'observed-jurisdiction'
+      region: null
+    }
+  | {
+      create: { primary_location_hint: LocationHint }
+      jurisdiction: null
+      proof: 'protected-source-region-create-hint'
+      region: LocationHint
+    } {
   if (source.jurisdiction) {
     const value = source.jurisdiction.toLowerCase()
     if (!jurisdictions.includes(value as Jurisdiction))
       fail('Source D1 has an unsupported jurisdiction.')
+    if (protectedPlacement !== `jurisdiction:${value}`)
+      fail(
+        'Protected source placement does not match the observed D1 jurisdiction.',
+        `Set CLOUDFLARE_D1_PREVIEW_PLACEMENT to jurisdiction:${value} in pornvideodownloaders-preview, then retry.`
+      )
     return {
       create: { jurisdiction: value as Jurisdiction },
       jurisdiction: value as Jurisdiction,
+      proof: 'observed-jurisdiction',
       region: null
     }
   }
-  const rawRegion = source.created_in_region ?? source.primary_location_hint
-  if (!rawRegion) fail('Source D1 identity does not expose a jurisdiction or primary region.')
-  const value = rawRegion.toLowerCase()
+  const match = /^region:(weur|eeur|apac|oc|wnam|enam)$/u.exec(protectedPlacement)
+  if (!match)
+    fail(
+      'Non-jurisdiction source D1 requires a protected primary-region hint.',
+      'Record the reviewed source region as CLOUDFLARE_D1_PREVIEW_PLACEMENT=region:<weur|eeur|apac|oc|wnam|enam> in pornvideodownloaders-preview.'
+    )
+  const value = match[1]
   if (!locationHints.includes(value as LocationHint))
     fail('Source D1 has an unsupported primary region.')
   return {
     create: { primary_location_hint: value as LocationHint },
     jurisdiction: null,
+    proof: 'protected-source-region-create-hint',
     region: value as LocationHint
   }
+}
+
+function verifyObservedPlacement(
+  databaseIdentity: D1Database,
+  intended: ReturnType<typeof placement>
+): void {
+  const observedJurisdiction = databaseIdentity.jurisdiction?.toLowerCase()
+  if (intended.jurisdiction) {
+    if (observedJurisdiction !== intended.jurisdiction)
+      fail('Replacement Preview D1 jurisdiction differs from its source.')
+    return
+  }
+  if (observedJurisdiction)
+    fail('Region-hinted replacement Preview D1 unexpectedly has a jurisdiction.')
 }
 
 function assertWorkflow(
@@ -280,6 +309,10 @@ export async function provisionPvdReplacementPreview(
     'CLOUDFLARE_D1_PREVIEW_DATABASE_NAME'
   )
   const workerName = nonempty(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME')
+  const protectedSourcePlacement = nonempty(
+    env.CLOUDFLARE_D1_PREVIEW_PLACEMENT,
+    'CLOUDFLARE_D1_PREVIEW_PLACEMENT'
+  )
   const expectedReplacementName = target.replatform.previewDatabaseName
   if (sourceDatabaseName === expectedReplacementName)
     fail('Source and replacement Preview D1 names must be distinct.')
@@ -322,7 +355,7 @@ export async function provisionPvdReplacementPreview(
   )
   if (source.uuid !== sourceDatabaseId || source.name !== sourceDatabaseName)
     fail('Observed source Preview D1 does not match protected identity.')
-  const sourcePlacement = placement(source)
+  const sourcePlacement = placement(source, protectedSourcePlacement)
 
   const worker = parseWorkerIdentity(await dependencies.fetchWorker(accountId, workerName, token))
   if (worker.name !== workerName) fail('Observed Preview Worker does not match protected identity.')
@@ -341,6 +374,7 @@ export async function provisionPvdReplacementPreview(
     source: {
       jurisdiction: sourcePlacement.jurisdiction,
       name: sourceDatabaseName,
+      placementProof: sourcePlacement.proof,
       region: sourcePlacement.region,
       uuid: sourceDatabaseId
     },
@@ -362,19 +396,15 @@ export async function provisionPvdReplacementPreview(
     )
     if (existing.name !== expectedReplacementName || existing.uuid !== expectedId)
       fail('Existing replacement Preview D1 identity changed during verification.')
-    const existingPlacement = placement(existing)
-    if (
-      existingPlacement.jurisdiction !== sourcePlacement.jurisdiction ||
-      existingPlacement.region !== sourcePlacement.region
-    )
-      fail('Existing replacement Preview D1 placement differs from its source.')
+    verifyObservedPlacement(existing, sourcePlacement)
     return {
       ...baseEvidence,
       action: 'verified-existing',
       replacement: {
-        jurisdiction: existingPlacement.jurisdiction,
+        jurisdiction: sourcePlacement.jurisdiction,
         name: existing.name,
-        region: existingPlacement.region,
+        placementProof: sourcePlacement.proof,
+        region: sourcePlacement.region,
         uuid: existing.uuid
       },
       verifiedAt: dependencies.now()
@@ -413,19 +443,15 @@ export async function provisionPvdReplacementPreview(
   )
   if (observed.name !== expectedReplacementName || observed.uuid !== created.uuid)
     fail('Created replacement Preview D1 changed during read-back.')
-  const observedPlacement = placement(observed)
-  if (
-    observedPlacement.jurisdiction !== sourcePlacement.jurisdiction ||
-    observedPlacement.region !== sourcePlacement.region
-  )
-    fail('Created replacement Preview D1 placement differs from its source.')
+  verifyObservedPlacement(observed, sourcePlacement)
   return {
     ...baseEvidence,
     action: 'created',
     replacement: {
-      jurisdiction: observedPlacement.jurisdiction,
+      jurisdiction: sourcePlacement.jurisdiction,
       name: observed.name,
-      region: observedPlacement.region,
+      placementProof: sourcePlacement.proof,
+      region: sourcePlacement.region,
       uuid: observed.uuid
     },
     verifiedAt: dependencies.now()

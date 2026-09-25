@@ -257,8 +257,10 @@ PVD's missing replacement Preview D1 has a narrower one-time workflow:
 it only from the reviewed `main` commit through `pornvideodownloaders-preview` with
 `provision-pornvideodownloaders.com-replacement-preview`. The protected environment
 must already contain the account ID, source Preview D1 UUID/name, Preview Worker
-name, and scoped Cloudflare token. Leave both replacement Preview D1 values absent on
-the first run. The workflow proves those identities read-only, creates only
+name, scoped Cloudflare token, and reviewed `CLOUDFLARE_D1_PREVIEW_PLACEMENT` variable
+(`jurisdiction:<eu|fedramp|us>` or `region:<weur|eeur|apac|oc|wnam|enam>`). Leave
+both replacement Preview D1 values absent on the first run. The workflow proves those
+identities read-only, creates only
 `pornvideodownloaders-replatform-preview` in the source jurisdiction or primary
 region, reads it back, and retains a non-secret identity receipt. It performs no SQL,
 migration, import, Worker deployment, deletion, Production action, or GitHub secret

@@ -38,9 +38,13 @@ source Preview D1 UUID/name, existing Preview Worker name, clean checkout, and f
 `GITHUB_SHA`. It lists every D1 database in the account and refuses a missing or
 ambiguous source, a source/target alias, or any unexpected database already using
 the replacement name. Only after all read-only proofs pass may it issue one D1
-create request. The request preserves the source jurisdiction when present;
-otherwise it preserves the source primary region. An unsupported or unobservable
-placement stops before creation.
+create request. `CLOUDFLARE_D1_PREVIEW_PLACEMENT` records the independently reviewed
+source placement as `jurisdiction:<eu|fedramp|us>` or
+`region:<weur|eeur|apac|oc|wnam|enam>`. An observed source jurisdiction must exactly
+match that value. Cloudflare does not expose a non-jurisdiction database's primary
+region through the documented D1 GET response, so the protected region value is the
+source of truth and becomes the exact `primary_location_hint` on creation. An absent,
+malformed, or contradictory placement stops before creation.
 
 The first run requires both protected replacement identity values to be absent:
 
@@ -48,7 +52,10 @@ The first run requires both protected replacement identity values to be absent:
 - `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME`
 
 After creation, the workflow lists and reads the resource again, requires one exact
-UUID/name and matching placement, and retains a mode-`0600` JSON receipt for 30 days.
+UUID/name and the observable jurisdiction when applicable, and retains a mode-`0600`
+JSON receipt for 30 days. For a region-hinted database, the receipt records the
+protected source region and exact successful create hint rather than claiming an
+unavailable read-back field.
 The receipt contains the Site, commit, account ID, source and replacement UUID/name,
 region or jurisdiction, Worker name, action, and verification timestamp; it contains
 no credential. The workflow does not write GitHub secrets. A Maintainer must review
