@@ -187,6 +187,29 @@ export function sealProductionEvidence(raw: unknown): ProductionCutoverReceipt {
   digest(evidence.sourceBackupSha256, 'sourceBackupSha256')
   digest(evidence.targetBackupSha256, 'targetBackupSha256')
   const identity = object(evidence.identity, 'identity')
+  exactKeys(
+    identity,
+    [
+      'activeDeploymentId',
+      'activeVersionId',
+      'accountId',
+      'allowedSiteIds',
+      'currentDatabaseId',
+      'protectedEnvironment',
+      'replacementDatabaseId',
+      'replacementDatabaseName',
+      'routeId',
+      'routePattern',
+      'siteId',
+      'sourceDatabaseId',
+      'sourceDatabaseName',
+      'verifiedAt',
+      'workerName',
+      'zoneId',
+      'zoneName'
+    ],
+    'identity'
+  )
   if (identity.siteId !== siteId || identity.currentDatabaseId !== identity.sourceDatabaseId)
     throw new Error('Initial Production identity is not source-bound for this Site.')
   const preview = object(evidence.preview, 'preview')
@@ -306,6 +329,7 @@ export async function assertLocked(
 }
 
 async function activeDeployment(
+  siteId: SiteId,
   expectedDatabaseId: string,
   expectedVersionId?: string
 ): Promise<Json> {
@@ -321,6 +345,26 @@ async function activeDeployment(
     if (!response.ok || envelope.success !== true) throw new Error('Cloudflare observation failed.')
     return envelope.result
   }
+  const service = object(
+    await get(`/accounts/${account}/workers/services/${encodeURIComponent(worker)}`),
+    'Worker service'
+  )
+  if ((service.name ?? service.id) !== worker) throw new Error('Worker service identity differs.')
+  const zones = await get(
+    `/zones?account.id=${encodeURIComponent(account)}&name=${encodeURIComponent(siteId)}&per_page=50&page=1`
+  )
+  if (!Array.isArray(zones) || zones.length !== 1)
+    throw new Error('Production zone is missing or ambiguous.')
+  const zone = object(zones[0], 'Production zone')
+  if (zone.name !== siteId || zone.status !== 'active')
+    throw new Error('Production zone identity differs.')
+  const routes = await get(`/zones/${text(zone.id, 'zone ID')}/workers/routes`)
+  if (!Array.isArray(routes)) throw new Error('Production route inventory is malformed.')
+  const matchingRoutes = routes
+    .map(value => object(value, 'route'))
+    .filter(value => value.pattern === `${siteId}/*`)
+  if (matchingRoutes.length !== 1 || matchingRoutes[0]?.script !== worker)
+    throw new Error('Production apex route is absent, ambiguous, or bound to another Worker.')
   const history = object(
     await get(`/accounts/${account}/workers/scripts/${encodeURIComponent(worker)}/deployments`),
     'deployments'
@@ -349,7 +393,15 @@ async function activeDeployment(
     .filter(value => value.type === 'd1' && value.name === 'DB')
   if (db.length !== 1 || (db[0]?.database_id ?? db[0]?.id) !== expectedDatabaseId)
     throw new Error('Active version has the wrong or ambiguous DB binding.')
-  return { deploymentId: deployment.id, versionId, databaseId: expectedDatabaseId }
+  return {
+    databaseId: expectedDatabaseId,
+    deploymentId: deployment.id,
+    routeId: matchingRoutes[0]?.id,
+    routePattern: `${siteId}/*`,
+    versionId,
+    workerName: worker,
+    zoneId: zone.id
+  }
 }
 
 async function preflight(siteId: SiteId): Promise<{
@@ -441,6 +493,7 @@ async function main(argv: string[]): Promise<void> {
     output(
       arg('--output'),
       await activeDeployment(
+        siteId,
         arg('--database-id'),
         rest.includes('--version-id') ? arg('--version-id') : undefined
       )

@@ -116,6 +116,19 @@ jobs:
           status="$(curl --silent --show-error --output "$EVIDENCE_DIR/target-frozen-write.json" --write-out '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' --data '{}' "${PRODUCTION_BASE_URL%/}/api/submissions")"
           test "$status" = 503
           grep -F 'cutover_frozen' "$EVIDENCE_DIR/target-frozen-write.json"
+      - name: Run Production-safe browser gates
+        env:
+          E2E_SITE_ID: ${{ inputs.site_id }}
+          E2E_SITE_NAME: ${{ inputs.site_id == 'serp.software' && 'SERP Software' || 'Porn Video Downloaders' }}
+          E2E_LISTING_COUNT: ${{ inputs.site_id == 'serp.software' && '339' || '286' }}
+          E2E_LISTING_NAME: ${{ inputs.site_id == 'serp.software' && '123Movies Video Downloader' || '321tube Video Downloader' }}
+          E2E_LISTING_SLUG: ${{ inputs.site_id == 'serp.software' && '123movies-downloader' || '321tube-downloader' }}
+          E2E_CATEGORY_SLUG: video-downloaders
+          PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_BASE_URL }}
+          PLAYWRIGHT_EXTERNAL_SERVER: '1'
+        run: |
+          pnpm --filter e2e exec playwright install --with-deps chromium
+          pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
       - name: Rehearse immutable source-version rollback
         run: |
           source_version="$(node -e 'console.log(require(process.argv[1]).versionId)' "$EVIDENCE_DIR/source-deployment.json")"
