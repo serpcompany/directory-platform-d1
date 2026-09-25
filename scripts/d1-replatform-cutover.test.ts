@@ -510,7 +510,12 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('if: always()')
     expect(raw).toContain('wrangler secret delete')
     expect(raw).toContain('attest-preview')
-    expect(raw).toContain('REPLATFORM_EVIDENCE_DIR: $' + '{{ runner.temp }}/d1-replatform-evidence')
+    expect(raw).not.toContain(
+      'REPLATFORM_EVIDENCE_DIR: $' + '{{ runner.temp }}/d1-replatform-evidence'
+    )
+    expect(raw).toContain(
+      'echo "REPLATFORM_EVIDENCE_DIR=$RUNNER_TEMP/d1-replatform-evidence" >> "$GITHUB_ENV"'
+    )
     expect(raw).not.toMatch(/(?:>|tee)\s+preview-[a-z-]+\.(?:json|txt)/u)
     expect(raw).not.toMatch(
       /scripts\/d1-[^\n]+\s+(?:preview-|catalog-|submission-|rollback-)[^/$"\s]+\.(?:json|txt)/u

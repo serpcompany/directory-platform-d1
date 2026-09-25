@@ -47,7 +47,6 @@ jobs:
       CLOUDFLARE_WORKER_PREVIEW_NAME: ${{ secrets.CLOUDFLARE_WORKER_PREVIEW_NAME }}
       PREVIEW_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
       REPLATFORM_PREVIEW_RUN_ID: ${{ github.run_id }}-${{ github.run_attempt }}
-      REPLATFORM_EVIDENCE_DIR: ${{ runner.temp }}/d1-replatform-evidence
     steps:
       - name: Checkout exact reviewed commit
         uses: actions/checkout@v6
@@ -67,7 +66,9 @@ jobs:
         run: pnpm --filter "${{ inputs.site_id }}" build:worker
 
       - name: Prepare external evidence directory
-        run: mkdir -p "$REPLATFORM_EVIDENCE_DIR"
+        run: |
+          echo "REPLATFORM_EVIDENCE_DIR=$RUNNER_TEMP/d1-replatform-evidence" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/d1-replatform-evidence"
 
       - name: Verify observed account, source D1, replacement D1, and Worker identity
         run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
