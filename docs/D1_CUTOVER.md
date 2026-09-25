@@ -33,9 +33,16 @@ only permitted new name as `pornvideodownloaders-replatform-preview`; the
 credential-free replacement Wrangler template continues to consume its protected
 name and UUID rather than embedding them.
 
-Before creation, the workflow verifies the active token, exact account, existing
-source Preview D1 UUID/name, existing Preview Worker name, clean checkout, and full
-`GITHUB_SHA`. It lists every D1 database in the account and refuses a missing or
+Before creation, the workflow verifies the credential identity, exact account,
+existing source Preview D1 UUID/name, existing Preview Worker name, clean checkout,
+and full `GITHUB_SHA`. API tokens must return one explicit active token identity from
+`/user/tokens/verify`. Wrangler OAuth bearer credentials return an exact HTTP 401
+failure envelope (`success: false`, `result: null`) with the sole error code `1000`
+and message `Invalid API Token` from that token-only endpoint; only that exact
+response permits a fallback to `/user`, whose successful user ID/email envelope is
+parsed explicitly. Any other status, error set, malformed token result, or malformed
+or failed user response stops before account/resource reads and before creation. The
+workflow then lists every D1 database in the account and refuses a missing or
 ambiguous source, a source/target alias, or any unexpected database already using
 the replacement name. Only after all read-only proofs pass may it issue one D1
 create request. `CLOUDFLARE_D1_PREVIEW_PLACEMENT` records the independently reviewed
@@ -56,9 +63,10 @@ UUID/name and the observable jurisdiction when applicable, and retains a mode-`0
 JSON receipt for 30 days. For a region-hinted database, the receipt records the
 protected source region and exact successful create hint rather than claiming an
 unavailable read-back field.
-The receipt contains the Site, commit, account ID, source and replacement UUID/name,
-region or jurisdiction, Worker name, action, and verification timestamp; it contains
-no credential. The workflow does not write GitHub secrets. A Maintainer must review
+The receipt contains the Site, commit, credential identity kind, account ID, source
+and replacement UUID/name, region or jurisdiction, Worker name, action, and
+verification timestamp; it contains no credential or user identity. The workflow
+does not write GitHub secrets. A Maintainer must review
 the receipt and separately store the returned replacement UUID and exact registry
 name in the protected environment before rehearsal.
 

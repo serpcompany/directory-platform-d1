@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
-import { provisionPvdReplacementPreview } from './d1-preview-provision'
+import { parseCloudflareHttpFailure, provisionPvdReplacementPreview } from './d1-preview-provision'
 import { siteTargets } from './site-targets'
 
 const sourceId = '11111111-1111-4111-8111-111111111111'
@@ -79,7 +79,11 @@ function dependencies(options: { existing?: boolean; sourceJurisdiction?: string
     },
     async fetchToken() {
       events.push('token')
-      return envelope({ status: 'active' })
+      return envelope({ id: 'api-token-id', status: 'active' })
+    },
+    async fetchUser() {
+      events.push('user')
+      return envelope({ email: 'maintainer@example.com', id: 'oauth-user-id' })
     },
     async fetchWorker() {
       events.push('worker')
@@ -94,7 +98,7 @@ function dependencies(options: { existing?: boolean; sourceJurisdiction?: string
 }
 
 describe('PVD replacement Preview D1 provisioning', () => {
-  it('proves all protected identities before creating exactly one D1 in the source region', async () => {
+  it('accepts an active API token before proving resources and creating exactly one D1', async () => {
     const { deps, events } = dependencies()
     const evidence = await provisionPvdReplacementPreview(
       'pornvideodownloaders.com',
@@ -106,6 +110,7 @@ describe('PVD replacement Preview D1 provisioning', () => {
       action: 'created',
       accountId,
       commitSha: sha,
+      credentialIdentity: 'api-token',
       environment: 'preview',
       protectedEnvironment: 'pornvideodownloaders-preview',
       replacement: {
@@ -130,7 +135,121 @@ describe('PVD replacement Preview D1 provisioning', () => {
     expect(events.indexOf('worker')).toBeLessThan(
       events.findIndex(item => item.startsWith('create:'))
     )
+    expect(events).not.toContain('user')
     expect(JSON.stringify(evidence)).not.toContain('masked-token')
+  })
+
+  it('uses the exact 401 Invalid API Token fallback to prove Wrangler OAuth user identity', async () => {
+    const { deps, events } = dependencies()
+    deps.fetchToken = async () => {
+      events.push('token')
+      throw parseCloudflareHttpFailure(401, {
+        errors: [{ code: 1000, message: 'Invalid API Token' }],
+        result: null,
+        success: false
+      })
+    }
+    const evidence = await provisionPvdReplacementPreview(
+      'pornvideodownloaders.com',
+      workflowEnvironment(),
+      deps
+    )
+    expect(evidence).toMatchObject({ action: 'created', credentialIdentity: 'wrangler-oauth' })
+    expect(events.indexOf('token')).toBeLessThan(events.indexOf('user'))
+    expect(events.indexOf('user')).toBeLessThan(events.indexOf('account'))
+    expect(events.indexOf('user')).toBeLessThan(
+      events.findIndex(item => item.startsWith('create:'))
+    )
+  })
+
+  it('fails closed when the exact OAuth fallback identity is malformed or rejected', async () => {
+    for (const mode of ['malformed', 'rejected'] as const) {
+      const { deps, events } = dependencies()
+      deps.fetchToken = async () => {
+        events.push('token')
+        throw parseCloudflareHttpFailure(401, {
+          errors: [{ code: 1000, message: 'Invalid API Token' }],
+          result: null,
+          success: false
+        })
+      }
+      deps.fetchUser = async () => {
+        events.push('user')
+        if (mode === 'rejected')
+          throw parseCloudflareHttpFailure(403, {
+            errors: [{ code: 1000, message: 'Authentication error' }],
+            result: null,
+            success: false
+          })
+        return envelope({ email: '', id: 'oauth-user-id' })
+      }
+      await expect(
+        provisionPvdReplacementPreview('pornvideodownloaders.com', workflowEnvironment(), deps),
+        mode
+      ).rejects.toThrow()
+      expect(events).toContain('user')
+      expect(events).not.toContain('account')
+      expect(events.some(item => item.startsWith('create:'))).toBe(false)
+    }
+  })
+
+  it('never falls back for arbitrary token verification failures', async () => {
+    const failures = [
+      parseCloudflareHttpFailure(403, {
+        errors: [{ code: 1000, message: 'Authentication error' }],
+        result: null,
+        success: false
+      }),
+      parseCloudflareHttpFailure(401, {
+        errors: [{ code: 9999, message: 'Invalid API Token' }],
+        result: null,
+        success: false
+      }),
+      parseCloudflareHttpFailure(401, {
+        errors: [{ code: 1000, message: 'Different error' }],
+        result: null,
+        success: false
+      }),
+      parseCloudflareHttpFailure(401, {
+        errors: [
+          { code: 1000, message: 'Invalid API Token' },
+          { code: 1001, message: 'Another error' }
+        ],
+        result: null,
+        success: false
+      })
+    ]
+    for (const failure of failures) {
+      const { deps, events } = dependencies()
+      deps.fetchToken = async () => {
+        events.push('token')
+        throw failure
+      }
+      await expect(
+        provisionPvdReplacementPreview('pornvideodownloaders.com', workflowEnvironment(), deps)
+      ).rejects.toThrow()
+      expect(events).not.toContain('user')
+      expect(events).not.toContain('account')
+      expect(events.some(item => item.startsWith('create:'))).toBe(false)
+    }
+  })
+
+  it('rejects a 401 Invalid API Token response whose envelope claims success', async () => {
+    const { deps, events } = dependencies()
+    deps.fetchToken = async () => {
+      events.push('token')
+      return parseCloudflareHttpFailure(401, {
+        errors: [{ code: 1000, message: 'Invalid API Token' }],
+        result: null,
+        success: true
+      })
+    }
+    await expect(
+      provisionPvdReplacementPreview('pornvideodownloaders.com', workflowEnvironment(), deps)
+    ).rejects.toThrow('not an exact failure envelope')
+    expect(events).not.toContain('user')
+    expect(events).not.toContain('account')
+    expect(events.some(item => item.startsWith('create:'))).toBe(false)
   })
 
   it('copies an explicit source jurisdiction instead of a location hint', async () => {

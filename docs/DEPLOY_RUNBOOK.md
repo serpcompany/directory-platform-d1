@@ -266,6 +266,15 @@ region, reads it back, and retains a non-secret identity receipt. It performs no
 migration, import, Worker deployment, deletion, Production action, or GitHub secret
 write.
 
+The credential may be a scoped API token or the Wrangler OAuth bearer installed in
+the protected environment. The executor accepts API-token identity only from a valid
+active `/user/tokens/verify` envelope. It tries the OAuth `/user` identity endpoint
+only after the token-only endpoint returns exact HTTP 401 with `success: false`,
+`result: null`, and the sole error `1000: Invalid API Token`; arbitrary errors never
+trigger fallback. Both credential modes
+must still pass the same exact account, complete D1 list, source D1, and Worker reads
+before the single create operation.
+
 After reviewing the retained receipt, manually configure both
 `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID` and
 `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME` in the same protected environment.
