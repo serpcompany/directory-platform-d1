@@ -670,12 +670,16 @@ function printRemotePlan(
 ): void {
   if (env.D1_REMOTE_CONFIRM !== target.confirmation.plan[environment])
     throw new Error(`D1_REMOTE_CONFIRM must equal ${target.confirmation.plan[environment]}.`)
-  validateWorkerConfig(environment, target.siteId)
-  const migrations = readdirSync(resolve('d1/migrations'))
+  const generation = parseDatabaseGeneration(env.D1_RELEASE_GENERATION, {
+    requireExplicit: true
+  })
+  validateWorkerConfig(environment, target.siteId, generation)
+  const migrationsDirectory = generation === 'replatform' ? 'd1/drizzle' : 'd1/migrations'
+  const migrations = readdirSync(resolve(migrationsDirectory))
     .filter(file => file.endsWith('.sql'))
     .sort()
   const checksum = createHash('sha256')
-    .update(migrations.map(file => readFileSync(resolve('d1/migrations', file))).join('\n'))
+    .update(migrations.map(file => readFileSync(resolve(migrationsDirectory, file))).join('\n'))
     .digest('hex')
   console.log(
     JSON.stringify(
@@ -684,6 +688,7 @@ function printRemotePlan(
         dryRun: true,
         environment,
         executesRemoteCommand: false,
+        generation,
         kind,
         migrations,
         siteId: target.siteId

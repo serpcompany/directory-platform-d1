@@ -4,8 +4,10 @@ The application-owned schema is modeled once in `packages/data-ops/src/schema.ts
 `drizzle-kit generate` writes a separate fresh-database history under `d1/drizzle/`,
 and Wrangler applies that SQL while recording its canonical `d1_migrations` ledger.
 The released `d1/migrations/0001`-`0009` files remain byte-for-byte immutable legacy
-history for the current databases and are never scanned or combined with the fresh
-history. `drizzle-kit push` is not an approved shared-environment migration path.
+history for the locked, inactive source databases and are never scanned or combined
+with the active fresh history. Routine shared-environment releases use `d1/drizzle/`
+against the replacement identities. `drizzle-kit push` is not an approved
+shared-environment migration path.
 
 The local replacement transfer preserves every application-owned source column and
 excludes only SQLite, Wrangler, and Cloudflare-owned metadata. It compares canonical
@@ -22,8 +24,9 @@ after foreign-key and exact 17-table parity.
 `migration_runs` also owns the reserved cutover lock namespace
 `d1-cutover-lock-v1:<site>:`. A row in that namespace with `outcome='started'` freezes
 all writes for only that Site. Successful/failed historical lock rows do not freeze
-writes. The future cutover executor owns lock creation and finalization; ordinary
-runtime and release paths may only observe and enforce it.
+writes. The completed cutover executor owned lock creation and finalization. Ordinary
+runtime and release paths still observe and enforce any active lock, while the
+inactive source databases retain their historical lock rows as recovery evidence.
 
 - `sites` identifies the tenant.
 - `categories` stores active taxonomy rows and display order.

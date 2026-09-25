@@ -407,4 +407,57 @@ describe('D1 submission notifier', () => {
     expect(source).toContain("state_reason: 'completed'")
     expect(source).toContain("process.env.SUBMISSION_DECISION === 'approve'")
   })
+
+  it('routes routine publication, approval, and notification only to replacement Production D1', () => {
+    const replacementId = githubExpression(
+      'secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID'
+    )
+    const replacementName = githubExpression(
+      'secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME'
+    )
+    for (const path of [
+      '.github/workflows/publish-d1.yml',
+      '.github/workflows/approve-d1-submission.yml'
+    ]) {
+      const source = readFileSync(path, 'utf8')
+      const workflow = yaml.load(source) as {
+        jobs: Record<
+          string,
+          {
+            steps: Array<{
+              env?: Record<string, string>
+              name?: string
+              with?: Record<string, string>
+            }>
+          }
+        >
+      }
+      const steps = Object.values(workflow.jobs)[0]?.steps ?? []
+      const backup = steps.find(step => step.name === 'Back up production D1')
+      expect(backup?.env).toEqual(
+        expect.objectContaining({
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: replacementId,
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: replacementName,
+          CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: replacementId,
+          CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME: replacementName,
+          D1_RELEASE_GENERATION: 'replatform'
+        })
+      )
+      expect(source).not.toContain('secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID')
+      expect(source).not.toContain('secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME')
+      expect(steps.find(step => step.name?.startsWith('Retain pre-'))?.with?.path).toContain(
+        '.replatform.sql'
+      )
+    }
+
+    const notifySource = readFileSync('.github/workflows/notify-d1-submissions.yml', 'utf8')
+    const notify = yaml.load(notifySource) as {
+      jobs: { notify: { steps: Array<{ env?: Record<string, string>; name?: string }> } }
+    }
+    const notifyStep = notify.jobs.notify.steps.find(
+      step => step.name === 'Notify the configured submission reviewer'
+    )
+    expect(notifyStep?.env?.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID).toBe(replacementId)
+    expect(notifySource).not.toContain('secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID')
+  })
 })

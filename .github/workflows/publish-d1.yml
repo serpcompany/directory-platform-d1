@@ -49,11 +49,14 @@ jobs:
           GITHUB_SHA: ${{ github.sha }}
           WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
           D1_PUBLICATION_CONFIRM: ${{ inputs.confirmation }}
+          D1_RELEASE_GENERATION: replatform
           DEPLOY_SITE_ID: ${{ inputs.site_id }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
-          CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME }}
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID }}
+          CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME }}
+          CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID }}
+          CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME }}
           CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
         run: pnpm tsx scripts/worker-release.ts backup production --site "${{ inputs.site_id }}"
 
@@ -61,7 +64,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.site_id }}-d1-pre-publication-${{ github.sha }}
-          path: .wrangler/backups/${{ inputs.site_id == 'pornvideodownloaders.com' && 'pornvideodownloaders-com' || 'serp-software' }}/production/${{ github.sha }}.sql
+          path: .wrangler/backups/${{ inputs.site_id == 'pornvideodownloaders.com' && 'pornvideodownloaders-com' || 'serp-software' }}/production/${{ github.sha }}.replatform.sql
           if-no-files-found: error
           retention-days: 30
 

@@ -1,458 +1,86 @@
-# D1 replacement cutover contract
-
-This document prepares Issue #72 without granting remote authority. The checked-in
-replacement templates point at `d1/drizzle/`; the currently released templates keep
-pointing at immutable `d1/migrations/0001`-`0009`. The credential-free preparation
-workflow and `scripts/d1-replatform-cutover.ts plan` execute no Cloudflare command.
-
-## Required remote resources
-
-Provisioning is a separate, explicitly approved operation. For each Site, record
-redacted fingerprints for the Cloudflare account and these exact, mutually distinct
-resources in its protected environment:
-
-| Site | Preview environment | Preview resources | Production replacement resources |
-| --- | --- | --- | --- |
-| `serp.software` | `serp-software-preview` (provisioned) | provisioned Preview Worker plus distinct source and replacement Preview D1 databases | new replacement D1; existing Production Worker is rebound only at cutover |
-| `pornvideodownloaders.com` | `pornvideodownloaders-preview` (existing) | existing Preview Worker plus a distinct replacement Preview D1 | new replacement D1; existing Production Worker is rebound only at cutover |
-
-The protected environment must store the expected account ID, source D1 UUID/name,
-replacement D1 UUID/name, and Worker name separately. Before every remote command,
-read-only identity calls must prove the credential can see the expected account and
-that each returned D1 UUID/name matches the registered Site and environment. Source
-and replacement UUIDs and names must differ. No wildcard or inferred Site is allowed.
-
-### One-time PVD replacement Preview provisioning
-
-`.github/workflows/provision-pornvideodownloaders-replacement-preview.yml` is the
-only prepared executor for creating PVD's missing replacement Preview D1. It runs
-only from an exact `main` commit in the protected `pornvideodownloaders-preview`
-environment and requires the literal confirmation
-`provision-pornvideodownloaders.com-replacement-preview`. The registry fixes the
-only permitted new name as `pornvideodownloaders-replatform-preview`; the
-credential-free replacement Wrangler template continues to consume its protected
-name and UUID rather than embedding them.
-
-Before creation, the workflow verifies the credential identity, exact account,
-existing source Preview D1 UUID/name, existing Preview Worker name, clean checkout,
-and full `GITHUB_SHA`. API tokens must return one explicit active token identity from
-`/user/tokens/verify`. Wrangler OAuth bearer credentials return an exact HTTP 401
-failure envelope (`success: false`, `result: null`) with the sole error code `1000`
-and message `Invalid API Token` from that token-only endpoint; only that exact
-response permits a fallback to `/user`, whose successful user ID/email envelope is
-parsed explicitly. Any other status, error set, malformed token result, or malformed
-or failed user response stops before account/resource reads and before creation. The
-workflow then lists every D1 database in the account and refuses a missing or
-ambiguous source, a source/target alias, or any unexpected database already using
-the replacement name. Only after all read-only proofs pass may it issue one D1
-create request. `CLOUDFLARE_D1_PREVIEW_PLACEMENT` records the independently reviewed
-source placement as `jurisdiction:<eu|fedramp|us>` or
-`region:<weur|eeur|apac|oc|wnam|enam>`. An observed source jurisdiction must exactly
-match that value. Cloudflare does not expose a non-jurisdiction database's primary
-region through the documented D1 GET response, so the protected region value is the
-source of truth and becomes the exact `primary_location_hint` on creation. An absent,
-malformed, or contradictory placement stops before creation.
-
-The first run requires both protected replacement identity values to be absent:
-
-- `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID`
-- `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME`
-
-After creation, the workflow lists and reads the resource again, requires one exact
-UUID/name and the observable jurisdiction when applicable, and retains a mode-`0600`
-JSON receipt for 30 days. For a region-hinted database, the receipt records the
-protected source region and exact successful create hint rather than claiming an
-unavailable read-back field.
-The receipt contains the Site, commit, credential identity kind, account ID, source
-and replacement UUID/name, region or jurisdiction, Worker name, action, and
-verification timestamp; it contains no credential or user identity. The workflow
-does not write GitHub secrets. A Maintainer must review
-the receipt and separately store the returned replacement UUID and exact registry
-name in the protected environment before rehearsal.
-
-A rerun is read-only only when both protected replacement values are supplied and
-match the sole existing resource exactly. If the name already exists without those
-expected values, either expected value is missing, the configured resource is absent,
-or any identity/placement differs, the workflow fails closed and never creates a
-duplicate. The workflow contains no SQL, migration, import, Worker deployment,
-deletion, Production selection, or GitHub-environment mutation path.
-
-## Preview rehearsal
-
-Preview accepts only a controlled fixture or an explicitly sanitized snapshot.
-Sanitization must leave zero Production capability rows, notification-secret rows,
-and rate-limit rows. Raw Preview capabilities are generated only for the isolated
-Preview journey and never copied from Production.
-
-The protected Preview executor is
-`.github/workflows/rehearse-d1-replatform-preview.yml`. Dispatch is inert until the
-selected protected environment has its exact resources, variables, secrets, reviewer,
-and `rehearse-<site>-preview` approval configured.
-
-The rehearsal runs from exactly `refs/heads/main` after the reviewed implementation
-has merged. The workflow checks out the dispatched `GITHUB_SHA`, and both identity
-and release guards require that exact ref, workflow source ref, clean checkout, and
-matching `HEAD`. Topic branches, tags, and pull-request merge refs cannot run this
-Preview executor. Running Preview after merge is required because Production evidence
-must bind to the same exact commit SHA and migration checksum; a pre-merge receipt
-cannot authorize a different merge commit. Preview remains separately protected by
-its Site-specific environment and confirmation.
-
-The approved Preview run then:
-
-1. verify account, Site, environment, source D1, replacement D1, and Worker identity;
-2. retain identified pre-bootstrap source and empty replacement-target backups;
-3. apply only `d1/drizzle/` to the empty replacement D1;
-4. import the controlled or sanitized snapshot and record its SHA-256 digest;
-5. verify exact per-table and whole-snapshot parity and the fresh migration ledger;
-6. build and deploy the same full commit SHA against the replacement binding;
-7. pass Catalog home/category/detail/search/RSS/sitemap/redirect journeys;
-8. pass Submission intake/rate-limit/badge/private-preview/approval/rejection journeys;
-9. repeat and prove `verified-no-op` with unchanged data checksums; and
-10. rehearse the old binding rollback without deleting either database.
-
-Before its first protected rehearsal, SERP had no Preview Worker, and the reviewed
-bootstrap exception allowed that one run to create it after proving every other
-identity. That exception is now retired: both Sites require the exact existing Worker
-identity and fail closed when it is missing or wrong. The run immediately repeats
-preflight, deploys the checked-out reviewed commit with the legacy/source Preview D1
-binding and no transient rehearsal authority,
-captures the single version UUID emitted by that deploy, and reads back the active
-Cloudflare deployment, sole 100-percent version, script etag, source D1 binding,
-service, and exact workers.dev hostname. The active UUID must equal the captured UUID;
-an unchanged, concurrent dashboard, gradual, or ambiguous deployment fails. This
-observation is bound to the sealed receipt. Only then may the run install secrets or
-mutate either Preview database. The later replacement-bound deployment remains a
-separate gate. A failure before transient authority installation requires no remote
-cleanup and records that fact without claiming manual database recovery.
-
-The reviewed source-bound version must also prove that all six rehearsal secret names
-are absent from its observed bindings. Cloudflare may preserve omitted secrets across a
-normal code deploy, so matching script content alone is insufficient. Any preserved
-rehearsal secret stops before bulk secret or database mutation, retains explicit manual
-recovery evidence, and is never auto-accepted as a credential-free baseline. The
-sealed receipt records `credentialFree: true` and the complete absent-name set.
-
-All six transient rehearsal secrets are written to one mode-`0600` runner-temporary
-JSON file, installed by one `wrangler secret bulk` operation, and removed immediately.
-The workflow requires exactly one new deployment between the reviewed source-bound
-deployment and the active secret-bearing deployment. That new deployment must be one
-version at 100 percent, retain the exact reviewed script etag, source D1 binding,
-service, and hostname, and expose all six secret binding names. Concurrent dashboard
-deploys, code drift, incomplete/ambiguous bulk output, or multiple new deployments fail
-before database mutation. Both deployment proofs are sealed into the Preview receipt.
-
-Worker propagation can briefly leave the attestation route unavailable immediately
-after the replacement or restoration deploy. The attestation gate creates one
-run/hostname-bound token and retries only network failures, HTTP 404, and HTTP 5xx for
-at most 30 seconds with bounded backoff. A successful response must still match every
-Site, environment, service, hostname, commit, run, and binding-nonce field exactly.
-Each fetch is aborted at the remaining overall deadline, and a response received at or
-after that deadline is rejected even if it is HTTP 200. Deadline abort is a final
-fail-closed timeout, not another retry. Other statuses and any 200 identity mismatch
-fail immediately without retry.
-
-Before its first approved rehearsal, SERP had no populated legacy Preview source.
-That run therefore initialized the isolated source before replacement import:
-it re-verifies all identities, applies only immutable `d1/migrations/0001`-`0009`,
-imports the reviewed controlled public artifact, proves exact catalog/schema parity
-and zero private Submission/notification/rate-limit state, repeats the import to prove
-the checksum path is a no-op, and retains the populated rollback backup. The original
-empty/pre-bootstrap export is retained separately. For PVD or a repeated SERP run, a
-populated source is verified before any migration command; an exact checksum is a
-safe no-op, while partial schema, different catalog state, or private rows stop before
-mutation rather than being overwritten. The replacement target remains distinct and
-empty (or an exact trusted prior receipt) until its fresh-history import.
-
-PVD's pre-rehearsal source contains one historical Preview-only submission, its one
-event, and one rate-limit fingerprint while every public/audit table, legacy schema,
-migration ledger, and Site identity matches the reviewed controlled fixture. The PVD
-path may sanitize only that exact `1/1/1` graph. It first retains and uploads the
-source backup, re-verifies the full remote identity, writes a mode-`0600` recovery
-journal, and then sends one transactional D1 batch containing three ID-bound deletes
-with one-row assertions. Submission children or notifications, a linked Listing,
-another Site/status, broader private counts, public/audit drift, schema drift, or an
-unretained/stale backup stop before deletion. A rerun over the exact sanitized fixture
-is a verified no-op; an uncertain response is re-observed and retried only when the
-same exact graph remains. The reviewed opaque full-row digests identify the historical
-graph without committing its private content; every delete predicate binds every
-observed column so a between-check-and-delete change rolls back the batch. The sealed
-Preview receipt records the `sanitized-snapshot` policy, backup digest, before/after
-snapshot checksums, reviewed table digests, journal/result digests, and exact deleted
-row identities. Production and local databases are not selectable.
-
-The immutable legacy lineage is one exported canonical filename list for
-`0001`–`0009`; generation and classification fail if the directory adds, removes, or
-renames any SQL file, so an accidental `0010` is never absorbed. The sealed Preview
-receipt embeds the complete final classifier artifact plus its canonical SHA-256,
-including exact migration names, normalized schema fingerprint, observed Site set,
-unexpected-object result, and full application/audit snapshot proof. Receipt
-validation recomputes that digest and cross-checks every summary field.
-
-The workflow derives the commit from trusted `GITHUB_SHA`, proves checked-out `HEAD`
-matches it, and seals the complete evidence object with SHA-256. The receipt contains
-the exact Site, full commit SHA, fresh-migration checksum, expected and observed
-identity, controlled source digest, parity, first import, repeated no-op, browser run,
-and rollback run. Production must revalidate the complete embedded Preview evidence
-and match its digest to a separately configured protected value; matching only three
-labels is insufficient.
-
-For sanitized data, `copiedProduction` capability, notification-secret, and rate-limit
-counts must all be zero. `previewGenerated` records separate nonnegative counts for
-isolated Preview rows created by the journey itself; those are allowed and are never
-represented as copied Production state.
-
-The Submission gate uses the real replacement Preview D1 and HTTP routes. Its badge
-page exists only when `D1_RUNTIME_ENV=preview`, the request carries the protected
-`REPLATFORM_PREVIEW_CAPABILITY`, and that short-lived HMAC capability matches the
-current run and Preview hostname. It exposes no database or review operation. The
-journey creates isolated rows, verifies the badge, hydrates the private preview,
-exercises the shared approval and rejection plans, and removes only its recorded
-generated IDs. Read-only source/target snapshots before, after, and after cleanup
-supply the parity, ledger, deletion-safety, and private-row counts in the sealed
-receipt; the evidence builder contains no success defaults.
-
-The replacement Preview template enables Cloudflare's
-`global_fetch_strictly_public` compatibility flag so the badge verifier exercises
-the real public `workers.dev` fixture URL. Replacement Production templates do not
-enable that Preview-only self-fetch capability.
-
-The account, source D1, replacement D1, Worker service name, and live Preview hostname
-are observed again immediately before each remote mutation group. Missing or unknown
-`D1_RELEASE_GENERATION` in the rehearsal fails closed rather than selecting legacy.
-
-The job generates a per-run signing secret and binding nonce, installs the required
-Worker secrets only after the protected identity gate, and removes them plus the
-target marker in an `always()` cleanup. Badge and attestation URLs contain only an
-expiring HMAC token bound to the exact run and hostname; the reusable signing secret
-is never placed in a URL or Submission row. A capability-secured Preview-only
-attestation route reads the nonce through the active `DB` binding and returns the
-exact Site, service, commit, run, hostname, and binding nonce. This proves the public
-Preview hostname is serving the intended deployed Worker and replacement binding.
-
-The rate-limit journey makes at most twelve bounded requests and requires a real HTTP
-429. While the transient intake secret exists, unrelated Preview intake is rejected,
-so the first controlled request must create exactly one fingerprint in otherwise
-empty private state. The workflow records and removes only that exact fingerprint;
-if any concurrent unrelated fingerprint appears, it is preserved and parity fails.
-It never deletes a set inferred solely from elapsed time or a broad row-count delta.
-
-All evidence is written beneath the runner temporary directory, never the checkout,
-so repeated clean-tree identity gates remain meaningful. Final cleanup re-lists Worker
-secrets to prove every transient name is absent, queries D1 to prove the binding marker
-is absent, and negatively probes both temporary endpoints for HTTP 404. Any remaining
-authority fails the protected workflow.
-
-Before the first Submission write, the workflow atomically persists an external
-recovery journal containing the run identity, exact Publication state, Publication
-audit IDs, private-state baseline, rate fingerprints, and subsequently discovered
-Submission/Listings IDs. Each phase advances that journal before the next mutation.
-An idempotent recovery command consumes it after a successful journey and again from
-the `always()` cleanup, covering interruption after intake, notification, approval,
-rejection, or rate limiting. It restores the exact journaled Publication/audit state
-and deletes only recorded or exact run-discovered rows. If intake committed before
-its fingerprint could be journaled, recovery may adopt a fingerprint only when the
-recorded baseline was empty, an exact run-owned Submission is discovered, and exactly
-one current fingerprint exists. Zero, multiple, or preexisting/mismatched candidates
-stop for manual recovery without deleting any fingerprint.
-
-The journal also records the shared canonical digest of every application table in
-both source and target before the journey. Recovery recomputes that same digest after
-cleanup and may emit `recovered: true` only when source, target, and both recorded
-digests match. This covers Listings, relationships, redirects, Submission children,
-events, notifications, rate limits, Publication state, and audit tables—not merely a
-small set of cleanup counters.
-
-The final cleanup first performs a fresh full identity verification. If that fails,
-it performs zero Cloudflare/D1 cleanup mutations, retains the journal plus a
-`MANUAL_RECOVERY_REQUIRED` artifact, and fails explicitly. On a verified target it
-uses one still-unexpired token to prove both temporary endpoints return 200 before
-authority removal; the same token must return 404 after secret/marker deletion. This
-distinguishes real revocation from an invalid probe.
-
-### One-time replacement Production D1 provisioning
-
-`.github/workflows/provision-d1-replacement-production.yml` is the only prepared
-executor for creating either Site's empty replacement Production D1. It runs only
-from an exact `main` commit, uses the selected Site's existing protected Production
-environment, shares that Site's `<site>-production-d1` concurrency group, and
-requires the literal `provision-<site>-replacement-production` confirmation. The
-registry fixes the only permitted new names:
-
-- `serp.software`: `serp-software-replatform-production` in `production`;
-- `pornvideodownloaders.com`:
-  `pornvideodownloaders-replatform-production` in
-  `pornvideodownloaders-production`.
-
-Before its sole possible create request, the workflow proves the exact checked-out
-`GITHUB_SHA`, clean checkout, API-token or narrowly recognized Wrangler-OAuth
-identity, account, complete bounded D1 list, source Production D1 UUID/name, and
-existing Production Worker. It rejects source/replacement aliases, duplicate or
-unexpected same-name resources, partial protected replacement identity, malformed
-provider envelopes, and lists exceeding the bounded page limit. It copies an
-observed source jurisdiction exactly. When Cloudflare does not expose a source
-primary region, the independently reviewed
-`CLOUDFLARE_D1_PRODUCTION_PLACEMENT=region:<weur|eeur|apac|oc|wnam|enam>` protected
-variable becomes the exact create hint; an observed jurisdiction instead requires
-the matching `jurisdiction:<eu|fedramp|us>` value.
-
-The first run requires these protected replacement values to be absent:
-
-- `CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID`;
-- `CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME`.
-
-Immediately after a successful create response, the workflow writes a non-secret
-mode-`0600` recovery receipt containing the returned UUID before making another
-provider request. It uploads that receipt even when later re-list/read-back
-verification fails. On success it replaces the recovery state with the fully
-verified identity receipt, which is retained for 30 days. It does not write GitHub
-secrets. After reviewing a fully verified receipt, a Maintainer
-must separately configure the returned UUID and the exact registry name as the
-replacement pair in the same protected Production environment. A rerun is read-only
-only when that pair identifies the sole exact existing resource.
-
-This one-time workflow creates an empty D1 resource only. It contains no SQL,
-schema, data, migration, import, backup, Worker deployment, route or binding change,
-cutover/finalization, deletion, or automatic GitHub-environment write. Provisioning
-is a prerequisite, not a Production cutover authorization.
-
-## Production cutover
-
-Production execution is split across three protected, main-only workflows:
-
-- `cutover-d1-replatform-production.yml` uses the exact
-  `cutover-<site>-production` confirmation;
-- `rollback-d1-replatform-production.yml` uses the exact
-  `rollback-<site>-production` confirmation; and
-- `finalize-d1-replatform-production.yml` uses the exact
-  `finalize-<site>-production` confirmation.
-
-All three select one explicit Site and its registered protected Production
-environment and share the non-canceling `<site>-production-d1` concurrency group with
-the normal deploy, publication, and approval workflows. The cutover consumes the sole
-successful, unexpired exact-main Preview artifact and separately protected receipt
-digest. It proves the Cloudflare account, both D1 UUID/name pairs, Worker, active sole
-version, source binding, zone, and apex route before mutation.
-
-The cutover deploys the exact checked-out main commit source-bound before acquiring an
-immutable Site-wide lock. The lock is the first statement in every application and
-operator mutation batch, so Submission, Publication, approval, and notification
-writes fail closed. A real HTTP write probe must return the stable frozen response.
-Two identical full database proofs then capture the exact frozen 17-table source
-snapshot; any drift stops the run.
-
-The replacement must have the reviewed fresh Drizzle schema and be empty, or contain
-only the exact resumable marker/subset for the same Site, cutover ID, source UUID,
-schema, migration ledger, and snapshot. A divergent or ambiguous partial target stops
-without cleanup. Exact per-table and whole-snapshot parity, foreign keys, and the
-sealed transfer receipt must pass before the same commit is deployed target-bound.
-Production-safe catalog gates and the frozen-write probe run against the public apex.
-
-The successful executor rehearses rollback by selecting the recorded immutable
-source-bound Worker version—never rebuilding—then restores the recorded immutable
-target-bound version and re-attests the sole 100-percent deployment and binding. Both
-databases remain locked. A failed executor never unfreezes either database and, when
-the reviewed source version was recorded, restores that version fail-closed before
-retaining evidence. The stable operator-supplied cutover ID must be reused for an
-interrupted retry; a different lock or snapshot is ambiguous and rejected.
-
-Source and pre-cutover target exports plus measured evidence are retained for at
-least 90 days. No workflow deletes a database. Rollback consumes the sealed cutover
-receipt and protected digest, deploys only its recorded source version, performs no
-build and no SQL restore, and leaves both locks active. Finalization consumes the
-same receipt, proves the recorded target version is the sole active target-bound
-version, repeats public catalog gates, proves both locks, and conditionally marks
-only the active replacement lock succeeded. The inactive source remains locked.
-
-Before switching traffic, the executor also seals and uploads an exact-run recovery
-receipt containing the protected account, Worker, source/replacement D1 identities,
-commit, cutover ID, and emitted source-bound version. If a runner disappears after
-target activation but before the completed receipt is sealed, the rollback workflow's
-`incomplete-recovery` mode consumes that GitHub-retained artifact, revalidates current
-protected identities, requires its separately reviewed protected recovery digest,
-inspects the recorded version binding, and restores source
-traffic without a rebuild. It cannot finalize a cutover. The `completed` mode remains
-bound to the separately protected completed-receipt digest.
-The recovery digest is approved only for a run that did not seal a completed receipt;
-the existence of the routinely emitted pre-switch artifact is not authorization.
-
-Stage 1 lock enforcement is the runtime foundation consumed by the executor. The
-lock is an active reserved `migration_runs` row with ID prefix
-`d1-cutover-lock-v1:<site>:`. Public write batches, protected publication and
-submission decisions, notification delivery, and generic Production migration/import
-all fail closed while it is active. Production D1 workflows for a Site share the
-same `<site>-production-d1` concurrency group. This enforcement does not itself
-create a lock or authorize a Production cutover.
-
-Stage 2 supplies the executor's deterministic snapshot boundary. The shared canonical
-engine covers all 17 application tables, preserves
-private and audit rows plus full signed 64-bit integers, and uses bounded reads and
-writes. Capture requires the exact active Stage 1 lock and two identical full source
-proofs. A fresh target may resume only through a deterministic marker for the same
-Site, cutover identity, source identity, schema, ledger, and snapshot checksum;
-`INSERT OR IGNORE` never authorizes divergent partial data. The target replatform
-receipt is created only after exact per-table/whole-snapshot and foreign-key parity.
-Stage 2 itself contains no remote resource selection or authority.
-
-Stage 3 supplies the executor's two read-only trust boundaries.
-`scripts/d1-replatform-production-preflight.ts` first consumes one
-explicit GitHub Actions run and its exact-name retained Preview artifact. It accepts
-only a successful `workflow_dispatch` run from this repository's
-`.github/workflows/rehearse-d1-replatform-preview.yml` on `main` whose `head_sha`
-equals checked-out `HEAD`. The artifact must be unexpired and bound to the same run,
-branch, commit, and Site. Its bounded ZIP download must match GitHub's SHA-256; its
-sole sealed receipt must match both its embedded canonical digest and the separately
-protected expected digest. The complete embedded Preview evidence is then revalidated
-against the selected Site, exact commit, and current fresh-migration checksum.
-
-The same module's Production identity preflight performs only bounded GET requests.
-It proves the exact account; distinct source and replacement D1 UUID/name pairs; the
-registered protected environment and sole allowed Site; existing Worker service;
-active apex zone and sole exact apex route; latest active deployment with one version
-at 100 percent; and that version's sole `DB` D1 binding still points at the protected
-source UUID. Every untrusted request, GitHub response, Cloudflare envelope, array,
-ZIP entry, and receipt is parsed at runtime and mismatch errors include a remediation.
-This module does not itself acquire a mutation lock, write D1, deploy or rebind a
-Worker, or authorize a Production cutover.
-
-The old D1 remains intact and read-only for at least 90 days. Record its backup
-artifact, retention expiry, protected rollback operation, and responsible Maintainer.
-Rollback changes only the Worker binding; it never deletes either database. Unless a
-tested replay exists for every post-cutover write, Submission, Publication, approval,
-and notification mutation remain frozen for the rollback window.
-
-## Authorization boundary
-
-Allowed now:
-
-```bash
-pnpm d1:replatform:config:validate
-pnpm d1:replatform:production:validate
-pnpm d1:replatform:plan:preview
-pnpm d1:replatform:plan:production
-```
-
-These commands are credential-free and non-mutating. This preparation does not
-authorize `wrangler whoami`, remote D1 list/create/export/execute/migrate, Worker
-deploy, GitHub environment mutation, binding changes, or Production operations.
-Separately, an explicitly approved dispatch of the exact-main PVD provisioning
-workflow authorizes only its read-only identity calls and single missing replacement
-Preview D1 creation described above. It does not authorize a local equivalent or any
-subsequent schema/data/Worker operation.
-
-After this workflow has merged, an explicitly approved exact-main dispatch of
-`provision-d1-replacement-production.yml` authorizes only the selected Site's
-read-only identity calls and single missing empty replacement Production D1 creation
-described above. It grants no local equivalent and no schema, data, Worker, route,
-binding, cutover, finalization, deletion, or GitHub-secret mutation authority.
-
-The three Production cutover workflows are inert until their Site-specific protected
-environment has exact source/replacement identities, Preview run and digest trust,
-Cloudflare authority, public base URL, required reviewer, and receipt trust for later
-rollback/finalization. Checked-in provisioning, cutover code, and a passing harness
-do not authorize a run.
-
-Before remote execution, the Maintainer must independently confirm each Site's
-Preview receipt, Production source and replacement identities, protected environment
-reviewer, 90-day artifact retention, stabilization duration, and responsible
-Maintainer. Do not replace either Site's established Preview identity.
+# D1 replacement cutover record
+
+Status: completed on 2026-09-25
+
+Governing issue: [#72](https://github.com/serpcompany/directory-platform-d1/issues/72)
+
+Final commit: `11813bb73facaeece37acbe56c9e09018c944867`
+
+This is the retained operational record for the completed legacy-to-Drizzle D1
+cutover. It is not an instruction to rerun the migration. The one-time preparation,
+provisioning, Preview rehearsal, Production cutover, rollback, and finalization
+workflows are disabled in GitHub Actions.
+
+## Active identities
+
+| Site and environment | Worker | Active Drizzle D1 |
+| --- | --- | --- |
+| SERP Preview | `serp-software-replatform-preview` | `serp-software-replatform-preview` (`29c0a6ed-e824-459c-b088-6098fdbf1abf`) |
+| SERP Production | `serp-software-production` | `serp-software-replatform-production` (`7d525a45-318b-4227-9463-19f4e9cb6eb6`) |
+| PVD Preview | `pornvideodownloaders-preview` | `pornvideodownloaders-replatform-preview` (`16ede356-3caa-4cea-93f3-69f5b208b1d7`) |
+| PVD Production | `pornvideodownloaders-production` | `pornvideodownloaders-replatform-production` (`8f5097c5-7c11-4505-bc59-b41cb4c86100`) |
+
+Routine protected releases must explicitly select `D1_RELEASE_GENERATION=replatform`,
+the replacement identity secrets, replacement Wrangler templates, and `d1/drizzle/`.
+The inactive source identities are never routine release targets.
+
+## Final evidence
+
+| Evidence | SERP | Porn Video Downloaders |
+| --- | --- | --- |
+| Exact-main Preview | [run 36115385232](https://github.com/serpcompany/directory-platform-d1/actions/runs/36115385232) | [run 36115388257](https://github.com/serpcompany/directory-platform-d1/actions/runs/36115388257) |
+| Production cutover | [run 36116735503](https://github.com/serpcompany/directory-platform-d1/actions/runs/36116735503) | [run 36117600807](https://github.com/serpcompany/directory-platform-d1/actions/runs/36117600807) |
+| Finalization | [run 36117390347](https://github.com/serpcompany/directory-platform-d1/actions/runs/36117390347) | [run 36118472672](https://github.com/serpcompany/directory-platform-d1/actions/runs/36118472672) |
+| Cutover ID | `serp-software-6f8eb0d-20260925` | `pvd-11813bb-20260925` |
+| Receipt SHA-256 | `6f7121291915f2910a29cd3b72046bb111cd2e94c05d0a5c52bcf09715f29a8e` | `4addd60c77987a92a34a4551f16999b35f0ff3f39c64a9b8b2fc7c4c92e8dca6` |
+| Active target version | `0c50b425-e4d8-4277-931a-a9fd2406d132` | `172433ff-2c27-48d7-8567-5c41fd8ecc9b` |
+
+Both exact-main Preview rehearsals proved fresh schema application, exact parity,
+repeat import no-op, Catalog journeys, isolated Submission journeys, rollback and
+restoration, sealed receipts, and transient-authority cleanup. Both Production runs
+captured one stable locked 17-table snapshot, imported and verified exact parity,
+rehearsed immutable-version rollback, restored the target version, and retained
+90-day evidence. Finalization revalidated the active target and unlocked only that
+replacement database.
+
+## Retained source databases
+
+The former Production databases are unbound from every Worker, remain locked, and
+must not be repurposed or deleted before the recorded evidence expires:
+
+| Site | Retained source | Minimum retention deadline |
+| --- | --- | --- |
+| SERP | `serp-software-directory-db` (`dda690b0-19c1-4d7e-a3c8-da2a9e3216a8`) | `2026-12-24T09:15:12Z` |
+| PVD | `pornvideo-downloaders-production` (`d934a6c2-b382-4c50-a220-1e9dc0e5f8e5`) | `2026-12-24T09:26:48Z` |
+
+The historical `d1/migrations/0001`-`0009` lineage, cutover receipts, source/target
+exports, and source identity secrets remain recovery evidence until that deadline.
+
+## Recovery boundary
+
+The checked-in rollback workflow is not directly executable after finalization:
+it requires both cutover locks to be active, while finalization marked the active
+replacement lock successful. In addition, writes may now exist only in the active
+replacement database. Do not present a Worker-version rollback to the retained source
+as a safe live rollback and do not bypass the workflow's lock checks.
+
+If recovery is required, first freeze all writes, determine whether post-cutover
+writes exist, review the retained exports and receipts, and design a separately
+reviewed forward recovery or replay. Production D1 queries, restores, binding changes,
+and deletions still require explicit protected authorization.
+
+## Deferred cleanup
+
+After both retention deadlines:
+
+1. verify current Worker bindings and routes account-wide;
+2. confirm retained artifacts and any required export have been preserved;
+3. confirm no workflow or environment consumes the source identities;
+4. obtain separate approval for each exact database deletion;
+5. delete only the approved sources and record Cloudflare receipts; and
+6. remove the retired lineage, cutover-only code, environment values, and workflows
+   in a reviewed pull request.
+
+The unbound source Preview databases are separate cleanup candidates, but deleting
+them is also a distinct destructive operation. Issue #85 does not authorize any D1
+deletion.

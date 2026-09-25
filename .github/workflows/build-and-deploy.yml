@@ -44,7 +44,7 @@ jobs:
         uses: ./.github/actions/install
 
       - name: Validate Worker configuration contracts
-        run: pnpm worker:config:validate
+        run: pnpm tsx scripts/worker-release.ts validate-replatform production --site serp.software
 
       - name: Run D1 contract tests
         run: pnpm test:d1
@@ -59,12 +59,14 @@ jobs:
         if: inputs.release_mode == 'database-and-worker'
         env:
           D1_REMOTE_CONFIRM: plan-serp.software-production
+          D1_RELEASE_GENERATION: replatform
         run: pnpm d1:remote:migration:plan:production
 
       - name: Plan production verification without remote execution
         if: inputs.release_mode == 'database-and-worker'
         env:
           D1_REMOTE_CONFIRM: plan-serp.software-production
+          D1_RELEASE_GENERATION: replatform
         run: pnpm d1:remote:verify:plan:production
 
       - name: Back up production D1
@@ -73,11 +75,12 @@ jobs:
           CI: 'true'
           GITHUB_REF: ${{ github.ref }}
           GITHUB_SHA: ${{ github.sha }}
+          D1_RELEASE_GENERATION: replatform
           WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
-          CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME }}
+          CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID }}
+          CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME }}
           CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
         run: pnpm worker:d1:backup:production
 
@@ -86,7 +89,7 @@ jobs:
         uses: actions/upload-artifact@v6
         with:
           name: serp-software-d1-${{ github.sha }}
-          path: .wrangler/backups/serp-software/production/${{ github.sha }}.sql
+          path: .wrangler/backups/serp-software/production/${{ github.sha }}.replatform.sql
           if-no-files-found: error
           retention-days: 30
 
@@ -94,16 +97,6 @@ jobs:
         if: inputs.release_mode == 'database-and-worker'
         env: *production_env
         run: pnpm worker:d1:migrate:production
-
-      - name: Import deterministic production catalog
-        if: inputs.release_mode == 'database-and-worker'
-        env: *production_env
-        run: pnpm worker:d1:import:production
-
-      - name: Verify production D1
-        if: inputs.release_mode == 'database-and-worker'
-        env: *production_env
-        run: pnpm worker:d1:verify:production
 
       - name: Verify schema compatibility and deploy production Worker
         env: *production_env
