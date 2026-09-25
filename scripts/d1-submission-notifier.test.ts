@@ -403,7 +403,7 @@ describe('D1 submission notifier', () => {
     )
     expect(reviewIndex).toBeGreaterThan(-1)
     expect(closeIndex).toBeGreaterThan(reviewIndex)
-    expect(workflow.jobs.approve.steps[closeIndex]?.uses).toBe('actions/github-script@v8')
+    expect(workflow.jobs.approve.steps[closeIndex]?.uses).toBe('actions/github-script@v9')
     expect(source).toContain("state_reason: 'completed'")
     expect(source).toContain("process.env.SUBMISSION_DECISION === 'approve'")
   })
