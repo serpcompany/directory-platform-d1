@@ -270,6 +270,52 @@ uses one still-unexpired token to prove both temporary endpoints return 200 befo
 authority removal; the same token must return 404 after secret/marker deletion. This
 distinguishes real revocation from an invalid probe.
 
+### One-time replacement Production D1 provisioning
+
+`.github/workflows/provision-d1-replacement-production.yml` is the only prepared
+executor for creating either Site's empty replacement Production D1. It runs only
+from an exact `main` commit, uses the selected Site's existing protected Production
+environment, shares that Site's `<site>-production-d1` concurrency group, and
+requires the literal `provision-<site>-replacement-production` confirmation. The
+registry fixes the only permitted new names:
+
+- `serp.software`: `serp-software-replatform-production` in `production`;
+- `pornvideodownloaders.com`:
+  `pornvideodownloaders-replatform-production` in
+  `pornvideodownloaders-production`.
+
+Before its sole possible create request, the workflow proves the exact checked-out
+`GITHUB_SHA`, clean checkout, API-token or narrowly recognized Wrangler-OAuth
+identity, account, complete bounded D1 list, source Production D1 UUID/name, and
+existing Production Worker. It rejects source/replacement aliases, duplicate or
+unexpected same-name resources, partial protected replacement identity, malformed
+provider envelopes, and lists exceeding the bounded page limit. It copies an
+observed source jurisdiction exactly. When Cloudflare does not expose a source
+primary region, the independently reviewed
+`CLOUDFLARE_D1_PRODUCTION_PLACEMENT=region:<weur|eeur|apac|oc|wnam|enam>` protected
+variable becomes the exact create hint; an observed jurisdiction instead requires
+the matching `jurisdiction:<eu|fedramp|us>` value.
+
+The first run requires these protected replacement values to be absent:
+
+- `CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID`;
+- `CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME`.
+
+Immediately after a successful create response, the workflow writes a non-secret
+mode-`0600` recovery receipt containing the returned UUID before making another
+provider request. It uploads that receipt even when later re-list/read-back
+verification fails. On success it replaces the recovery state with the fully
+verified identity receipt, which is retained for 30 days. It does not write GitHub
+secrets. After reviewing a fully verified receipt, a Maintainer
+must separately configure the returned UUID and the exact registry name as the
+replacement pair in the same protected Production environment. A rerun is read-only
+only when that pair identifies the sole exact existing resource.
+
+This one-time workflow creates an empty D1 resource only. It contains no SQL,
+schema, data, migration, import, backup, Worker deployment, route or binding change,
+cutover/finalization, deletion, or automatic GitHub-environment write. Provisioning
+is a prerequisite, not a Production cutover authorization.
+
 ## Production cutover
 
 Production execution is split across three protected, main-only workflows:
@@ -394,10 +440,17 @@ workflow authorizes only its read-only identity calls and single missing replace
 Preview D1 creation described above. It does not authorize a local equivalent or any
 subsequent schema/data/Worker operation.
 
-The three Production workflows are inert until their Site-specific protected
+After this workflow has merged, an explicitly approved exact-main dispatch of
+`provision-d1-replacement-production.yml` authorizes only the selected Site's
+read-only identity calls and single missing empty replacement Production D1 creation
+described above. It grants no local equivalent and no schema, data, Worker, route,
+binding, cutover, finalization, deletion, or GitHub-secret mutation authority.
+
+The three Production cutover workflows are inert until their Site-specific protected
 environment has exact source/replacement identities, Preview run and digest trust,
 Cloudflare authority, public base URL, required reviewer, and receipt trust for later
-rollback/finalization. Checked-in code and a passing harness do not authorize a run.
+rollback/finalization. Checked-in provisioning, cutover code, and a passing harness
+do not authorize a run.
 
 Before remote execution, the Maintainer must independently confirm each Site's
 Preview receipt, Production source and replacement identities, protected environment

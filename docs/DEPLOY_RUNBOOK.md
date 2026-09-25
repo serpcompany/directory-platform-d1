@@ -327,6 +327,40 @@ partial/mismatched pair fails closed. Provisioning alone is not a rehearsal and 
 not authorize `.github/workflows/rehearse-d1-replatform-preview.yml` until the
 protected replacement identity is configured and independently checked.
 
+Both Sites' missing replacement Production D1 resources use the narrower one-time
+`.github/workflows/provision-d1-replacement-production.yml` workflow. Dispatch it
+only from reviewed `main`, select exactly one Site, approve that Site's existing
+protected Production environment, and enter
+`provision-<site>-replacement-production`. The registry permits only
+`serp-software-replatform-production` or
+`pornvideodownloaders-replatform-production` for their respective Sites.
+
+Before the first run, configure the existing account, source Production D1, and
+Production Worker secrets plus `CLOUDFLARE_EXPECTED_ACCOUNT_ID` and the reviewed
+`CLOUDFLARE_D1_PRODUCTION_PLACEMENT` variable. Placement is
+`jurisdiction:<eu|fedramp|us>` when the source GET response exposes a jurisdiction;
+otherwise record the independently verified source primary region as
+`region:<weur|eeur|apac|oc|wnam|enam>`. Leave both replacement Production D1 values
+absent:
+
+- `CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID`;
+- `CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME`.
+
+The workflow verifies credential, account, source D1, Worker, placement, uniqueness,
+and exact-main identity before issuing at most one create request. It writes a
+non-secret recovery receipt immediately after a successful create response and
+uploads it even if subsequent read-back verification fails. A successful run
+replaces that state with the fully verified identity receipt. It never writes
+environment secrets. Review the fully verified receipt, then manually configure the
+returned UUID and exact registry name as the replacement pair in the same protected
+environment. An exact configured rerun is read-only;
+partial, missing, aliased, duplicate, or unexpected same-name identity fails closed.
+
+This workflow creates one empty D1 only. It performs no SQL, schema, data, import,
+migration, Worker deploy, route/binding change, cutover/finalization, deletion, or
+automatic GitHub secret write. Do not dispatch a Production cutover based on the
+provisioning receipt alone.
+
 For each new site, update and verify:
 
 1. `scripts/site-targets.ts`, `configs/wrangler/<site-id>/`, and synthetic local
