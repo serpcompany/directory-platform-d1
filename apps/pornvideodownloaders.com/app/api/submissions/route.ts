@@ -47,7 +47,7 @@ export async function POST(request: Request): Promise<NextResponse> {
     };
     const replatformDiagnostic =
       workerEnv.D1_RUNTIME_ENV === 'preview' &&
-      new URL(request.url).searchParams.get('replatformDiagnostic') === 'a4f2';
+      request.headers.has('x-replatform-preview-intake');
     if (
       workerEnv.D1_RUNTIME_ENV === 'preview' &&
       workerEnv.REPLATFORM_PREVIEW_INTAKE_SECRET &&
