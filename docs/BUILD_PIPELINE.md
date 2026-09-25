@@ -44,11 +44,12 @@ ignored environment-specific configuration
 under `.wrangler/generated/` and rebases Worker, asset, schema, and migration paths
 relative to that generated configuration.
 
-Replacement templates are separate `replatform-*.jsonc` files and point only at
-`d1/drizzle/`. Routine protected Preview and Production workflows select those
-templates and replacement D1 secrets explicitly; the canonical templates remain for
-the retained one-time recovery machinery. The inactive source databases stay locked
-and retained through 2026-12-24. See [the replacement cutover contract](./D1_CUTOVER.md).
+Checked-in local templates point only at `d1/drizzle/` and fresh synthetic local
+identities. The separate `replatform-*.jsonc` templates also point at `d1/drizzle/`;
+routine protected Preview and Production workflows select those templates and
+replacement D1 secrets explicitly. Legacy remote templates remain only for retained
+source recovery machinery. The inactive source databases stay locked and retained
+through 2026-12-24. See [the replacement cutover contract](./D1_CUTOVER.md).
 
 The completed one-time Production provisioner created only the exact empty replacement
 D1 registered for each Site after proving account, source D1, Worker, placement, and
@@ -120,5 +121,7 @@ the reviewed manifest source rather than trusted caller input.
 
 All local D1 commands pass through `scripts/d1-local-guard.ts --site <site-id>`, which
 resolves the registered local Worker name, database name, synthetic database ID,
-config path, state directory, and `--local` flag. Convenience aliases select a site
-explicitly. Local permission never authorizes preview or production access.
+config path, `d1/drizzle/` directory, shared Site/worktree state directory, and
+`--local` flag. The same state is used by app Preview, the agent runtime, and
+Playwright. Convenience aliases select a site explicitly. Local permission never
+authorizes Preview or Production access.

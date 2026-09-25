@@ -70,7 +70,7 @@ export const siteTargets = {
     },
     local: {
       configPath: 'configs/wrangler/pornvideodownloaders.com/local.jsonc',
-      databaseId: '00000000-0000-0000-0000-000000000003',
+      databaseId: '00000000-0000-0000-0000-000000000168',
       databaseName: 'pornvideodownloaders-local',
       workerName: 'pornvideodownloaders-local'
     },
@@ -116,7 +116,7 @@ export const siteTargets = {
     },
     local: {
       configPath: 'configs/wrangler/serp.software/local.jsonc',
-      databaseId: '00000000-0000-0000-0000-000000000002',
+      databaseId: '00000000-0000-0000-0000-000000000068',
       databaseName: 'serp-software-local',
       workerName: 'serp-software-local'
     },

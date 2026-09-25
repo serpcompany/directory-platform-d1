@@ -2,22 +2,16 @@
 
 Install dependencies with Node 24 and `pnpm install`.
 
-For the replacement-database Drizzle foundation, generate and exercise the isolated
-fresh lineage with explicit Site commands:
+Generate a migration from the shared schema with the target-neutral, credential-free
+command:
 
 ```bash
-pnpm d1:drizzle:local:generate
-pnpm d1:drizzle:local:list
-pnpm d1:drizzle:local:apply
-pnpm d1:drizzle:local:verify
+pnpm d1:generate
 ```
 
-Use the `d1:drizzle:pornvideodownloaders:local:*` variants for the second Site. These
-commands materialize ignored, local-only Wrangler configuration and state, point only
-at `d1/drizzle/`, and never access Preview or Production. Generation is target-neutral
-and credential-free. Review generated SQL—including D1 `STRICT`, trigger, check,
-collation, and partial-index companion details—before committing it. Never use
-`drizzle-kit push` for a shared environment.
+Review generated SQL—including D1 `STRICT`, trigger, check, collation, and
+partial-index companion details—before committing it. Never use `drizzle-kit push`
+for a shared environment.
 
 For deterministic transfer from a reviewed, disposable legacy local D1 export into
 an empty fresh local database, use `pnpm d1:replatform:local --` with explicit Site,
@@ -51,6 +45,18 @@ pnpm tsx scripts/d1-local-guard.ts <migrate|import|verify|publish> \
 ```
 
 The underlying command has no default tenant and rejects unknown site IDs.
+Both Sites' canonical commands, OpenNext previews, agent runtimes, and Playwright
+defaults use their checked-in local Wrangler config, the `d1/drizzle/` migration
+history, a fresh synthetic local database ID, and the same isolated state root. A
+second migration and a repeated initial import are no-ops after exact parity is
+established. The old local state is not read or upgraded; discard it if it is no
+longer needed.
+
+`verify` recomputes canonical row checksums for all 17 application tables against the
+reviewed bootstrap artifacts; the publication checksum and summary counts are not a
+substitute for that proof. Direct app `preview:worker` commands also pass through the
+canonical config validator before opening the same state, so they cannot bypass the
+Site, app-path, asset-path, fresh-ID, or migration-history guards.
 
 Start the local OpenNext Worker:
 
@@ -61,9 +67,10 @@ pnpm dev
 Use `pnpm preview:pornvideodownloaders` for the
 `pornvideodownloaders.com` Worker.
 
-The local guard pins the local Worker name, D1 name, D1 ID, Wrangler config, and
-`--local` mode. It refuses to overwrite a catalog with a different publication
-checksum. Checked-in Worker templates are grouped by site under
+The local guard pins the local Worker name, D1 name, fresh synthetic D1 ID,
+`d1/drizzle/` migration directory, Wrangler config, isolated state path, and
+`--local` mode. It refuses to select the legacy migration history or overwrite a
+catalog with a different publication checksum. Checked-in Worker templates are grouped by site under
 `configs/wrangler/<site-id>/`; generated state remains outside that source area.
 
 For code changes, run:

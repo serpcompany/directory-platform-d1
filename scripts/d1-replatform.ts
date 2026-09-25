@@ -4,7 +4,7 @@ import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { DatabaseSync, type SQLOutputValue } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { canonicalRowFromSqlite, canonicalRowPayload } from './d1-application-snapshot'
-import { freshDatabaseIds, freshMigrationNames } from './d1-drizzle-local'
+import { freshMigrationNames, legacyRecoveryLocalDatabaseIds } from './d1-drizzle-local'
 import { configuredFreshD1StateRoot } from './d1-local-state'
 import {
   type ApplicationTableName,
@@ -400,12 +400,12 @@ export function migrateLocalD1(
   dependencies: MigrationDependencies = {}
 ): MigrationResult {
   const target = resolveSiteTarget(options.siteId)
-  if (options.sourceDatabaseId !== target.local.databaseId) {
+  if (options.sourceDatabaseId !== legacyRecoveryLocalDatabaseIds[options.siteId]) {
     throw new Error(
       `Source database identity must be the registered local ${options.siteId} database.`
     )
   }
-  if (options.targetDatabaseId !== freshDatabaseIds[options.siteId]) {
+  if (options.targetDatabaseId !== target.local.databaseId) {
     throw new Error(
       `Target database identity must be the registered fresh local ${options.siteId} database.`
     )
