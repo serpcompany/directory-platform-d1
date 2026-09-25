@@ -347,7 +347,10 @@ export function validateRecoveryReceipt(raw: unknown): { evidence: Json; sha256:
   const receipt = object(raw, 'Recovery receipt')
   exactKeys(receipt, ['evidence', 'sha256'], 'Recovery receipt')
   const sealed = sealRecoveryEvidence(receipt.evidence)
-  if (sealed.sha256 !== digest(receipt.sha256, 'recovery receipt digest'))
+  if (
+    sealed.sha256 !== digest(receipt.sha256, 'recovery receipt digest') ||
+    sealed.sha256 !== digest(required('TRUSTED_RECOVERY_RECEIPT_SHA256'), 'trusted recovery digest')
+  )
     throw new Error('Recovery receipt digest mismatch.')
   const e = sealed.evidence
   if (

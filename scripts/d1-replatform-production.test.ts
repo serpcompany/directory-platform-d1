@@ -145,6 +145,8 @@ describe('Production cutover workflow contracts', () => {
     const rollback = load('rollback-d1-replatform-production').source
     const finalize = load('finalize-d1-replatform-production').source
     expect(rollback).toContain('versions deploy "${source_version}@100"')
+    expect(rollback).toContain('TRUSTED_RECOVERY_RECEIPT_SHA256')
+    expect(rollback).toContain('validate-recovery')
     expect(rollback).not.toMatch(/build:worker|d1.*execute|migrations apply|backup production/u)
     expect(finalize).toContain('--database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID"')
     expect(finalize).toContain('--database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --cutover-id')

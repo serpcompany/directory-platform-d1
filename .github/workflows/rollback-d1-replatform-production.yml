@@ -20,6 +20,7 @@ jobs:
     env:
       CI: 'true'
       TRUSTED_PRODUCTION_RECEIPT_SHA256: ${{ secrets.TRUSTED_PRODUCTION_RECEIPT_SHA256 }}
+      TRUSTED_RECOVERY_RECEIPT_SHA256: ${{ secrets.TRUSTED_RECOVERY_RECEIPT_SHA256 }}
       CUTOVER_COMMIT_SHA: ${{ inputs.cutover_commit_sha }}
       RECEIPT_KIND: ${{ inputs.receipt_kind }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}

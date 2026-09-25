@@ -102,7 +102,18 @@ cutover ID, receipt digest, source/target version IDs, and backup artifact expir
 During the stabilization window writes intentionally remain frozen. If rollback is
 required, configure the protected `TRUSTED_PRODUCTION_RECEIPT_SHA256` and dispatch
 `rollback-d1-replatform-production.yml` with the original run ID, commit SHA, and
-exact `rollback-<site>-production` phrase. It changes only the Worker version/binding.
+exact `rollback-<site>-production` phrase. Select `completed` only when that run
+sealed `receipt.json`; this path requires the separately protected receipt digest.
+If the runner was interrupted after the traffic switch but before sealing the final
+receipt, select `incomplete-recovery` instead. That path consumes the GitHub-retained
+pre-switch `production-cutover-recovery` artifact from the exact run, revalidates its
+embedded digest against a separately reviewed protected
+`TRUSTED_RECOVERY_RECEIPT_SHA256`, revalidates current protected account/Worker/D1
+identities, and inspects the recorded immutable source version before changing traffic. It changes only the Worker
+version/binding. An incomplete-recovery artifact cannot authorize finalization; rerun
+the original cutover with the same stable cutover ID after source restoration.
+Do not configure the recovery digest merely because the artifact exists; approve it
+only after confirming the originating run did not seal a completed receipt.
 
 After the responsible Maintainer accepts the stabilization evidence, dispatch
 `finalize-d1-replatform-production.yml` with the same run ID and commit SHA and exact

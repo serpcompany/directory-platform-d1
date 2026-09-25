@@ -318,6 +318,18 @@ same receipt, proves the recorded target version is the sole active target-bound
 version, repeats public catalog gates, proves both locks, and conditionally marks
 only the active replacement lock succeeded. The inactive source remains locked.
 
+Before switching traffic, the executor also seals and uploads an exact-run recovery
+receipt containing the protected account, Worker, source/replacement D1 identities,
+commit, cutover ID, and emitted source-bound version. If a runner disappears after
+target activation but before the completed receipt is sealed, the rollback workflow's
+`incomplete-recovery` mode consumes that GitHub-retained artifact, revalidates current
+protected identities, requires its separately reviewed protected recovery digest,
+inspects the recorded version binding, and restores source
+traffic without a rebuild. It cannot finalize a cutover. The `completed` mode remains
+bound to the separately protected completed-receipt digest.
+The recovery digest is approved only for a run that did not seal a completed receipt;
+the existence of the routinely emitted pre-switch artifact is not authorization.
+
 Stage 1 lock enforcement is the runtime foundation consumed by the executor. The
 lock is an active reserved `migration_runs` row with ID prefix
 `d1-cutover-lock-v1:<site>:`. Public write batches, protected publication and
