@@ -7,14 +7,17 @@ import {
   isSubmissionError
 } from '@/lib/submissions/repository'
 
-function failure(error: unknown): NextResponse {
+function failure(error: unknown, replatformDiagnostic: boolean): NextResponse {
   if (isSubmissionError(error)) {
     return NextResponse.json({ code: error.code, error: error.message }, { status: error.status })
   }
   return NextResponse.json(
     {
       code: 'internal_error',
-      error: 'Unable to create submission.'
+      error: 'Unable to create submission.',
+      ...(replatformDiagnostic
+        ? { diagnostic: `[DEBUG-a4f2] ${error instanceof Error ? error.message : String(error)}` }
+        : {})
     },
     { status: 500 }
   )
@@ -28,9 +31,15 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 413 }
     )
   }
+  let replatformDiagnostic = false
   try {
     const { env } = await getCloudflareContext({ async: true })
     const workerEnv = env as CloudflareEnv & { REPLATFORM_PREVIEW_INTAKE_SECRET?: string }
+    replatformDiagnostic =
+      workerEnv.D1_RUNTIME_ENV === 'preview' &&
+      !!workerEnv.REPLATFORM_PREVIEW_INTAKE_SECRET &&
+      request.headers.get('x-replatform-preview-intake') ===
+        workerEnv.REPLATFORM_PREVIEW_INTAKE_SECRET
     if (
       workerEnv.D1_RUNTIME_ENV === 'preview' &&
       workerEnv.REPLATFORM_PREVIEW_INTAKE_SECRET &&
@@ -52,7 +61,7 @@ export async function POST(request: Request): Promise<NextResponse> {
       { status: 201, headers: { 'Cache-Control': 'no-store' } }
     )
   } catch (error) {
-    return failure(error)
+    return failure(error, replatformDiagnostic)
   }
 }
 
