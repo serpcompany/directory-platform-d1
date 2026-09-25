@@ -105,7 +105,7 @@
   "devDependencies": {
     "@biomejs/biome": "2.2.2",
     "@commitlint/cli": "^19.8.1",
-    "@commitlint/config-conventional": "^19.8.1",
+    "@commitlint/config-conventional": "^21.2.3",
     "@content-collections/mdx": "^0.2.2",
     "@manypkg/cli": "^0.23.0",
     "@serpdirectory/data-ops": "workspace:*",
