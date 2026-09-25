@@ -28,6 +28,7 @@ export interface LegacySourceObservation {
 }
 export interface ExpectedLegacySource {
   applicationSnapshotChecksum: string
+  applicationTables: ApplicationSnapshot['tables']
   migrationNames: string[]
   schemaFingerprint: string
   siteId: SiteId
@@ -67,7 +68,9 @@ function canonicalRows(
     .sort()
     .join('\n')
 }
-function localApplicationChecksum(database: DatabaseSync): string {
+function localApplicationSnapshot(
+  database: DatabaseSync
+): Pick<ApplicationSnapshot, 'checksum' | 'tables'> {
   const tables = Object.fromEntries(
     applicationTableNames.map(table => {
       const payload = canonicalRows(database, table)
@@ -75,9 +78,12 @@ function localApplicationChecksum(database: DatabaseSync): string {
       return [table, { count, checksum: createHash('sha256').update(payload).digest('hex') }]
     })
   )
-  return createHash('sha256')
-    .update(JSON.stringify(Object.entries(tables).sort()))
-    .digest('hex')
+  return {
+    checksum: createHash('sha256')
+      .update(JSON.stringify(Object.entries(tables).sort()))
+      .digest('hex'),
+    tables
+  }
 }
 export function buildExpectedLegacySource(siteId: SiteId): ExpectedLegacySource {
   const target = resolveSiteTarget(siteId)
@@ -110,8 +116,10 @@ export function buildExpectedLegacySource(siteId: SiteId): ExpectedLegacySource 
         table: String(row.tbl_name),
         type: String(row.type)
       }))
+    const applicationSnapshot = localApplicationSnapshot(database)
     return {
-      applicationSnapshotChecksum: localApplicationChecksum(database),
+      applicationSnapshotChecksum: applicationSnapshot.checksum,
+      applicationTables: applicationSnapshot.tables,
       migrationNames,
       schemaFingerprint: normalizeSchema(schema),
       siteId
@@ -164,7 +172,7 @@ function required(name: string): string {
   if (!value) throw new Error(`Missing ${name}.`)
   return value
 }
-async function remoteQuery(
+export async function remotePreviewQuery(
   databaseId: string,
   sql: string
 ): Promise<Array<Record<string, unknown>>> {
@@ -192,13 +200,8 @@ async function remoteQuery(
     throw new Error('Legacy Preview source classification query failed.')
   return payload.result[0]?.results ?? []
 }
-async function main(): Promise<void> {
-  const [siteValue, output] = process.argv.slice(2)
-  if (!siteValue || !output)
-    throw new Error('Usage: d1-preview-source-classify.ts <site> <output.json>')
-  const siteId = resolveSiteTarget(siteValue).siteId
-  const databaseId = required('CLOUDFLARE_D1_PREVIEW_DATABASE_ID')
-  const schemaRows = await remoteQuery(
+export async function observeLegacySource(databaseId: string): Promise<LegacySourceObservation> {
+  const schemaRows = await remotePreviewQuery(
     databaseId,
     `SELECT type,name,tbl_name,sql FROM sqlite_master
     WHERE sql IS NOT NULL AND name NOT LIKE 'sqlite_%' AND name NOT LIKE '_cf_%' ORDER BY type,name`
@@ -222,9 +225,11 @@ async function main(): Promise<void> {
   )
   const applicationSnapshot = await readRemoteApplicationSnapshot(databaseId)
   const siteIds = names.includes('sites')
-    ? (await remoteQuery(databaseId, 'SELECT id FROM sites ORDER BY id')).map(row => String(row.id))
+    ? (await remotePreviewQuery(databaseId, 'SELECT id FROM sites ORDER BY id')).map(row =>
+        String(row.id)
+      )
     : []
-  const observed: LegacySourceObservation = {
+  return {
     applicationSnapshot,
     hasMigrationLedger: names.includes('d1_migrations'),
     migrationNames: applicationSnapshot.migrationNames.map(String),
@@ -232,6 +237,14 @@ async function main(): Promise<void> {
     siteIds,
     unexpectedUserObjects
   }
+}
+async function main(): Promise<void> {
+  const [siteValue, output] = process.argv.slice(2)
+  if (!siteValue || !output)
+    throw new Error('Usage: d1-preview-source-classify.ts <site> <output.json>')
+  const siteId = resolveSiteTarget(siteValue).siteId
+  const databaseId = required('CLOUDFLARE_D1_PREVIEW_DATABASE_ID')
+  const observed = await observeLegacySource(databaseId)
   const expected = buildExpectedLegacySource(siteId)
   const classification = classifyLegacySource(observed, expected)
   writeFileSync(

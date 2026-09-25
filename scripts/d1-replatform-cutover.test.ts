@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import yaml from 'js-yaml'
 import { describe, expect, it } from 'vitest'
+import { pvdReviewedPrivateTableProof } from './d1-preview-sanitize'
 import {
   assertRemoteIdentity,
   attestPreviewWorker,
@@ -20,8 +21,10 @@ import { siteTargets } from './site-targets'
 const commitSha = 'a'.repeat(40)
 const checksum = freshMigrationChecksum()
 
-function baseEvidence(environment: 'preview' | 'production') {
-  const siteId = 'serp.software'
+function baseEvidence(
+  environment: 'preview' | 'production',
+  siteId: 'pornvideodownloaders.com' | 'serp.software' = 'serp.software'
+) {
   const exactIdentity = {
     siteId,
     environment,
@@ -149,6 +152,32 @@ function baseEvidence(environment: 'preview' | 'production') {
     ],
     rollbackRehearsed: true,
     nothingDeleted: true
+  }
+}
+
+const controlledPreviewData = {
+  policy: 'controlled-fixtures',
+  copiedProduction: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
+  previewGenerated: { capabilityRows: 1, notificationSecretRows: 1, rateLimitRows: 1 }
+}
+
+const pvdSanitizedPreviewData = {
+  policy: 'sanitized-snapshot',
+  copiedProduction: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
+  previewGenerated: { capabilityRows: 1, notificationSecretRows: 1, rateLimitRows: 1 },
+  sanitization: {
+    mode: 'sanitized',
+    backupSha256: '1'.repeat(64),
+    beforeChecksum: '2'.repeat(64),
+    afterChecksum: 'e'.repeat(64),
+    sourceDatabaseId: 'source-uuid',
+    reviewedPrivateTableProof: pvdReviewedPrivateTableProof,
+    journalDigest: '3'.repeat(64),
+    resultDigest: '4'.repeat(64),
+    deletedPrivateRows: 3,
+    submissionId: 'submission-id',
+    eventId: 'event-id',
+    rateFingerprint: 'rate-fingerprint'
   }
 }
 
@@ -657,12 +686,8 @@ describe('D1 replatform cutover preparation', () => {
 
   it('accepts controlled Preview evidence and rejects private state', () => {
     const evidence = {
-      ...baseEvidence('preview'),
-      previewData: {
-        policy: 'sanitized-snapshot',
-        copiedProduction: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
-        previewGenerated: { capabilityRows: 1, notificationSecretRows: 1, rateLimitRows: 1 }
-      }
+      ...baseEvidence('preview', 'pornvideodownloaders.com'),
+      previewData: pvdSanitizedPreviewData
     }
     expect(() => validateCutoverEvidence(evidence, { commitSha })).not.toThrow()
     expect(() =>
@@ -713,16 +738,33 @@ describe('D1 replatform cutover preparation', () => {
         { commitSha }
       )
     ).toThrow('must be zero')
+    expect(() =>
+      validateCutoverEvidence(
+        {
+          ...evidence,
+          previewData: {
+            ...evidence.previewData,
+            sanitization: {
+              ...evidence.previewData.sanitization,
+              reviewedPrivateTableProof: {
+                ...pvdReviewedPrivateTableProof,
+                listing_submissions: {
+                  ...pvdReviewedPrivateTableProof.listing_submissions,
+                  checksum: '9'.repeat(64)
+                }
+              }
+            }
+          }
+        },
+        { commitSha }
+      )
+    ).toThrow('reviewed source proof')
   })
 
   it('requires exact Preview binding, lock, freeze/replay, rollback, and retention evidence for Production', () => {
     const previewEvidence = {
       ...baseEvidence('preview'),
-      previewData: {
-        policy: 'sanitized-snapshot',
-        copiedProduction: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
-        previewGenerated: { capabilityRows: 1, notificationSecretRows: 1, rateLimitRows: 1 }
-      }
+      previewData: controlledPreviewData
     }
     const digest = previewReceiptSha256(previewEvidence)
     const evidence = {
@@ -880,6 +922,9 @@ describe('D1 replatform cutover preparation', () => {
       'Read-only preflight account, D1, and optional Worker identity',
       'Deploy and observe exact credential-free source-bound Worker',
       'Retain pre-bootstrap source Preview backup',
+      'Upload PVD source recovery backup before sanitization',
+      'Re-observe PVD identity before bounded sanitization',
+      'Sanitize exact known PVD Preview private graph',
       'Re-observe identities before controlled legacy source initialization',
       'Initialize or verify controlled legacy Preview source',
       'Re-observe identities before populated source rollback backup',
@@ -897,6 +942,16 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('D1_RELEASE_GENERATION: replatform')
     expect(raw).toContain('validate-replatform preview')
     expect(raw).toContain('d1-preview-submission-journey.ts')
+    expect(raw).toContain('d1-preview-sanitize.ts')
+    expect(raw).toContain('pvd-sanitization-journal.json')
+    expect(raw).toContain("'sanitized-snapshot' || 'controlled-fixtures'")
+    expect(raw).toContain('--sanitization-journal')
+    expect(raw).toContain('--sanitization-result')
+    expect(raw).toContain("if: inputs.site_id == 'pornvideodownloaders.com'")
+    const backupUpload = raw.indexOf('Upload PVD source recovery backup before sanitization')
+    const sanitization = raw.indexOf('Sanitize exact known PVD Preview private graph')
+    expect(backupUpload).toBeGreaterThan(0)
+    expect(sanitization).toBeGreaterThan(backupUpload)
     expect(raw).not.toContain('submission-verification.spec.ts')
     expect(raw.match(/verify-preview-identity/gu)?.length).toBeGreaterThanOrEqual(7)
     expect(raw).toContain('Install transient Preview rehearsal secrets')
