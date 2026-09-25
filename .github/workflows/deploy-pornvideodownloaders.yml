@@ -39,7 +39,7 @@ jobs:
       name: pornvideodownloaders-preview
     steps:
       - name: Checkout reviewed source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -108,7 +108,7 @@ jobs:
       name: pornvideodownloaders-production
     steps:
       - name: Checkout reviewed source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         uses: ./.github/actions/install

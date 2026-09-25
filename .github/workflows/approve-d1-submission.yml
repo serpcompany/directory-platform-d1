@@ -42,7 +42,7 @@ jobs:
       name: ${{ inputs.site_id == 'pornvideodownloaders.com' && 'pornvideodownloaders-production' || 'production' }}
     steps:
       - name: Checkout reviewed source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install dependencies
         uses: ./.github/actions/install
       - name: Run D1 contract tests
