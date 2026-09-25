@@ -208,9 +208,13 @@ function assertProtectedWorkflow(
   const isDeployWorkflow =
     workflowRef.includes('/.github/workflows/build-and-deploy.yml@') ||
     workflowRef.includes('/.github/workflows/deploy-pornvideodownloaders.yml@') ||
-    workflowRef.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+    workflowRef.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@') ||
+    workflowRef.includes('/.github/workflows/cutover-d1-replatform-production.yml@')
   const isReplatformPreviewWorkflow = workflowRef.includes(
     '/.github/workflows/rehearse-d1-replatform-preview.yml@'
+  )
+  const isReplatformProductionWorkflow = workflowRef.includes(
+    '/.github/workflows/cutover-d1-replatform-production.yml@'
   )
   const isPublicationWorkflow = workflowRef.includes('/.github/workflows/publish-d1.yml@')
   const isSubmissionApprovalWorkflow = workflowRef.includes(
@@ -239,7 +243,7 @@ function assertProtectedWorkflow(
     ? target.confirmation.publish
     : isSubmissionApprovalWorkflow
       ? target.confirmation.submission
-      : isReplatformPreviewWorkflow
+      : isReplatformPreviewWorkflow || isReplatformProductionWorkflow
         ? target.confirmation.replatform[environment]
         : target.confirmation.deploy[environment]
   if (env.WORKER_PRODUCTION_CONFIRM !== expectedConfirmation)
@@ -717,6 +721,35 @@ export function runWorkerRelease(
   }
   if (command === 'validate-replatform') {
     validateWorkerConfig(environment, target.siteId, 'replatform')
+    return
+  }
+  if (command === 'cutover-migrate') {
+    const expectedWorkflow =
+      'serpcompany/directory-platform-d1/.github/workflows/cutover-d1-replatform-production.yml@refs/heads/main'
+    if (
+      environment !== 'production' ||
+      env.CI !== 'true' ||
+      env.GITHUB_REF !== 'refs/heads/main' ||
+      env.GITHUB_WORKFLOW_REF !== expectedWorkflow ||
+      env.D1_RELEASE_GENERATION !== 'replatform' ||
+      env.WORKER_PRODUCTION_CONFIRM !== target.confirmation.replatform.production
+    )
+      throw new Error(
+        'Fresh Production cutover migration requires the exact protected main workflow.'
+      )
+    assertProtectedWorkflow(target, environment, env, dependencies)
+    const { configPath, databaseName } = materializeConfig(target, environment, env, 'replatform')
+    runChecked(dependencies, 'pnpm', [
+      'exec',
+      'wrangler',
+      'd1',
+      'migrations',
+      'apply',
+      databaseName,
+      '--remote',
+      '--config',
+      configPath
+    ])
     return
   }
   if (command === 'plan-migration' || command === 'plan-verify') {

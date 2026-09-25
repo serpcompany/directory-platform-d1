@@ -409,6 +409,48 @@ describe('Worker release guard', () => {
     )
   })
 
+  it('applies fresh Production history only through the exact protected cutover workflow', () => {
+    const cutoverEnv = {
+      ...productionEnv,
+      GITHUB_WORKFLOW_REF:
+        'serpcompany/directory-platform-d1/.github/workflows/cutover-d1-replatform-production.yml@refs/heads/main',
+      WORKER_PRODUCTION_CONFIRM: 'cutover-serp.software-production',
+      D1_RELEASE_GENERATION: 'replatform',
+      CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: 'replacement-production-id',
+      CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME: 'replacement-production-name'
+    }
+    const process = dependencies([
+      { status: 0, stdout: '' },
+      { status: 0, stdout: sha },
+      { status: 0, stdout: '' },
+      { status: 0, stdout: sha },
+      { status: 0, stdout: '' }
+    ])
+    expect(() =>
+      runWorkerRelease(
+        ['cutover-migrate', 'production', '--site', 'serp.software'],
+        cutoverEnv,
+        process
+      )
+    ).not.toThrow()
+    expect(process.run.mock.calls.at(-1)?.[1]).toEqual(
+      expect.arrayContaining(['migrations', 'apply', 'replacement-production-name', '--remote'])
+    )
+    for (const changed of [
+      { GITHUB_REF: 'refs/heads/topic' },
+      { GITHUB_WORKFLOW_REF: productionEnv.GITHUB_WORKFLOW_REF },
+      { D1_RELEASE_GENERATION: 'legacy' },
+      { WORKER_PRODUCTION_CONFIRM: 'deploy-serp.software-production' }
+    ])
+      expect(() =>
+        runWorkerRelease(
+          ['cutover-migrate', 'production', '--site', 'serp.software'],
+          { ...cutoverEnv, ...changed },
+          dependencies()
+        )
+      ).toThrow('exact protected main workflow')
+  })
+
   it('rejects arbitrary branches, tags, PR refs, and Production from the Preview rehearsal workflow', () => {
     const base = {
       ...productionEnv,

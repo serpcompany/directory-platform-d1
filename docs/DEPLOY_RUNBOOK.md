@@ -86,8 +86,44 @@ The protected rehearsal passed on commit
 [the successful workflow run](https://github.com/serpcompany/directory-platform-d1/actions/runs/36087909482).
 See [the replacement cutover contract](./D1_CUTOVER.md).
 
-The separately protected `rehearse-d1-replatform-preview.yml` workflow is the only
-prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
+### Fresh-D1 Production cutover
+
+Never run the replacement transfer or binding switch from a developer terminal.
+After an exact-main Preview rehearsal, configure the selected Site's protected
+Production environment with the exact source/replacement D1 identities, Worker,
+account, `PRODUCTION_BASE_URL`, one-element `D1_CUTOVER_ALLOWED_SITE_IDS`, successful
+`TRUSTED_PREVIEW_RUN_ID`, and separately reviewed
+`TRUSTED_PREVIEW_RECEIPT_SHA256`. Dispatch
+`cutover-d1-replatform-production.yml` from `main` with the Site, exact
+`cutover-<site>-production` phrase, and a new stable cutover ID.
+
+Do not approve finalization immediately. Preserve the successful run URL, commit,
+cutover ID, receipt digest, source/target version IDs, and backup artifact expiry.
+During the stabilization window writes intentionally remain frozen. If rollback is
+required, configure the protected `TRUSTED_PRODUCTION_RECEIPT_SHA256` and dispatch
+`rollback-d1-replatform-production.yml` with the original run ID, commit SHA, and
+exact `rollback-<site>-production` phrase. Select `completed` only when that run
+sealed `receipt.json`; this path requires the separately protected receipt digest.
+If the runner was interrupted after the traffic switch but before sealing the final
+receipt, select `incomplete-recovery` instead. That path consumes the GitHub-retained
+pre-switch `production-cutover-recovery` artifact from the exact run, revalidates its
+embedded digest against a separately reviewed protected
+`TRUSTED_RECOVERY_RECEIPT_SHA256`, revalidates current protected account/Worker/D1
+identities, and inspects the recorded immutable source version before changing traffic. It changes only the Worker
+version/binding. An incomplete-recovery artifact cannot authorize finalization; rerun
+the original cutover with the same stable cutover ID after source restoration.
+Do not configure the recovery digest merely because the artifact exists; approve it
+only after confirming the originating run did not seal a completed receipt.
+
+After the responsible Maintainer accepts the stabilization evidence, dispatch
+`finalize-d1-replatform-production.yml` with the same run ID and commit SHA and exact
+`finalize-<site>-production` phrase. Finalization fails unless the recorded target
+version is solely active and both locks remain. It unfreezes only the active target;
+the inactive source stays locked. Database deletion and SQL restore are never part of
+these workflows.
+
+The separately protected `rehearse-d1-replatform-preview.yml` workflow is the
+fresh-history Preview executor. It requires `rehearse-<site>-preview`, proves
 the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,
 and rehearses the old binding before restoring the replacement binding. It contains
 no Production mutation path. It runs only from reviewed `refs/heads/main`; topic
@@ -96,13 +132,13 @@ guards. This lets the sealed Preview receipt match the exact commit later presen
 to the Production cutover. Preview and Production still require separate protected
 environments and confirmations.
 
-Production cutover Stage 3 contains no workflow or mutation executor. Its reusable
-read-only preflight accepts only the named successful exact-`main` Preview artifact,
+The Production executor consumes Stage 3's reusable read-only preflight. It accepts
+only the named successful exact-`main` Preview artifact,
 revalidates the complete sealed receipt against a protected digest, and observes the
 Production account, source/replacement D1 identities, Worker, active apex zone/route,
 sole 100-percent active version, and current source D1 binding. A passing preflight is
-evidence for a later separately approved executor; it is not permission to lock,
-backup, migrate, import, deploy, rebind, or otherwise mutate Production.
+evidence inside the separately approved cutover workflow; it does not independently
+grant permission to mutate Production.
 
 The same approved Preview run may bootstrap an empty legacy Preview source solely
 from `d1/migrations/0001`-`0009` plus the reviewed controlled artifact. It retains the
