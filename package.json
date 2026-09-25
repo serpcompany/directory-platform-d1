@@ -89,7 +89,7 @@
     "shadcn": "cd packages/design-system && pnpm dlx shadcn@canary add",
     "start": "turbo run start",
     "test": "turbo test --cache-dir=.turbo",
-    "test:d1": "pnpm exec vitest run scripts/d1-cutover.test.ts scripts/d1-drizzle-local.test.ts scripts/d1-local-state.test.ts scripts/d1-replatform.test.ts scripts/d1-replatform-snapshot-transfer.test.ts scripts/d1-replatform-cutover.test.ts scripts/d1-preview-http-gates.test.ts scripts/d1-preview-provision.test.ts scripts/d1-preview-sanitize.test.ts scripts/d1-preview-source-classify.test.ts scripts/d1-preview-submission-recovery.test.ts scripts/d1-publisher.sqlite.test.ts scripts/d1-remote-publisher.test.ts scripts/d1-submission-approver.test.ts scripts/d1-submission-notifier.test.ts",
+    "test:d1": "pnpm exec vitest run scripts/d1-cutover.test.ts scripts/d1-drizzle-local.test.ts scripts/d1-local-state.test.ts scripts/d1-replatform.test.ts scripts/d1-replatform-snapshot-transfer.test.ts scripts/d1-replatform-production-preflight.test.ts scripts/d1-replatform-cutover.test.ts scripts/d1-preview-http-gates.test.ts scripts/d1-preview-provision.test.ts scripts/d1-preview-sanitize.test.ts scripts/d1-preview-source-classify.test.ts scripts/d1-preview-submission-recovery.test.ts scripts/d1-publisher.sqlite.test.ts scripts/d1-remote-publisher.test.ts scripts/d1-submission-approver.test.ts scripts/d1-submission-notifier.test.ts",
     "test:e2e": "turbo test:e2e --filter=e2e",
     "test:e2e:pornvideodownloaders": "pnpm --filter e2e test:e2e:pornvideodownloaders",
     "test:e2e:smoke": "turbo test:e2e:smoke --filter=e2e",

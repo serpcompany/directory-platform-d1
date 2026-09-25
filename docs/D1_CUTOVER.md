@@ -297,6 +297,27 @@ Site, cutover identity, source identity, schema, ledger, and snapshot checksum;
 receipt is created only after exact per-table/whole-snapshot and foreign-key parity.
 No Production workflow or remote resource selection is introduced by Stage 2.
 
+Stage 3 prepares two read-only trust boundaries independently of a Production
+executor. `scripts/d1-replatform-production-preflight.ts` first consumes one
+explicit GitHub Actions run and its exact-name retained Preview artifact. It accepts
+only a successful `workflow_dispatch` run from this repository's
+`.github/workflows/rehearse-d1-replatform-preview.yml` on `main` whose `head_sha`
+equals checked-out `HEAD`. The artifact must be unexpired and bound to the same run,
+branch, commit, and Site. Its bounded ZIP download must match GitHub's SHA-256; its
+sole sealed receipt must match both its embedded canonical digest and the separately
+protected expected digest. The complete embedded Preview evidence is then revalidated
+against the selected Site, exact commit, and current fresh-migration checksum.
+
+The same module's Production identity preflight performs only bounded GET requests.
+It proves the exact account; distinct source and replacement D1 UUID/name pairs; the
+registered protected environment and sole allowed Site; existing Worker service;
+active apex zone and sole exact apex route; latest active deployment with one version
+at 100 percent; and that version's sole `DB` D1 binding still points at the protected
+source UUID. Every untrusted request, GitHub response, Cloudflare envelope, array,
+ZIP entry, and receipt is parsed at runtime and mismatch errors include a remediation.
+This module does not acquire a mutation lock, write D1, deploy or rebind a Worker,
+create a workflow, or authorize a Production cutover.
+
 The old D1 remains intact and read-only for at least 30 days. Record its backup
 artifact, retention expiry, protected rollback operation, and responsible Maintainer.
 Rollback changes only the Worker binding; it never deletes either database. Unless a
