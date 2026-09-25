@@ -102,3 +102,32 @@ pnpm exec vitest run scripts/d1-replatform.test.ts
 The fixtures cover both Sites and every application table, including Publication,
 Submission, notification, rate-limit, and audit data. They use only temporary local
 SQLite files.
+
+## Canonical snapshot engine
+
+`scripts/d1-application-snapshot.ts` is the shared application-data encoding used by
+local transfer, Preview measurement, legacy classification, and the prepared
+Production snapshot boundary. It reads the exact 17-table inventory in bounded,
+deterministically ordered pages. Every SQLite value carries an explicit storage type;
+integers are encoded as decimal text before crossing a JSON boundary, so valid signed
+64-bit values never pass through an unsafe JavaScript number. Per-table and whole
+snapshot SHA-256 values use the same encoding in every environment.
+
+`scripts/d1-replatform-snapshot-transfer.ts` builds on that engine without selecting
+credentials, an environment, or a remote resource. It captures the frozen legacy
+source twice and requires an independently observed source UUID plus identical Site,
+schema, immutable `0001`-`0009` ledger, active cutover-lock, table, and checksum proof.
+Materialization requires the exact
+fresh schema and ledger, writes bounded `INSERT OR IGNORE` batches, and resumes only
+when a deterministic staging marker matches the same cutover and snapshot. Existing
+partial rows must be exact members of that snapshot; divergent state fails closed.
+The final target receipt replaces the staging marker only after foreign-key and exact
+17-table parity succeed.
+
+This is transport-neutral preparation, not a Production executor. It contains no
+Cloudflare credential acquisition, resource selection, workflow, Worker rebind, or
+remote command. Exercise it locally with:
+
+```bash
+pnpm exec vitest run scripts/d1-replatform-snapshot-transfer.test.ts
+```

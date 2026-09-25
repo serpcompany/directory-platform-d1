@@ -74,6 +74,10 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   runtime or build code.
 - `scripts/d1-replatform.ts` owns guarded, local-only transfer and exact parity
   between an explicit legacy D1 export and an empty fresh-history D1 database.
+- `scripts/d1-application-snapshot.ts` owns the shared typed canonical encoding for
+  the exact 17 application tables. `scripts/d1-replatform-snapshot-transfer.ts`
+  owns transport-neutral frozen capture, resumable materialization, and parity
+  verification; it selects no environment, credential, or remote resource.
 
 ## Dependency and trust direction
 

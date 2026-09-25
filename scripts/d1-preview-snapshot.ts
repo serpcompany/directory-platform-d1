@@ -1,5 +1,11 @@
-import { createHash } from 'node:crypto'
-import { applicationColumnInventory, applicationTableNames } from './d1-replatform-inventory'
+import {
+  captureApplicationSnapshot,
+  emptyApplicationSnapshot,
+  type SnapshotTransport,
+  type SqlStatement,
+  snapshotSummary
+} from './d1-application-snapshot'
+import { applicationTableNames } from './d1-replatform-inventory'
 
 interface D1Result {
   results?: Array<Record<string, unknown>>
@@ -16,7 +22,7 @@ function required(name: string): string {
   if (!value) throw new Error(`Missing ${name}.`)
   return value
 }
-async function query(databaseId: string, statements: string[]): Promise<D1Result[]> {
+async function query(databaseId: string, statement: SqlStatement): Promise<D1Result> {
   const response = await fetch(
     `https://api.cloudflare.com/client/v4/accounts/${required('CLOUDFLARE_ACCOUNT_ID')}/d1/database/${databaseId}/query`,
     {
@@ -25,7 +31,7 @@ async function query(databaseId: string, statements: string[]): Promise<D1Result
         Authorization: `Bearer ${required('CLOUDFLARE_API_TOKEN')}`,
         'Content-Type': 'application/json'
       },
-      body: JSON.stringify({ batch: statements.map(sql => ({ sql, params: [] })) })
+      body: JSON.stringify(statement)
     }
   )
   const payload = (await response.json()) as { result?: D1Result[]; success?: boolean }
@@ -36,54 +42,40 @@ async function query(databaseId: string, statements: string[]): Promise<D1Result
     payload.result.some(item => item.success === false)
   )
     throw new Error('Read-only D1 snapshot failed.')
-  return payload.result
-}
-function quote(value: string): string {
-  return `"${value.replaceAll('"', '""')}"`
-}
-function canonical(rows: Array<Record<string, unknown>>, columns: readonly string[]): string {
-  return rows
-    .map(row => JSON.stringify(columns.map(column => row[column] ?? null)))
-    .sort()
-    .join('\n')
+  return payload.result[0] ?? { results: [], success: true }
 }
 
 export async function readRemoteApplicationSnapshot(
   databaseId: string
 ): Promise<ApplicationSnapshot> {
-  const inventory = await query(databaseId, [
-    "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
-  ])
-  const names = (inventory[0]?.results ?? []).map(row => String(row.name))
+  const transport: SnapshotTransport = {
+    async query(statement) {
+      return (await query(databaseId, statement)).results ?? []
+    }
+  }
+  const inventory = await transport.query({
+    sql: "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name",
+    params: []
+  })
+  const names = inventory.map(row => String(row.name))
   const present = applicationTableNames.filter(table => names.includes(table))
-  if (present.length !== 0 && present.length !== applicationTableNames.length)
+  if (present.length !== 0 && present.length !== applicationTableNames.length) {
     throw new Error('D1 application table inventory is partial.')
+  }
+  if (present.length === 0) {
+    const empty = emptyApplicationSnapshot()
+    return { checksum: empty.checksum, migrationNames: [], tables: snapshotSummary(empty) }
+  }
+  const snapshot = await captureApplicationSnapshot(transport)
   const ledgerPresent = names.includes('d1_migrations')
-  const results =
-    present.length === 0
-      ? []
-      : await query(databaseId, [
-          ...applicationTableNames.map(
-            table =>
-              `SELECT ${applicationColumnInventory[table].map(quote).join(',')} FROM ${quote(table)}`
-          ),
-          ...(ledgerPresent ? ['SELECT name FROM d1_migrations ORDER BY name'] : [])
-        ])
-  const tables = Object.fromEntries(
-    applicationTableNames.map((table, index) => {
-      const rows = results[index]?.results ?? []
-      const payload = canonical(rows, applicationColumnInventory[table])
-      return [
-        table,
-        { count: rows.length, checksum: createHash('sha256').update(payload).digest('hex') }
-      ]
-    })
-  )
+  const migrationNames = ledgerPresent
+    ? (
+        await transport.query({ sql: 'SELECT name FROM d1_migrations ORDER BY name', params: [] })
+      ).map(row => row.name)
+    : []
   return {
-    checksum: createHash('sha256')
-      .update(JSON.stringify(Object.entries(tables).sort()))
-      .digest('hex'),
-    tables,
-    migrationNames: ledgerPresent ? (results.at(-1)?.results ?? []).map(row => row.name) : []
+    checksum: snapshot.checksum,
+    tables: snapshotSummary(snapshot),
+    migrationNames
   }
 }

@@ -4,6 +4,11 @@ import { resolve } from 'node:path'
 import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
+import {
+  applicationChecksumFromTableSummaries,
+  canonicalRowFromSqlite,
+  canonicalRowPayload
+} from './d1-application-snapshot'
 import { type ApplicationSnapshot, readRemoteApplicationSnapshot } from './d1-preview-snapshot'
 import {
   applicationColumnInventory,
@@ -64,7 +69,7 @@ function canonicalRows(
   return database
     .prepare(`SELECT ${columns.map(quote).join(',')} FROM ${quote(table)}`)
     .all()
-    .map(row => JSON.stringify(columns.map(column => row[column] ?? null)))
+    .map(row => canonicalRowPayload(canonicalRowFromSqlite(row, columns)))
     .sort()
     .join('\n')
 }
@@ -78,16 +83,11 @@ function localApplicationSnapshot(
       return [table, { count, checksum: createHash('sha256').update(payload).digest('hex') }]
     })
   )
-  return {
-    checksum: createHash('sha256')
-      .update(JSON.stringify(Object.entries(tables).sort()))
-      .digest('hex'),
-    tables
-  }
+  return { checksum: applicationChecksumFromTableSummaries(tables), tables }
 }
 export function buildExpectedLegacySource(siteId: SiteId): ExpectedLegacySource {
   const target = resolveSiteTarget(siteId)
-  const database = new DatabaseSync(':memory:')
+  const database = new DatabaseSync(':memory:', { readBigInts: true })
   try {
     const migrationNames = readdirSync(resolve('d1/migrations'))
       .filter(name => name.endsWith('.sql'))
