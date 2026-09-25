@@ -22,6 +22,53 @@ read-only identity calls must prove the credential can see the expected account 
 that each returned D1 UUID/name matches the registered Site and environment. Source
 and replacement UUIDs and names must differ. No wildcard or inferred Site is allowed.
 
+### One-time PVD replacement Preview provisioning
+
+`.github/workflows/provision-pornvideodownloaders-replacement-preview.yml` is the
+only prepared executor for creating PVD's missing replacement Preview D1. It runs
+only from an exact `main` commit in the protected `pornvideodownloaders-preview`
+environment and requires the literal confirmation
+`provision-pornvideodownloaders.com-replacement-preview`. The registry fixes the
+only permitted new name as `pornvideodownloaders-replatform-preview`; the
+credential-free replacement Wrangler template continues to consume its protected
+name and UUID rather than embedding them.
+
+Before creation, the workflow verifies the active token, exact account, existing
+source Preview D1 UUID/name, existing Preview Worker name, clean checkout, and full
+`GITHUB_SHA`. It lists every D1 database in the account and refuses a missing or
+ambiguous source, a source/target alias, or any unexpected database already using
+the replacement name. Only after all read-only proofs pass may it issue one D1
+create request. `CLOUDFLARE_D1_PREVIEW_PLACEMENT` records the independently reviewed
+source placement as `jurisdiction:<eu|fedramp|us>` or
+`region:<weur|eeur|apac|oc|wnam|enam>`. An observed source jurisdiction must exactly
+match that value. Cloudflare does not expose a non-jurisdiction database's primary
+region through the documented D1 GET response, so the protected region value is the
+source of truth and becomes the exact `primary_location_hint` on creation. An absent,
+malformed, or contradictory placement stops before creation.
+
+The first run requires both protected replacement identity values to be absent:
+
+- `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID`
+- `CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME`
+
+After creation, the workflow lists and reads the resource again, requires one exact
+UUID/name and the observable jurisdiction when applicable, and retains a mode-`0600`
+JSON receipt for 30 days. For a region-hinted database, the receipt records the
+protected source region and exact successful create hint rather than claiming an
+unavailable read-back field.
+The receipt contains the Site, commit, account ID, source and replacement UUID/name,
+region or jurisdiction, Worker name, action, and verification timestamp; it contains
+no credential. The workflow does not write GitHub secrets. A Maintainer must review
+the receipt and separately store the returned replacement UUID and exact registry
+name in the protected environment before rehearsal.
+
+A rerun is read-only only when both protected replacement values are supplied and
+match the sole existing resource exactly. If the name already exists without those
+expected values, either expected value is missing, the configured resource is absent,
+or any identity/placement differs, the workflow fails closed and never creates a
+duplicate. The workflow contains no SQL, migration, import, Worker deployment,
+deletion, Production selection, or GitHub-environment mutation path.
+
 ## Preview rehearsal
 
 Preview accepts only a controlled fixture or an explicitly sanitized snapshot.
@@ -251,6 +298,10 @@ pnpm d1:replatform:plan:production
 These commands are credential-free and non-mutating. This preparation does not
 authorize `wrangler whoami`, remote D1 list/create/export/execute/migrate, Worker
 deploy, GitHub environment mutation, binding changes, or Production operations.
+Separately, an explicitly approved dispatch of the exact-main PVD provisioning
+workflow authorizes only its read-only identity calls and single missing replacement
+Preview D1 creation described above. It does not authorize a local equivalent or any
+subsequent schema/data/Worker operation.
 
 The Preview workflow is the only prepared remote executor. There is deliberately no
 Production mutation job in either preparation workflow. A later Production executor
