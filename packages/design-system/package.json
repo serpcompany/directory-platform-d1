@@ -97,7 +97,6 @@
     "lucide-react": "^0.486.0",
     "next-themes": "^0.4.6",
     "react": "catalog:",
-    "react-day-picker": "^9.13.2",
     "react-hook-form": "^7.71.1",
     "react-moveable": "^0.56.0",
     "react-resizable-panels": "^2.1.9",
@@ -113,7 +112,6 @@
     "@serpdirectory/utils": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
-    "autoprefixer": "^10.4.24",
     "postcss": "^8.5.6",
     "tailwindcss": "catalog:",
     "typescript": "catalog:"
