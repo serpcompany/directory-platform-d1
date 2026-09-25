@@ -56,6 +56,17 @@ The approved Preview run then:
 9. repeat and prove `verified-no-op` with unchanged data checksums; and
 10. rehearse the old binding rollback without deleting either database.
 
+SERP also begins without a Preview Worker. The first protected run performs a
+read-only preflight that still proves the exact account, source and replacement D1
+UUID/name pairs, Site, environment, integration ref, and checked-out SHA. It may
+classify a missing Worker only for the checked-in SERP bootstrap exception; PVD and
+wrong existing Worker identities fail closed. The run immediately repeats preflight,
+deploys the exact reviewed replacement Worker once with no transient secrets or
+binding marker installed, observes the created Worker service and exact workers.dev
+hostname, and switches to the normal full identity gate before any database, source,
+or secret mutation. A failure before transient authority installation requires no
+remote cleanup and records that fact without claiming manual database recovery.
+
 SERP has no pre-existing populated legacy Preview source. Within this same approved
 run, the workflow therefore initializes the isolated source before replacement import:
 it re-verifies all identities, applies only immutable `d1/migrations/0001`-`0009`,

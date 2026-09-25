@@ -70,8 +70,21 @@ jobs:
           echo "REPLATFORM_EVIDENCE_DIR=$RUNNER_TEMP/d1-replatform-evidence" >> "$GITHUB_ENV"
           mkdir -p "$RUNNER_TEMP/d1-replatform-evidence"
 
-      - name: Verify observed account, source D1, replacement D1, and Worker identity
-        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
+      - name: Read-only preflight account, D1, and optional Worker identity
+        run: pnpm tsx scripts/d1-replatform-cutover.ts preflight-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight.json"
+
+      - name: Bootstrap explicitly missing SERP Preview Worker once
+        run: |
+          set -euo pipefail
+          worker_state="$(node -e 'const fs=require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).workerState)' "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight.json")"
+          if [ "$worker_state" = 'missing-allowed' ]
+          then
+            pnpm tsx scripts/d1-replatform-cutover.ts preflight-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight-before-bootstrap.json"
+            pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+          else
+            test "$worker_state" = 'existing-exact'
+          fi
+          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
 
       - name: Install transient Preview rehearsal secrets
         run: |
@@ -87,6 +100,7 @@ jobs:
             echo "REPLATFORM_PREVIEW_BINDING_NONCE=$binding_nonce"
             echo "REPLATFORM_PREVIEW_INTAKE_SECRET=$intake_secret"
           } >> "$GITHUB_ENV"
+          touch "$REPLATFORM_EVIDENCE_DIR/transient-authority-install-attempted"
           for entry in \
             "REPLATFORM_PREVIEW_SIGNING_SECRET=$signing_secret" \
             "REPLATFORM_PREVIEW_BINDING_NONCE=$binding_nonce" \
@@ -259,6 +273,11 @@ jobs:
         run: |
           set +e
           cleanup_status=0
+          if [ ! -f "$REPLATFORM_EVIDENCE_DIR/transient-authority-install-attempted" ]
+          then
+            printf '%s\n' 'No transient authority or binding marker was installed; no remote cleanup was required.' > "$REPLATFORM_EVIDENCE_DIR/NO_REMOTE_CLEANUP_REQUIRED.txt"
+            exit 0
+          fi
           if ! pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/final-cleanup-identity.json"
           then
             printf '%s\n' 'Fresh identity verification failed; no remote cleanup mutation was attempted.' > "$REPLATFORM_EVIDENCE_DIR/MANUAL_RECOVERY_REQUIRED.txt"

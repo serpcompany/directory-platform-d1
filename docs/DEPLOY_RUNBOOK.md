@@ -91,6 +91,12 @@ empty export first, rejects populated nonmatching or private state before mutati
 proves a repeated import no-op, and retains the populated rollback export. This does
 not authorize access to or copying from Production.
 
+For SERP's first run only, read-only preflight may accept the explicitly configured
+missing Preview Worker after all account and D1 identities pass. The workflow repeats
+preflight, deploys the exact stacked commit without transient authority, verifies the
+new Worker service and workers.dev hostname, then requires the ordinary full identity
+gate. PVD never permits a missing Worker bootstrap.
+
 ## Verified public submissions
 
 Public submissions are staged in normalized D1 tables and require a successful badge

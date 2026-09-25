@@ -229,11 +229,15 @@ describe('D1 replatform cutover preparation', () => {
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'target-uuid',
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'target-name',
       CLOUDFLARE_WORKER_PREVIEW_NAME: 'worker-name',
-      PREVIEW_BASE_URL: 'https://preview.example.test/'
+      PREVIEW_BASE_URL: 'https://worker-name.test-subdomain.workers.dev/'
     }
     const dependencies = {
       fetchAccount: async () => ({ success: true, result: { id: 'account-id' } }),
       fetchWorker: async () => ({ success: true, result: { name: 'worker-name' } }),
+      fetchWorkersSubdomain: async () => ({
+        success: true,
+        result: { subdomain: 'test-subdomain' }
+      }),
       readD1Info: (name: string) =>
         name === 'source-name' ? { name, uuid: 'source-uuid' } : { name, uuid: 'target-uuid' },
       readGit: (command: 'head' | 'status') => (command === 'head' ? commitSha : '')
@@ -241,6 +245,33 @@ describe('D1 replatform cutover preparation', () => {
     await expect(verifyPreviewRemoteIdentity('serp.software', env, dependencies)).resolves.toEqual(
       expect.objectContaining({ expected: expect.objectContaining({ accountId: 'account-id' }) })
     )
+    await expect(
+      verifyPreviewRemoteIdentity(
+        'serp.software',
+        env,
+        { ...dependencies, fetchWorker: async () => ({ success: true, result: null }) },
+        { allowConfiguredMissingWorker: true }
+      )
+    ).resolves.toEqual(expect.objectContaining({ workerState: 'missing-allowed' }))
+    await expect(
+      verifyPreviewRemoteIdentity('serp.software', env, {
+        ...dependencies,
+        fetchWorker: async () => ({ success: true, result: { name: 'wrong' } })
+      })
+    ).rejects.toThrow('workerName')
+    await expect(
+      verifyPreviewRemoteIdentity(
+        'pornvideodownloaders.com',
+        {
+          ...env,
+          WORKER_PRODUCTION_CONFIRM: 'rehearse-pornvideodownloaders.com-preview',
+          CLOUDFLARE_WORKER_PREVIEW_NAME: 'pvd-preview-worker',
+          PREVIEW_BASE_URL: 'https://pvd-preview.example.test/'
+        },
+        { ...dependencies, fetchWorker: async () => ({ success: true, result: null }) },
+        { allowConfiguredMissingWorker: true }
+      )
+    ).rejects.toThrow('does not exist')
     await expect(
       verifyPreviewRemoteIdentity(
         'serp.software',
@@ -484,7 +515,8 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).not.toContain('cutover-')
     const names = job.steps.map(step => step.name)
     const ordered = [
-      'Verify observed account, source D1, replacement D1, and Worker identity',
+      'Read-only preflight account, D1, and optional Worker identity',
+      'Bootstrap explicitly missing SERP Preview Worker once',
       'Retain pre-bootstrap source Preview backup',
       'Re-observe identities before controlled legacy source initialization',
       'Initialize or verify controlled legacy Preview source',
@@ -532,6 +564,10 @@ describe('D1 replatform cutover preparation', () => {
     expect(identityFailureExit).toBeGreaterThan(cleanupIdentity)
     expect(firstCleanupMutation).toBeGreaterThan(identityFailureExit)
     expect(raw).toContain('Retain cleanup and manual-recovery evidence')
+    expect(raw).toContain('preflight-preview-identity')
+    expect(raw).toContain("worker_state\" = 'missing-allowed'")
+    expect(raw).toContain('NO_REMOTE_CLEANUP_REQUIRED.txt')
+    expect(raw).toContain('transient-authority-install-attempted')
     expect(raw).toContain('D1_RELEASE_GENERATION: legacy')
     expect(raw).toContain('d1-preview-source-classify.ts')
     expect(raw).toContain('d1-preview-measure.ts source')

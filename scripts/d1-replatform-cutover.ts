@@ -34,6 +34,7 @@ export interface EvidenceTrust {
 interface IdentityDependencies {
   fetchAccount(accountId: string, token: string): Promise<unknown>
   fetchWorker(accountId: string, workerName: string, token: string): Promise<unknown>
+  fetchWorkersSubdomain(accountId: string, token: string): Promise<unknown>
   readD1Info(databaseName: string): unknown
   readGit(command: 'head' | 'status'): string
 }
@@ -51,7 +52,16 @@ const defaultIdentityDependencies: IdentityDependencies = {
       `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/services/${encodeURIComponent(workerName)}`,
       { headers: { Authorization: `Bearer ${token}` } }
     )
+    if (response.status === 404) return { result: null, success: true }
     if (!response.ok) throw new Error('Cloudflare Worker identity request failed.')
+    return response.json()
+  },
+  async fetchWorkersSubdomain(accountId, token) {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/subdomain`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw new Error('Cloudflare workers.dev identity request failed.')
     return response.json()
   },
   readD1Info(databaseName) {
@@ -251,7 +261,8 @@ function cloudflareResult(value: unknown, label: string): Record<string, unknown
 export async function verifyPreviewRemoteIdentity(
   siteId: SiteId,
   env: NodeJS.ProcessEnv,
-  dependencies: IdentityDependencies = defaultIdentityDependencies
+  dependencies: IdentityDependencies = defaultIdentityDependencies,
+  options: { allowConfiguredMissingWorker?: boolean } = {}
 ): Promise<Record<string, unknown>> {
   const target = resolveSiteTarget(siteId)
   if (
@@ -305,10 +316,59 @@ export async function verifyPreviewRemoteIdentity(
     env.CLOUDFLARE_WORKER_PREVIEW_NAME,
     'CLOUDFLARE_WORKER_PREVIEW_NAME'
   )
-  const worker = cloudflareResult(
+  const workerEnvelope = object(
     await dependencies.fetchWorker(accountId, expectedWorkerName, token),
     'Cloudflare Worker identity'
   )
+  if (workerEnvelope.success !== true)
+    throw new Error('Cloudflare Worker identity was not successful.')
+  if (workerEnvelope.result === null) {
+    if (
+      !options.allowConfiguredMissingWorker ||
+      !target.replatform.allowMissingPreviewWorkerBootstrap
+    )
+      throw new Error('Expected Preview Worker does not exist.')
+    const expected = {
+      siteId,
+      environment: 'preview',
+      protectedEnvironment: target.protectedEnvironment.preview,
+      allowedSiteIds: [siteId],
+      accountId: expectedAccountId,
+      sourceDatabaseId,
+      sourceDatabaseName,
+      targetDatabaseId,
+      targetDatabaseName,
+      workerName: expectedWorkerName
+    }
+    const observed = {
+      siteId,
+      environment: 'preview',
+      protectedEnvironment: target.protectedEnvironment.preview,
+      allowedSiteIds: [siteId],
+      accountId: expectedAccountId,
+      sourceDatabaseId: sourceInfo.uuid,
+      sourceDatabaseName: sourceInfo.name,
+      targetDatabaseId: targetInfo.uuid,
+      targetDatabaseName: targetInfo.name,
+      workerName: null
+    }
+    for (const key of identityFields.filter(key => key !== 'workerName'))
+      if (observed[key] !== expected[key])
+        throw new Error(`Observed ${key} does not match the protected expected identity.`)
+    if (
+      expected.sourceDatabaseId === expected.targetDatabaseId ||
+      expected.sourceDatabaseName === expected.targetDatabaseName
+    )
+      throw new Error('Source and replacement D1 identities must be distinct.')
+    return {
+      expected,
+      observed,
+      runId: env.REPLATFORM_PREVIEW_RUN_ID,
+      verifiedAt: new Date().toISOString(),
+      workerState: 'missing-allowed'
+    }
+  }
+  const worker = object(workerEnvelope.result, 'Cloudflare Worker identity.result')
   const exactIdentity = {
     siteId,
     environment: 'preview',
@@ -329,11 +389,24 @@ export async function verifyPreviewRemoteIdentity(
     targetDatabaseName: targetInfo.name,
     workerName: worker.name ?? worker.id
   }
+  if (target.replatform.allowMissingPreviewWorkerBootstrap) {
+    const subdomain = cloudflareResult(
+      await dependencies.fetchWorkersSubdomain(accountId, token),
+      'Cloudflare workers.dev identity'
+    )
+    const observedHostname = `${expectedWorkerName}.${text(subdomain.subdomain, 'workers.dev subdomain')}.workers.dev`
+    const expectedHostname = new URL(text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL')).hostname
+    if (observedHostname !== expectedHostname)
+      throw new Error('Observed workers.dev hostname does not match configured Preview URL.')
+    Object.assign(exactIdentity, { workerHostname: expectedHostname })
+    Object.assign(observed, { workerHostname: observedHostname })
+  }
   const identity = {
     expected: exactIdentity,
     observed,
     runId: env.REPLATFORM_PREVIEW_RUN_ID,
-    verifiedAt: new Date().toISOString()
+    verifiedAt: new Date().toISOString(),
+    workerState: 'existing-exact'
   }
   assertRemoteIdentity(siteId, 'preview', identity)
   return identity
@@ -650,6 +723,17 @@ async function runCli(): Promise<void> {
         await verifyPreviewRemoteIdentity(resolveSiteTarget(siteFlag).siteId, process.env)
       )
     )
+  } else if (command === 'preflight-preview-identity' && value === '--site') {
+    console.log(
+      JSON.stringify(
+        await verifyPreviewRemoteIdentity(
+          resolveSiteTarget(siteFlag).siteId,
+          process.env,
+          defaultIdentityDependencies,
+          { allowConfiguredMissingWorker: true }
+        )
+      )
+    )
   } else if (command === 'attest-preview' && value === '--site') {
     console.log(
       JSON.stringify(await attestPreviewWorker(resolveSiteTarget(siteFlag).siteId, process.env))
@@ -677,7 +761,7 @@ async function runCli(): Promise<void> {
     )
   } else {
     throw new Error(
-      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <verify-preview-identity|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
+      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <preflight-preview-identity|verify-preview-identity|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
     )
   }
 }

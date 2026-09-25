@@ -37,6 +37,7 @@ export interface SiteTarget {
     productionConfigPath: string
   }
   replatform: {
+    allowMissingPreviewWorkerBootstrap: boolean
     previewConfigPath: string
     productionConfigPath: string
   }
@@ -79,6 +80,7 @@ export const siteTargets = {
       productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/production.jsonc'
     },
     replatform: {
+      allowMissingPreviewWorkerBootstrap: false,
       previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-preview.jsonc',
       productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-production.jsonc'
     },
@@ -119,6 +121,7 @@ export const siteTargets = {
       productionConfigPath: 'configs/wrangler/serp.software/production.jsonc'
     },
     replatform: {
+      allowMissingPreviewWorkerBootstrap: true,
       previewConfigPath: 'configs/wrangler/serp.software/replatform-preview.jsonc',
       productionConfigPath: 'configs/wrangler/serp.software/replatform-production.jsonc'
     },
