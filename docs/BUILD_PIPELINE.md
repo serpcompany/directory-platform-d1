@@ -11,8 +11,8 @@ sync in either release path.
 - `sites/<site-id>/site-config.ts`: checked-in application configuration.
 - `configs/wrangler/<site-id>/*.jsonc`: checked-in Worker and D1 binding templates.
 - `packages/content/data/**/*.mdx`: file-authored documentation and legal content.
-- `d1/drizzle/`: fresh Drizzle-generated D1 history for replacement databases;
-  `d1/migrations/0001`-`0009` remains immutable current-database history until cutover.
+- `d1/drizzle/`: active Drizzle-generated D1 history for replacement databases;
+  `d1/migrations/0001`-`0009` remains immutable retained-source history.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
 - `listing_submissions` and child tables: private, badge-gated public intake.
 - `d1/publications/`: approved, versioned mutation manifests.
@@ -44,15 +44,15 @@ under `.wrangler/generated/` and rebases Worker, asset, schema, and migration pa
 relative to that generated configuration.
 
 Replacement templates are separate `replatform-*.jsonc` files and point only at
-`d1/drizzle/`. They do not replace released templates before protected cutover. See
-[the replacement cutover contract](./D1_CUTOVER.md).
+`d1/drizzle/`. Routine protected Preview and Production workflows select those
+templates and replacement D1 secrets explicitly; the canonical templates remain for
+the retained one-time recovery machinery. The inactive source databases stay locked
+and retained through 2026-12-24. See [the replacement cutover contract](./D1_CUTOVER.md).
 
-The one-time protected Production provisioner may create only the exact empty
-replacement D1 registered for one selected Site after proving its existing account,
-source D1, Worker, placement, and protected environment. It does not migrate data,
-deploy or rebind a Worker, change routes, or authorize cutover; a Maintainer reviews
-its retained identity receipt and configures the resulting protected UUID/name pair
-separately.
+The completed one-time Production provisioner created only the exact empty replacement
+D1 registered for each Site after proving account, source D1, Worker, placement, and
+protected environment. It is now disabled; its retained identity receipts are
+historical evidence and do not authorize another create or cutover.
 
 ## Protected production release
 
@@ -82,10 +82,11 @@ before deployment, the guarded `check-schema` command reads applied migration na
 from the exact remote target and fails closed if every checked-in migration cannot be
 proven present. A Worker-only run performs no D1 mutation.
 
-The database-and-Worker mode retains a D1 export, applies migrations, idempotently
-imports the initial catalog only when publication state is empty, verifies exact
-publication checksum/version/count/slug parity, verifies schema compatibility, and
-only then deploys the OpenNext Worker. See
+The database-and-Worker mode retains a D1 export, applies forward Drizzle migrations,
+verifies schema compatibility, and only then deploys the OpenNext Worker. It does not
+replay the initial catalog or require the active publication to remain at bootstrap
+version 1. Initial import and exact bootstrap parity belong only to a new-site release
+or separately reviewed migration. See
 [the deploy runbook](./DEPLOY_RUNBOOK.md) for release-mode selection, smoke coverage,
 D1 analytics evidence, and rollback thresholds.
 
@@ -98,8 +99,10 @@ verification makes a submission reviewable but not public. A maintainer runs the
 protected `approve-d1-submission.yml` workflow, which retains a backup and atomically
 promotes only a verified row.
 
+When enabled with a durable protected Cloudflare credential,
 `notify-d1-submissions.yml` polls both active sites' badge-verified rows every five
-minutes and creates an assigned issue in the private repository. The D1 notification
+minutes and creates an assigned issue in the private repository. It is currently
+disabled as recorded in the deploy runbook. The D1 notification
 ledger prevents duplicates and lets an interrupted issue-create/write sequence
 recover by marker. The issue is closed only after the protected approval workflow
 has successfully approved or declined the authoritative D1 row.

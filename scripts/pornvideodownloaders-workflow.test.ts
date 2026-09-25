@@ -37,6 +37,10 @@ interface Workflow {
 const raw = readFileSync('.github/workflows/deploy-pornvideodownloaders.yml', 'utf8')
 const workflow = yaml.load(raw) as Workflow
 
+function githubExpression(expression: string): string {
+  return `$${`{{ ${expression} }}`}`
+}
+
 describe('pornvideodownloaders.com deployment workflow', () => {
   it('keeps every executable identity distinct between active sites', () => {
     expect(siteIds).toEqual(['pornvideodownloaders.com', 'serp.software'])
@@ -110,31 +114,46 @@ describe('pornvideodownloaders.com deployment workflow', () => {
     )
   })
 
-  it.each(['preview', 'production'] as const)(
-    'orders %s backup, migration, import, verification, and deployment',
-    environment => {
-      const steps = workflow.jobs[environment].steps
-      const backupIndex = steps.findIndex(step => step.name === `Back up ${environment} D1`)
-      const mutationIndex = steps.findIndex(
-        step => step.name === `Apply migrations, import, and verify ${environment} D1`
-      )
-      const deployIndex = steps.findIndex(
-        step => step.name === `Verify schema compatibility and deploy ${environment} Worker`
-      )
-      expect([backupIndex, mutationIndex, deployIndex]).toEqual(
-        [...[backupIndex, mutationIndex, deployIndex]].sort((left, right) => left - right)
-      )
-      const mutationSource = steps[mutationIndex]?.run || ''
-      const orderedCommands = [
-        `migrate ${environment} --site pornvideodownloaders.com`,
-        `import ${environment} --site pornvideodownloaders.com`,
-        `verify ${environment} --site pornvideodownloaders.com`
-      ]
-      const indexes = orderedCommands.map(command => mutationSource.indexOf(command))
-      expect(indexes.every(index => index >= 0)).toBe(true)
-      expect(indexes).toEqual([...indexes].sort((left, right) => left - right))
-    }
-  )
+  it('orders preview backup, migration, bootstrap verification, and deployment', () => {
+    const environment = 'preview' as const
+    const steps = workflow.jobs[environment].steps
+    const backupIndex = steps.findIndex(step => step.name === `Back up ${environment} D1`)
+    const mutationIndex = steps.findIndex(
+      step => step.name === `Apply migrations, import, and verify ${environment} D1`
+    )
+    const deployIndex = steps.findIndex(
+      step => step.name === `Verify schema compatibility and deploy ${environment} Worker`
+    )
+    expect([backupIndex, mutationIndex, deployIndex]).toEqual(
+      [...[backupIndex, mutationIndex, deployIndex]].sort((left, right) => left - right)
+    )
+    const mutationSource = steps[mutationIndex]?.run || ''
+    const orderedCommands = [
+      `migrate ${environment} --site pornvideodownloaders.com`,
+      `import ${environment} --site pornvideodownloaders.com`,
+      `verify ${environment} --site pornvideodownloaders.com`
+    ]
+    const indexes = orderedCommands.map(command => mutationSource.indexOf(command))
+    expect(indexes.every(index => index >= 0)).toBe(true)
+    expect(indexes).toEqual([...indexes].sort((left, right) => left - right))
+  })
+
+  it('orders production backup, forward migration, and deployment without bootstrap replay', () => {
+    const steps = workflow.jobs.production.steps
+    const backupIndex = steps.findIndex(step => step.name === 'Back up production D1')
+    const migrationIndex = steps.findIndex(step => step.name === 'Apply production D1 migrations')
+    const deployIndex = steps.findIndex(
+      step => step.name === 'Verify schema compatibility and deploy production Worker'
+    )
+    expect([backupIndex, migrationIndex, deployIndex]).toEqual(
+      [...[backupIndex, migrationIndex, deployIndex]].sort((left, right) => left - right)
+    )
+    expect(steps[migrationIndex]?.run).toBe(
+      'pnpm tsx scripts/worker-release.ts migrate production --site pornvideodownloaders.com'
+    )
+    expect(steps[migrationIndex]?.run).not.toContain('import production')
+    expect(steps[migrationIndex]?.run).not.toContain('verify production')
+  })
 
   it.each(['preview', 'production'] as const)(
     'makes every %s D1 operation opt-in while leaving Worker deployment unconditional',
@@ -144,7 +163,9 @@ describe('pornvideodownloaders.com deployment workflow', () => {
         'Plan remote migration and verification',
         `Back up ${environment} D1`,
         `Retain ${environment} D1 backup`,
-        `Apply migrations, import, and verify ${environment} D1`
+        environment === 'preview'
+          ? 'Apply migrations, import, and verify preview D1'
+          : 'Apply production D1 migrations'
       ])
 
       for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
@@ -182,7 +203,9 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       const secretSteps = steps.filter(step => step.env?.CLOUDFLARE_API_TOKEN)
       expect(secretSteps.map(step => step.name)).toEqual([
         `Back up ${environment} D1`,
-        `Apply migrations, import, and verify ${environment} D1`,
+        environment === 'preview'
+          ? 'Apply migrations, import, and verify preview D1'
+          : 'Apply production D1 migrations',
         `Verify schema compatibility and deploy ${environment} Worker`
       ])
       expect(
@@ -190,6 +213,22 @@ describe('pornvideodownloaders.com deployment workflow', () => {
           .filter(step => !step.env?.CLOUDFLARE_API_TOKEN)
           .every(step => !step.env?.WORKER_PRODUCTION_CONFIRM)
       ).toBe(true)
+      const replacementPrefix = `CLOUDFLARE_D1_REPLACEMENT_${environment.toUpperCase()}`
+      const canonicalPrefix = `CLOUDFLARE_D1_${environment.toUpperCase()}`
+      for (const step of secretSteps) {
+        expect(step.env?.D1_RELEASE_GENERATION).toBe('replatform')
+        expect(step.env?.[`${replacementPrefix}_DATABASE_ID`]).toBe(
+          githubExpression(`secrets.${replacementPrefix}_DATABASE_ID`)
+        )
+        expect(step.env?.[`${canonicalPrefix}_DATABASE_ID`]).toBeUndefined()
+      }
+      expect(
+        steps.find(step => step.name === 'Plan remote migration and verification')?.env
+          ?.D1_RELEASE_GENERATION
+      ).toBe('replatform')
+      expect(steps.find(step => step.name === `Retain ${environment} D1 backup`)?.with?.path).toBe(
+        `.wrangler/backups/pornvideodownloaders-com/${environment}/${githubExpression('github.sha')}.replatform.sql`
+      )
     }
   )
 })

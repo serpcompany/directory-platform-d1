@@ -85,6 +85,25 @@ describe('Worker release guard', () => {
     expect(() => runWorkerRelease(['validate', 'preview'], {})).toThrow('explicit --site')
   })
 
+  it('plans routine replacement releases from the Drizzle migration lineage only', () => {
+    const output = vi.spyOn(console, 'log').mockImplementation(() => undefined)
+    try {
+      runWorkerRelease(['plan-migration', 'production', '--site', 'serp.software'], {
+        D1_REMOTE_CONFIRM: 'plan-serp.software-production',
+        D1_RELEASE_GENERATION: 'replatform'
+      })
+      const plan = JSON.parse(String(output.mock.calls.at(-1)?.[0])) as {
+        generation: string
+        migrations: string[]
+      }
+      expect(plan.generation).toBe('replatform')
+      expect(plan.migrations).toEqual(['0000_remarkable_manta.sql'])
+      expect(plan.migrations).not.toContain('0001_initial_schema.sql')
+    } finally {
+      output.mockRestore()
+    }
+  })
+
   it('treats repository migrations as minimum schema and permits forward schema rows', () => {
     const required = requiredMigrationNames()
     expect(required).toEqual([

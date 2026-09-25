@@ -59,8 +59,8 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   selects a site from global authority. Its environment-neutral public-URL policy is
   shared by intake and each Site's badge verifier.
 - `d1/drizzle/` owns the fresh Drizzle-generated schema history applied by Wrangler to
-  replacement databases. `d1/migrations/0001`-`0009` remains immutable legacy history
-  for the current database generation until the protected cutover is complete.
+  the active Preview and Production databases. `d1/migrations/0001`-`0009` remains
+  immutable legacy history solely for retained source-database recovery evidence.
 - `d1/publications/` owns reviewed ongoing catalog mutations.
 - `d1/artifacts/` preserves the immutable initial bootstrap and parity evidence.
 - `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`,
@@ -133,10 +133,11 @@ Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local
 state subdirectory, production D1 resource, Worker name, route, confirmation strings,
 and protected production environment. Both Sites have isolated Preview resources.
-SERP's `serp-software-preview` source/replacement D1 databases, Worker, and protected
-environment were provisioned and rehearsed through the protected Issue #72 workflow
-on commit `47ec54fc87d3ddf7fb31b3de1f5dc0ab55b83a30`. Future sites must establish the
-same isolated Preview evidence before Production work.
+Issue #72 completed both Sites' protected replacement Preview rehearsals and
+Production cutovers. Routine releases now select the replacement identities and
+`d1/drizzle/` explicitly. The inactive source databases remain locked and retained
+through 2026-12-24; they are not valid routine release targets. Future sites must
+establish the same isolated Preview evidence before Production work.
 Shared publication and submission tools bind their SQL to the selected site and
 reject mismatches. Adding a third site still requires the full tenancy and isolation
 work in [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/`
@@ -146,6 +147,5 @@ The shared client is constructed only from an injected `D1Database` and an expli
 supported Site ID. Applications must not define a schema or construct an app-local
 Drizzle client. `drizzle.config.ts` is target-neutral and credential-free: it generates
 reviewable SQL in `d1/drizzle/`; Wrangler, not Drizzle push, owns migration application
-and the `d1_migrations` ledger. During the replacement-database project, checked-in
-Preview and Production templates continue to point at the immutable legacy history;
-their protected switch to the fresh history is intentionally deferred to the cutover.
+and the `d1_migrations` ledger. Routine protected Preview and Production workflows
+materialize the replacement templates and reject the legacy source identities.

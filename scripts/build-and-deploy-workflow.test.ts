@@ -58,9 +58,7 @@ describe('production Worker workflow', () => {
       'Plan production verification without remote execution',
       'Back up production D1',
       'Retain production D1 backup',
-      'Apply production D1 migrations',
-      'Import deterministic production catalog',
-      'Verify production D1'
+      'Apply production D1 migrations'
     ])
     const steps = workflow.jobs.deploy.steps ?? []
 
@@ -77,7 +75,7 @@ describe('production Worker workflow', () => {
     const { workflow } = loadWorkflow()
     const runs = workflow.jobs.deploy.steps?.map(step => step.run).filter(Boolean)
     expect(runs).toEqual([
-      'pnpm worker:config:validate',
+      'pnpm tsx scripts/worker-release.ts validate-replatform production --site serp.software',
       'pnpm test:d1',
       'pnpm typecheck',
       'pnpm worker:build:serpsoftware',
@@ -85,8 +83,6 @@ describe('production Worker workflow', () => {
       'pnpm d1:remote:verify:plan:production',
       'pnpm worker:d1:backup:production',
       'pnpm worker:d1:migrate:production',
-      'pnpm worker:d1:import:production',
-      'pnpm worker:d1:verify:production',
       'set -euo pipefail\n' +
         'pnpm tsx scripts/worker-release.ts check-schema production --site serp.software\n' +
         'pnpm worker:deploy:production\n'
@@ -114,8 +110,6 @@ describe('production Worker workflow', () => {
     const productionStepNames = new Set([
       'Back up production D1',
       'Apply production D1 migrations',
-      'Import deterministic production catalog',
-      'Verify production D1',
       'Verify schema compatibility and deploy production Worker'
     ])
     for (const step of steps.filter(step => !productionStepNames.has(step.name ?? ''))) {
@@ -127,7 +121,17 @@ describe('production Worker workflow', () => {
       expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBe(githubExpression('inputs.confirmation'))
       expect(step.env?.GITHUB_REF).toBe(githubExpression('github.ref'))
       expect(step.env?.GITHUB_SHA).toBe(githubExpression('github.sha'))
+      expect(step.env?.D1_RELEASE_GENERATION).toBe('replatform')
+      expect(step.env?.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID).toBe(
+        githubExpression('secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID')
+      )
+      expect(step.env?.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID).toBeUndefined()
     }
+    for (const name of [
+      'Plan production migration without remote execution',
+      'Plan production verification without remote execution'
+    ])
+      expect(steps.find(step => step.name === name)?.env?.D1_RELEASE_GENERATION).toBe('replatform')
   })
 
   it('retains the pre-migration production backup', () => {
@@ -137,7 +141,7 @@ describe('production Worker workflow', () => {
     ) as Step & { uses?: string; with?: Record<string, unknown> }
     expect(backupStep.uses).toBe('actions/upload-artifact@v6')
     expect(backupStep.with?.path).toBe(
-      `.wrangler/backups/serp-software/production/${githubExpression('github.sha')}.sql`
+      `.wrangler/backups/serp-software/production/${githubExpression('github.sha')}.replatform.sql`
     )
     expect(backupStep.with?.['if-no-files-found']).toBe('error')
   })
