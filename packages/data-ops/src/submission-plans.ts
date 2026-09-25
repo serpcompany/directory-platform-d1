@@ -1,4 +1,5 @@
 import type { ActiveCheckedInSiteId } from '@serpdirectory/site-contract/active-site-ids'
+import { assertCutoverUnlockedPlan } from './cutover-lock'
 
 export interface SubmissionStatementPlan {
   params: unknown[]
@@ -46,6 +47,7 @@ export function buildRejectSubmissionPlans(input: {
   submissionId: string
 }): SubmissionStatementPlan[] {
   return [
+    assertCutoverUnlockedPlan(input.siteId),
     {
       sql: `UPDATE listing_submissions SET status='rejected',reviewed_at=?,reviewed_by=?,updated_at=?
         WHERE id=? AND site_id=? AND status IN ('pending_badge','verified')`,
@@ -75,6 +77,7 @@ export function buildApproveSubmissionPlans(input: {
 }): SubmissionStatementPlan[] {
   const nextVersion = input.version + 1
   return [
+    assertCutoverUnlockedPlan(input.siteId),
     {
       sql: `INSERT INTO publication_runs
         (id,site_id,manifest_id,base_version,input_checksum,affected_records,affected_routes,outcome,
@@ -273,4 +276,15 @@ export function recordSubmissionNotificationPlan(input: {
       input.siteId
     ]
   }
+}
+
+export function buildRecordSubmissionNotificationPlans(input: {
+  externalId: string
+  externalUrl: string
+  previewTokenHash: string
+  recipient: string
+  siteId: ActiveCheckedInSiteId
+  submissionId: string
+}): SubmissionStatementPlan[] {
+  return [assertCutoverUnlockedPlan(input.siteId), recordSubmissionNotificationPlan(input)]
 }

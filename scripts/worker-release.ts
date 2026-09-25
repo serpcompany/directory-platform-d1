@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { CUTOVER_LOCK_ID_PREFIX, hasActiveCutoverLock } from '@serpdirectory/data-ops/cutover-lock'
 import { parse } from 'yaml'
 import { validateReplatformTemplate } from './d1-replatform-cutover'
 import { replatformPreviewRef, resolveSiteTarget, type SiteTarget } from './site-targets'
@@ -423,6 +424,37 @@ function verifyRows(target: SiteTarget, rows: Array<Record<string, unknown>>): v
     throw new Error(`Remote ${target.siteId} D1 does not match the reviewed migration report.`)
 }
 
+function assertProductionCutoverUnlocked(
+  target: SiteTarget,
+  databaseName: string,
+  configPath: string,
+  dependencies: WorkerReleaseDependencies
+): void {
+  const siteId = quotedSiteId(target)
+  const prefix = `${CUTOVER_LOCK_ID_PREFIX}${siteId}:`.replaceAll("'", "''")
+  const result = runChecked(
+    dependencies,
+    'pnpm',
+    [
+      'exec',
+      'wrangler',
+      'd1',
+      'execute',
+      databaseName,
+      '--remote',
+      '--config',
+      configPath,
+      '--command',
+      `SELECT id FROM migration_runs WHERE site_id='${siteId}' AND id LIKE '${prefix}%' AND outcome='started' ORDER BY started_at DESC,id LIMIT 1`,
+      '--json'
+    ],
+    true
+  )
+  if (hasActiveCutoverLock(parseD1Rows(String(result.stdout ?? '')))) {
+    throw new Error(`Refusing ${target.siteId} Production D1 mutation while cutover is frozen.`)
+  }
+}
+
 function runRemote(
   target: SiteTarget,
   command: ReleaseCommand,
@@ -437,6 +469,9 @@ function runRemote(
     )
   })
   const { configPath, databaseName } = materializeConfig(target, environment, env, generation)
+  if (environment === 'production' && (command === 'migrate' || command === 'import')) {
+    assertProductionCutoverUnlocked(target, databaseName, configPath, dependencies)
+  }
   if (command === 'upload' || command === 'deploy') {
     runChecked(dependencies, 'pnpm', [
       '--filter',

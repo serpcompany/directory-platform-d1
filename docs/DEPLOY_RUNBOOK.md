@@ -26,6 +26,14 @@ separate database-operation approval. They are guarded by
 
 ## Protected Worker releases
 
+Every Production D1 workflow for a Site uses the shared
+`<site>-production-d1` concurrency group. During a replacement cutover, an active
+reserved `migration_runs` lock freezes public Submission/rate-limit/verification
+writes, publication, approval/rejection, notification delivery, and generic
+Production migration/import. Public write APIs return `503` with code
+`cutover_frozen`; operators must not bypass the lock. Completed or failed historical
+lock receipts do not freeze writes.
+
 Merging to `main` does not deploy either site automatically. Manually dispatch the
 selected site's workflow from the reviewed `main` commit. The workflow requires:
 

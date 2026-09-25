@@ -2,6 +2,11 @@ import { createHash } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
+  CutoverFrozenError,
+  hasActiveCutoverLock,
+  selectActiveCutoverLockPlan
+} from '@serpdirectory/data-ops/cutover-lock'
+import {
   buildApproveSubmissionPlans,
   buildRejectSubmissionPlans,
   type SubmissionStatementPlan,
@@ -89,6 +94,9 @@ export async function approveRemoteSubmission(
   const siteId = target.siteId
   if (!/^[0-9a-f-]{36}$/i.test(submissionId)) throw new Error('Submission ID must be a UUID.')
   if (!reviewer.trim()) throw new Error('Reviewer identity is required.')
+
+  const lock = await query([selectActiveCutoverLockPlan(siteId)], env, fetcher)
+  if (hasActiveCutoverLock(lock[0]?.results ?? [])) throw new CutoverFrozenError()
 
   const selected = await query(
     [selectSubmissionForDecisionPlan(submissionId, siteId)],

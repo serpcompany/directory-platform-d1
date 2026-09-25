@@ -6,6 +6,7 @@ import type { ActiveCheckedInSiteId } from '@serpdirectory/site-contract/active-
 import { describe, expect, it } from 'vitest'
 import {
   buildApproveSubmissionPlans,
+  buildRecordSubmissionNotificationPlans,
   buildRejectSubmissionPlans,
   type SubmissionStatementPlan
 } from './submission-plans'
@@ -153,6 +154,70 @@ describe('protected submission statement plans', () => {
           "SELECT COUNT(*) AS count FROM listing_submission_events WHERE event_type='rejected'"
         )
         .get()
+    ).toEqual({ count: 0 })
+  })
+
+  it('rolls back approval and rejection before any row mutation while cutover is locked', () => {
+    for (const plans of [
+      approvalPlans('serp.software'),
+      buildRejectSubmissionPlans({
+        now: '2026-08-01T01:00:00.000Z',
+        reviewer: 'reviewer',
+        siteId: 'serp.software',
+        submissionId
+      })
+    ]) {
+      const db = database('serp.software')
+      db.prepare(
+        `INSERT INTO migration_runs
+          (id,site_id,schema_version,manifest_identity,input_checksum,target_checksum,
+           affected_records,outcome)
+        VALUES (?,?,1,?,'before','before',0,'started')`
+      ).run(
+        'd1-cutover-lock-v1:serp.software:run-1',
+        'serp.software',
+        'd1-cutover-lock-v1:serp.software:run-1'
+      )
+
+      expect(() => execute(db, plans)).toThrow(/malformed JSON/u)
+      expect(db.prepare('SELECT COUNT(*) AS count FROM listings').get()).toEqual({ count: 0 })
+      expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({
+        count: 0
+      })
+      expect(db.prepare('SELECT status,listing_id FROM listing_submissions').get()).toEqual({
+        listing_id: null,
+        status: 'verified'
+      })
+      expect(db.prepare('SELECT version FROM publication_state').get()).toEqual({ version: 1 })
+      expect(db.prepare('SELECT COUNT(*) AS count FROM listing_submission_events').get()).toEqual({
+        count: 0
+      })
+    }
+  })
+
+  it('atomically blocks the notification ledger write while cutover is locked', () => {
+    const db = database('serp.software')
+    db.prepare(
+      `INSERT INTO migration_runs
+        (id,site_id,schema_version,manifest_identity,input_checksum,target_checksum,
+         affected_records,outcome)
+      VALUES (?,?,1,?,'before','before',0,'started')`
+    ).run(
+      'd1-cutover-lock-v1:serp.software:run-1',
+      'serp.software',
+      'd1-cutover-lock-v1:serp.software:run-1'
+    )
+    const plans = buildRecordSubmissionNotificationPlans({
+      externalId: '42',
+      externalUrl: 'https://github.com/example/issues/42',
+      previewTokenHash: 'a'.repeat(64),
+      recipient: 'reviewer',
+      siteId: 'serp.software',
+      submissionId
+    })
+    expect(() => execute(db, plans)).toThrow(/malformed JSON/u)
+    expect(
+      db.prepare('SELECT COUNT(*) AS count FROM listing_submission_notifications').get()
     ).toEqual({ count: 0 })
   })
 

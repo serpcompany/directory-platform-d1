@@ -13,6 +13,12 @@ per-table and whole-snapshot checksums, retains the target's fresh migration led
 and records one deterministic receipt in `migration_runs`. See
 [D1 replacement-database transfer](./D1_REPLATFORM.md).
 
+`migration_runs` also owns the reserved cutover lock namespace
+`d1-cutover-lock-v1:<site>:`. A row in that namespace with `outcome='started'` freezes
+all writes for only that Site. Successful/failed historical lock rows do not freeze
+writes. The future cutover executor owns lock creation and finalization; ordinary
+runtime and release paths may only observe and enforce it.
+
 - `sites` identifies the tenant.
 - `categories` stores active taxonomy rows and display order.
 - `listings` stores public product fields, status, publication time, and stable IDs.

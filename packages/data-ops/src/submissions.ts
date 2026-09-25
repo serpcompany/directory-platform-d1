@@ -2,6 +2,12 @@ import { isValidAssetReference } from '@serpdirectory/site-contract/asset-refere
 import { and, eq, or, sql } from 'drizzle-orm'
 import type { CompiledSiteQuery, SiteDatabase } from './client'
 import type { ListingDetail } from './contracts'
+import {
+  assertCutoverUnlockedPlan,
+  CutoverFrozenError,
+  hasActiveCutoverLock,
+  selectActiveCutoverLockPlan
+} from './cutover-lock'
 import { validatePublicHttpUrl } from './public-url'
 import {
   categories,
@@ -236,6 +242,17 @@ export function createSubmissionOperations(config: {
     return result ?? null
   }
 
+  async function throwIfCutoverLocked(): Promise<void> {
+    const plan = selectActiveCutoverLockPlan(siteId)
+    const result = await prepareRaw(client, plan.sql, plan.params).all<Record<string, unknown>>()
+    if (hasActiveCutoverLock(result.results ?? [])) throw new CutoverFrozenError()
+  }
+
+  function cutoverGuard(): D1PreparedStatement {
+    const plan = assertCutoverUnlockedPlan(siteId)
+    return prepareRaw(client, plan.sql, plan.params)
+  }
+
   async function authorizedRow(id: string, token: string): Promise<SubmissionRow> {
     const row = await queryFirst<SubmissionRow>(
       client.database
@@ -270,6 +287,7 @@ export function createSubmissionOperations(config: {
 
   return {
     async createSubmission(input) {
+      await throwIfCutoverLocked()
       for (const value of [
         input.website,
         input.logoUrl,
@@ -321,6 +339,7 @@ export function createSubmissionOperations(config: {
       const token = bytesToBase64Url(tokenBytes)
       const tokenHash = await sha256(token)
       const statements = [
+        cutoverGuard(),
         prepare(
           client,
           client.database.insert(listingSubmissions).values({
@@ -372,6 +391,7 @@ export function createSubmissionOperations(config: {
         const results = await client.binding.batch(statements)
         if (results.some(result => !result.success)) throw new Error('D1 batch failed.')
       } catch {
+        await throwIfCutoverLocked()
         throw new SubmissionError(
           'duplicate_submission',
           'A submission for this website is already awaiting review.',
@@ -392,10 +412,12 @@ export function createSubmissionOperations(config: {
     },
 
     async consumeRateLimit(fingerprint) {
+      await throwIfCutoverLocked()
       const fingerprintHash = await sha256(`${siteId}:${fingerprint}`)
       const now = Math.floor(validClock(clock).getTime() / 1000)
       const windowStart = now - SUBMISSION_WINDOW_SECONDS
       const statements = [
+        cutoverGuard(),
         prepare(
           client,
           client.database
@@ -418,8 +440,14 @@ export function createSubmissionOperations(config: {
             .limit(1)
         )
       ]
-      const results = await client.binding.batch<{ request_count?: number }>(statements)
-      const count = results[1]?.results?.[0]?.request_count
+      let results: D1Result<{ request_count?: number }>[]
+      try {
+        results = await client.binding.batch<{ request_count?: number }>(statements)
+      } catch {
+        await throwIfCutoverLocked()
+        throw new Error('D1 submission rate limit failed.')
+      }
+      const count = results[2]?.results?.[0]?.request_count
       if (typeof count !== 'number') throw new Error('D1 submission rate limit failed.')
       if (count > SUBMISSION_WINDOW_LIMIT) {
         throw new SubmissionError('rate_limited', 'Too many submissions. Try again later.', 429)
@@ -429,6 +457,7 @@ export function createSubmissionOperations(config: {
     getSubmission,
 
     async beginVerification(id, token) {
+      await throwIfCutoverLocked()
       const row = await authorizedRow(id, token)
       if (row.status !== 'pending_badge') return toState(row)
       const lastFailureWasConclusive =
@@ -448,6 +477,7 @@ export function createSubmissionOperations(config: {
     },
 
     async finishVerification(id, token, result) {
+      await throwIfCutoverLocked()
       const row = await authorizedRow(id, token)
       if (row.status !== 'pending_badge') return toState(row)
       const tokenHash = await sha256(token)
@@ -455,6 +485,7 @@ export function createSubmissionOperations(config: {
       const error = result.ok ? null : result.code
       const attemptIncrement = result.ok || CONTENT_VERIFICATION_FAILURES.has(result.code) ? 1 : 0
       const statements = [
+        cutoverGuard(),
         prepareRaw(
           client,
           `UPDATE listing_submissions SET status=?, verification_attempts=verification_attempts+?,
@@ -483,7 +514,13 @@ export function createSubmissionOperations(config: {
           [id, result.ok ? 'badge_verified' : 'verification_failed', error]
         )
       ]
-      const results = await client.binding.batch(statements)
+      let results: D1Result<unknown>[]
+      try {
+        results = await client.binding.batch(statements)
+      } catch {
+        await throwIfCutoverLocked()
+        throw new Error('D1 verification update failed.')
+      }
       if (results.some(item => !item.success)) throw new Error('D1 verification update failed.')
       return getSubmission(id, token)
     },

@@ -20,6 +20,7 @@ function database(): DatabaseSync {
     CREATE TABLE listing_slug_redirects (id INTEGER PRIMARY KEY, site_id TEXT NOT NULL, listing_id TEXT NOT NULL, old_slug TEXT NOT NULL, new_slug TEXT NOT NULL, manifest_id TEXT NOT NULL, reason TEXT NOT NULL, created_at TEXT NOT NULL, UNIQUE(site_id,old_slug));
     CREATE TABLE publication_state (site_id TEXT PRIMARY KEY, version INTEGER NOT NULL, manifest_id TEXT, checksum TEXT NOT NULL, published_at TEXT NOT NULL);
     CREATE TABLE publication_runs (id TEXT PRIMARY KEY, site_id TEXT NOT NULL, manifest_id TEXT NOT NULL, base_version INTEGER NOT NULL, published_version INTEGER, input_checksum TEXT NOT NULL, affected_records INTEGER NOT NULL DEFAULT 0, affected_routes TEXT NOT NULL DEFAULT '', outcome TEXT NOT NULL, error TEXT, started_at TEXT NOT NULL, completed_at TEXT, actor TEXT, workflow TEXT, before_checksum TEXT, after_checksum TEXT, UNIQUE(site_id,manifest_id));
+    CREATE TABLE migration_runs (id TEXT PRIMARY KEY,site_id TEXT NOT NULL,outcome TEXT NOT NULL,started_at TEXT NOT NULL);
     INSERT INTO sites VALUES ('serp.software');
     INSERT INTO categories VALUES (1,'serp.software','seo',1);
     INSERT INTO listings VALUES ('lst_sqlite_test','serp.software','old-slug','approved',1,NULL);
@@ -147,5 +148,17 @@ describe('publisher plan in SQLite transaction (D1 batch emulator)', () => {
       slug: 'old-slug'
     })
     expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({ count: 0 })
+  })
+
+  it('rolls back before publication or audit mutation while cutover is locked', () => {
+    const db = database()
+    db.exec(
+      "INSERT INTO migration_runs VALUES ('d1-cutover-lock-v1:serp.software:run-1','serp.software','started','2026-07-13T00:00:00.000Z')"
+    )
+    expect(() => executeInTestTransaction(db, plan())).toThrow(/malformed JSON/u)
+    expectUnchanged(db)
+    expect(db.prepare('SELECT COUNT(*) AS count FROM listing_slug_redirects').get()).toEqual({
+      count: 0
+    })
   })
 })

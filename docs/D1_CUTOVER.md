@@ -224,6 +224,14 @@ approval, and notification writes before the final identified source snapshot. T
 exact snapshot is the only authorized import input. Exact parity must pass before the
 Worker binding changes.
 
+Stage 1 lock enforcement is implemented independently of that future executor. The
+lock is an active reserved `migration_runs` row with ID prefix
+`d1-cutover-lock-v1:<site>:`. Public write batches, protected publication and
+submission decisions, notification delivery, and generic Production migration/import
+all fail closed while it is active. Production D1 workflows for a Site share the
+same `<site>-production-d1` concurrency group. This enforcement does not itself
+create a lock or authorize a Production cutover.
+
 The old D1 remains intact and read-only for at least 30 days. Record its backup
 artifact, retention expiry, protected rollback operation, and responsible Maintainer.
 Rollback changes only the Worker binding; it never deletes either database. Unless a

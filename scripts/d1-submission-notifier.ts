@@ -2,7 +2,11 @@ import { createHash, randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
-  recordSubmissionNotificationPlan,
+  hasActiveCutoverLock,
+  selectActiveCutoverLockPlan
+} from '@serpdirectory/data-ops/cutover-lock'
+import {
+  buildRecordSubmissionNotificationPlans,
   type SubmissionStatementPlan,
   selectVerifiedSubmissionNotificationPlans
 } from '@serpdirectory/data-ops/submission-plans'
@@ -68,6 +72,7 @@ export interface NotificationResult {
   created: number
   notified: number
   recovered: number
+  skippedForCutover: boolean
   skippedForMigration: boolean
 }
 
@@ -378,6 +383,17 @@ export async function notifyVerifiedSubmissions(
   const reviewer = required(env, 'SUBMISSION_REVIEWER_GITHUB_LOGIN')
   required(env, 'GITHUB_TOKEN')
 
+  const lock = await query([selectActiveCutoverLockPlan(target.siteId)], env, fetcher)
+  if (hasActiveCutoverLock(lock[0]?.results ?? [])) {
+    return {
+      created: 0,
+      notified: 0,
+      recovered: 0,
+      skippedForCutover: true,
+      skippedForMigration: false
+    }
+  }
+
   let selected: D1Result[]
   try {
     selected = await query(
@@ -387,7 +403,13 @@ export async function notifyVerifiedSubmissions(
     )
   } catch (error) {
     if (missingNotificationMigration(error)) {
-      return { created: 0, notified: 0, recovered: 0, skippedForMigration: true }
+      return {
+        created: 0,
+        notified: 0,
+        recovered: 0,
+        skippedForCutover: false,
+        skippedForMigration: true
+      }
     }
     throw error
   }
@@ -399,6 +421,16 @@ export async function notifyVerifiedSubmissions(
   let recovered = 0
 
   for (const submission of submissions) {
+    const currentLock = await query([selectActiveCutoverLockPlan(target.siteId)], env, fetcher)
+    if (hasActiveCutoverLock(currentLock[0]?.results ?? [])) {
+      return {
+        created,
+        notified: created + recovered,
+        recovered,
+        skippedForCutover: true,
+        skippedForMigration: false
+      }
+    }
     const previewToken = tokenFactory()
     const previewTokenHash = hashReviewPreviewToken(previewToken)
     const issueResult = await createOrRecoverIssue(
@@ -418,16 +450,14 @@ export async function notifyVerifiedSubmissions(
     if (issueResult.created) created += 1
     else recovered += 1
     await query(
-      [
-        recordSubmissionNotificationPlan({
-          externalId: String(issueResult.issue.number),
-          externalUrl: issueResult.issue.html_url,
-          previewTokenHash,
-          recipient: reviewer,
-          siteId: target.siteId,
-          submissionId: submission.id
-        })
-      ],
+      buildRecordSubmissionNotificationPlans({
+        externalId: String(issueResult.issue.number),
+        externalUrl: issueResult.issue.html_url,
+        previewTokenHash,
+        recipient: reviewer,
+        siteId: target.siteId,
+        submissionId: submission.id
+      }),
       env,
       fetcher
     )
@@ -437,6 +467,7 @@ export async function notifyVerifiedSubmissions(
     created,
     notified: submissions.length,
     recovered,
+    skippedForCutover: false,
     skippedForMigration: false
   }
 }

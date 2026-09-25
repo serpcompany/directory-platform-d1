@@ -49,11 +49,24 @@ describe('ci workflow install isolation', () => {
     expect(actionUses).not.toContain('pnpm/action-setup@v4')
   })
 
-  it('keeps production Worker runs non-canceling in their isolated concurrency group', () => {
+  it('serializes every Production D1 workflow for a Site in the same non-canceling group', () => {
     const buildWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/build-and-deploy.yml')
+    const publishWorkflow = loadYamlFile<WorkflowDefinition>('.github/workflows/publish-d1.yml')
+    const approvalWorkflow = loadYamlFile<WorkflowDefinition>(
+      '.github/workflows/approve-d1-submission.yml'
+    )
+    const pvdWorkflow = loadYamlFile<WorkflowDefinition>(
+      '.github/workflows/deploy-pornvideodownloaders.yml'
+    )
 
-    expect(buildWorkflow.concurrency?.group).toBe('serp-software-production-worker')
+    const productionD1Group = `${githubExpression('{{ inputs.site_id }}')}-production-d1`
+    expect(buildWorkflow.concurrency?.group).toBe(productionD1Group)
+    expect(publishWorkflow.concurrency?.group).toBe(productionD1Group)
+    expect(approvalWorkflow.concurrency?.group).toBe(productionD1Group)
+    expect(pvdWorkflow.concurrency?.group).toContain("'pornvideodownloaders.com-production-d1'")
+    expect(pvdWorkflow.concurrency?.group).not.toContain('inputs.site_id')
     expect(buildWorkflow.concurrency?.['cancel-in-progress']).toBe(false)
+    expect(pvdWorkflow.concurrency?.['cancel-in-progress']).toBe(false)
   })
 
   it('persists app-level Next caches without caching generated artifacts', () => {

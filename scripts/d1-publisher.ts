@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto'
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { assertCutoverUnlockedPlan } from '@serpdirectory/data-ops/cutover-lock'
 import { parse } from 'yaml'
 import { z } from 'zod'
 import { resolveSiteTarget, type SiteId, siteIds } from './site-targets'
@@ -183,6 +184,10 @@ export interface PublicationDatabase {
 
 const hash = (value: string): string => createHash('sha256').update(value).digest('hex')
 const statement = (query: string, ...bindings: unknown[]): PlannedStatement => ({ query, bindings })
+function cutoverGuardStatement(siteId: SiteId): PlannedStatement {
+  const guard = assertCutoverUnlockedPlan(siteId)
+  return statement(guard.sql, ...guard.params)
+}
 function membershipGuard(id: string, expected: string[], siteId: SiteId): PlannedStatement {
   return statement(
     `INSERT INTO publication_guard SELECT CASE WHEN (SELECT COUNT(*) FROM listing_categories lc JOIN categories c ON c.id=lc.category_id WHERE lc.listing_id=? AND c.site_id=? AND c.is_active=1)=? AND NOT EXISTS (SELECT 1 FROM listing_categories lc JOIN categories c ON c.id=lc.category_id WHERE lc.listing_id=? AND c.site_id=? AND c.is_active=1 AND c.slug NOT IN (${expected.map(() => '?').join(', ')})) THEN 1 ELSE 0 END`,
@@ -341,6 +346,7 @@ export function buildPublicationPlan(
   const addCategories = (values: string[]) =>
     values.forEach(value => routes.add(`/categories/${value}/`))
   const statements: PlannedStatement[] = [
+    cutoverGuardStatement(siteId),
     statement('PRAGMA foreign_keys = ON'),
     statement('CREATE TEMP TABLE publication_guard (valid INTEGER NOT NULL CHECK (valid=1))'),
     statement(
