@@ -44,6 +44,12 @@ function baseEvidence(environment: 'preview' | 'production') {
     environment,
     commitSha,
     migrationChecksum: checksum,
+    legacySource: {
+      checksum: 'e'.repeat(64),
+      ledgerVerified: true,
+      privateCounts: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
+      repeatImportMode: 'verified-no-op'
+    },
     identity: {
       expected: exactIdentity,
       observed: { ...exactIdentity },
@@ -389,6 +395,11 @@ describe('D1 replatform cutover preparation', () => {
     const names = job.steps.map(step => step.name)
     const ordered = [
       'Verify observed account, source D1, replacement D1, and Worker identity',
+      'Retain pre-bootstrap source Preview backup',
+      'Re-observe identities before controlled legacy source initialization',
+      'Initialize or verify controlled legacy Preview source',
+      'Re-observe identities before populated source rollback backup',
+      'Retain populated source rollback backup',
       'Apply fresh schema, import controlled data, and verify exact parity',
       'Deploy replacement binding from exact commit',
       'Run critical Catalog and Submission browser journeys',
@@ -426,6 +437,27 @@ describe('D1 replatform cutover preparation', () => {
     expect(identityFailureExit).toBeGreaterThan(cleanupIdentity)
     expect(firstCleanupMutation).toBeGreaterThan(identityFailureExit)
     expect(raw).toContain('Retain cleanup and manual-recovery evidence')
+    expect(raw).toContain('D1_RELEASE_GENERATION: legacy')
+    expect(raw).toContain('d1-preview-measure.ts source-preflight')
+    expect(raw).toContain('d1-preview-measure.ts source')
+    expect(raw).toContain('source-pre-bootstrap.sql')
+    expect(raw).toContain('source-repeat-import.txt')
+    expect(raw).toContain(
+      'grep -F "import is a no-op" "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt"'
+    )
+    const sourceStep =
+      job.steps.find(step => step.name === 'Initialize or verify controlled legacy Preview source')
+        ?.run ?? ''
+    expect(sourceStep.indexOf('source_rows')).toBeLessThan(
+      sourceStep.indexOf('worker-release.ts migrate preview')
+    )
+    expect(sourceStep.indexOf('worker-release.ts verify preview')).toBeLessThan(
+      sourceStep.indexOf('worker-release.ts migrate preview')
+    )
+    const measurement = readFileSync('scripts/d1-preview-measure.ts', 'utf8')
+    expect(measurement).toContain("phase === 'source-preflight'")
+    expect(measurement).toContain('sourcePrivateCounts')
+    expect(measurement).toContain('legacyLedger')
   })
 
   it('keeps the controlled badge fixture Preview-only and capability-gated', () => {
@@ -459,6 +491,8 @@ describe('D1 replatform cutover preparation', () => {
   it('derives sealed evidence from measured D1 and journey artifacts', () => {
     const source = readFileSync('scripts/d1-preview-evidence.ts', 'utf8')
     expect(source).toContain("required(values, '--measurement')")
+    expect(source).toContain("required(values, '--source-controlled')")
+    expect(source).toContain("required(values, '--source-repeat-import')")
     expect(source).toContain("required(values, '--submission-journeys')")
     expect(source).toContain("required(values, '--post-journey-measurement')")
     expect(source).not.toMatch(

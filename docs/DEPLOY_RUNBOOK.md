@@ -85,6 +85,12 @@ no Production mutation path. It runs only from the reviewed integration ref
 pull-request refs, and `main` are rejected by both workflow and release guards.
 Production and every other remote mutation remain `refs/heads/main`-only.
 
+The same approved Preview run may bootstrap an empty legacy Preview source solely
+from `d1/migrations/0001`-`0009` plus the reviewed controlled artifact. It retains the
+empty export first, rejects populated nonmatching or private state before mutation,
+proves a repeated import no-op, and retains the populated rollback export. This does
+not authorize access to or copying from Production.
+
 ## Verified public submissions
 
 Public submissions are staged in normalized D1 tables and require a successful badge

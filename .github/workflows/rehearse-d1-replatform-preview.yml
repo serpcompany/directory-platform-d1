@@ -116,19 +116,58 @@ jobs:
       - name: Re-observe identities before backup mutation group
         run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-backup.json"
 
-      - name: Retain source Preview backup
+      - name: Retain pre-bootstrap source Preview backup
         env:
           D1_RELEASE_GENERATION: legacy
-        run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
+        run: |
+          pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
+          source_backup="$(find .wrangler/backups -path "*/preview/$GITHUB_SHA.sql" -print -quit)"
+          test -n "$source_backup"
+          cp "$source_backup" "$REPLATFORM_EVIDENCE_DIR/source-pre-bootstrap.sql"
 
       - name: Retain empty replacement Preview backup
+        run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
+
+      - name: Re-observe identities before controlled legacy source initialization
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-source-bootstrap.json"
+
+      - name: Initialize or verify controlled legacy Preview source
+        env:
+          D1_RELEASE_GENERATION: legacy
+        run: |
+          set -euo pipefail
+          pnpm tsx scripts/d1-preview-measure.ts source-preflight "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/source-preflight.json"
+          source_rows="$(node -e 'const fs=require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).sourceRows)' "$REPLATFORM_EVIDENCE_DIR/source-preflight.json")"
+          if [ "$source_rows" != '0' ]
+          then
+            pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/source-existing-parity.json"
+            pnpm tsx scripts/worker-release.ts check-schema preview --site "${{ inputs.site_id }}"
+          fi
+          pnpm tsx scripts/worker-release.ts migrate preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/source-first-import.txt"
+          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/source-first-parity.json"
+          pnpm tsx scripts/worker-release.ts check-schema preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/worker-release.ts import preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt"
+          grep -F "import is a no-op" "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt"
+          pnpm tsx scripts/worker-release.ts verify preview --site "${{ inputs.site_id }}" | tee "$REPLATFORM_EVIDENCE_DIR/source-repeat-parity.json"
+          cmp "$REPLATFORM_EVIDENCE_DIR/source-first-parity.json" "$REPLATFORM_EVIDENCE_DIR/source-repeat-parity.json"
+          pnpm tsx scripts/d1-preview-measure.ts source "${{ inputs.site_id }}" "$REPLATFORM_EVIDENCE_DIR/source-controlled.json"
+
+      - name: Re-observe identities before populated source rollback backup
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-populated-source-backup.json"
+
+      - name: Retain populated source rollback backup
+        env:
+          D1_RELEASE_GENERATION: legacy
         run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
 
       - name: Upload nondestructive Preview backups
         uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.site_id }}-d1-replatform-preview-backups-${{ github.sha }}
-          path: .wrangler/backups/**/preview/${{ github.sha }}*.sql
+          path: |
+            .wrangler/backups/**/preview/${{ github.sha }}*.sql
+            ${{ runner.temp }}/d1-replatform-evidence/source-pre-bootstrap.sql
           if-no-files-found: error
           retention-days: 30
 
@@ -193,7 +232,7 @@ jobs:
           pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
 
       - name: Build and validate sealed exact-commit Preview receipt
-        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
+        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
 
       - name: Seal trusted Preview evidence
         run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json" > "$REPLATFORM_EVIDENCE_DIR/preview-receipt.json"

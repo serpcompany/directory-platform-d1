@@ -42,6 +42,8 @@ const siteId = resolveSiteTarget(required(values, '--site')).siteId
 const target = resolveSiteTarget(siteId)
 const identity = readJson(required(values, '--identity'))
 const workerAttestation = readJson(required(values, '--worker-attestation'))
+const sourceControlled = readJson(required(values, '--source-controlled'))
+const sourceRepeatImport = readFileSync(resolve(required(values, '--source-repeat-import')), 'utf8')
 const firstImport = readFileSync(resolve(required(values, '--first-import')), 'utf8')
 const first = readJson(required(values, '--first-parity'))
 const repeat = readJson(required(values, '--repeat-parity'))
@@ -54,6 +56,14 @@ const submission = readJson(required(values, '--submission-journeys'))
 const submissionCleanup = readJson(required(values, '--submission-cleanup'))
 const rollbackSource = readJson(required(values, '--rollback-source'))
 const rollbackTarget = readJson(required(values, '--rollback-target'))
+const sourcePrivateCounts = sourceControlled.sourcePrivateCounts as Record<string, unknown>
+if (
+  sourceControlled.legacyLedger !== true ||
+  !sourcePrivateCounts ||
+  Object.values(sourcePrivateCounts).some(value => Number(value) !== 0) ||
+  !sourceRepeatImport.includes('import is a no-op')
+)
+  throw new Error('Controlled legacy Preview source evidence is incomplete or unsafe.')
 if (JSON.stringify(first) !== JSON.stringify(repeat))
   throw new Error('First and repeat Preview parity evidence differ.')
 if (
@@ -146,6 +156,12 @@ const evidence = {
   commitSha: process.env.GITHUB_SHA,
   migrationChecksum: freshMigrationChecksum(),
   identity: { ...identity, attestation: workerAttestation },
+  legacySource: {
+    checksum: (sourceControlled.source as { checksum?: unknown }).checksum,
+    ledgerVerified: sourceControlled.legacyLedger,
+    privateCounts: sourcePrivateCounts,
+    repeatImportMode: 'verified-no-op'
+  },
   migration: {
     finalSnapshotSha256,
     sourceSnapshotChecksum: measuredSource.checksum,

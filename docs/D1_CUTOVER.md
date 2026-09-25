@@ -46,7 +46,7 @@ their independent confirmations.
 The approved Preview run then:
 
 1. verify account, Site, environment, source D1, replacement D1, and Worker identity;
-2. retain identified source and target backups;
+2. retain identified pre-bootstrap source and empty replacement-target backups;
 3. apply only `d1/drizzle/` to the empty replacement D1;
 4. import the controlled or sanitized snapshot and record its SHA-256 digest;
 5. verify exact per-table and whole-snapshot parity and the fresh migration ledger;
@@ -55,6 +55,18 @@ The approved Preview run then:
 8. pass Submission intake/rate-limit/badge/private-preview/approval/rejection journeys;
 9. repeat and prove `verified-no-op` with unchanged data checksums; and
 10. rehearse the old binding rollback without deleting either database.
+
+SERP has no pre-existing populated legacy Preview source. Within this same approved
+run, the workflow therefore initializes the isolated source before replacement import:
+it re-verifies all identities, applies only immutable `d1/migrations/0001`-`0009`,
+imports the reviewed controlled public artifact, proves exact catalog/schema parity
+and zero private Submission/notification/rate-limit state, repeats the import to prove
+the checksum path is a no-op, and retains the populated rollback backup. The original
+empty/pre-bootstrap export is retained separately. For PVD or a repeated SERP run, a
+populated source is verified before any migration command; an exact checksum is a
+safe no-op, while partial schema, different catalog state, or private rows stop before
+mutation rather than being overwritten. The replacement target remains distinct and
+empty (or an exact trusted prior receipt) until its fresh-history import.
 
 The workflow derives the commit from trusted `GITHUB_SHA`, proves checked-out `HEAD`
 matches it, and seals the complete evidence object with SHA-256. The receipt contains
