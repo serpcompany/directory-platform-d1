@@ -103,26 +103,26 @@
     "update": "pnpm update -r"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.2.2",
+    "@biomejs/biome": "2.5.14",
     "@commitlint/cli": "^19.8.1",
     "@commitlint/config-conventional": "^19.8.1",
     "@content-collections/mdx": "^0.2.2",
-    "@manypkg/cli": "^0.23.0",
+    "@manypkg/cli": "^0.25.1",
     "@serpdirectory/data-ops": "workspace:*",
     "@serpdirectory/site-contract": "workspace:*",
     "@serpdirectory/web-core": "workspace:*",
     "@types/js-yaml": "^4.0.9",
     "cross-env": "^7.0.3",
     "drizzle-kit": "0.31.11",
-    "eslint": "^10.4.0",
+    "eslint": "^10.11.0",
     "husky": "^9.1.7",
     "js-yaml": "^4.1.1",
-    "lefthook": "^2.1.1",
+    "lefthook": "^2.1.14",
     "tsx": "catalog:",
-    "turbo": "^2.8.7",
+    "turbo": "^2.11.2",
     "typescript": "catalog:",
     "vitest": "4.0.18",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "pnpm": {
     "overrides": {
