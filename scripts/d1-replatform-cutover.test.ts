@@ -903,6 +903,7 @@ describe('D1 replatform cutover preparation', () => {
     )
     expect(raw).toContain("PLAYWRIGHT_EXTERNAL_SERVER: '1'")
     expect(raw).not.toContain('PLAYWRIGHT_WEB_SERVER_COMMAND: node -e')
+    expect(raw).toContain('pnpm --filter e2e exec playwright install --with-deps chromium')
     expect(raw).not.toMatch(/(?:>|tee)\s+preview-[a-z-]+\.(?:json|txt)/u)
     expect(raw).not.toMatch(
       /scripts\/d1-[^\n]+\s+(?:preview-|catalog-|submission-|rollback-)[^/$"\s]+\.(?:json|txt)/u

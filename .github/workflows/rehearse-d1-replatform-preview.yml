@@ -235,6 +235,9 @@ jobs:
           pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
           pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json"
 
+      - name: Install Chromium for protected browser gates
+        run: pnpm --filter e2e exec playwright install --with-deps chromium
+
       - name: Run critical Catalog and Submission browser journeys
         env:
           E2E_SITE_ID: ${{ inputs.site_id }}
