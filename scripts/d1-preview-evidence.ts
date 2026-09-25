@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse } from 'yaml'
-import { freshMigrationChecksum } from './d1-replatform-cutover'
+import { freshMigrationChecksum, previewReceiptSha256 } from './d1-replatform-cutover'
+import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 import { resolveSiteTarget } from './site-targets'
 
 function argumentsMap(args: string[]): Map<string, string> {
@@ -43,6 +44,7 @@ const target = resolveSiteTarget(siteId)
 const identity = readJson(required(values, '--identity'))
 const workerAttestation = readJson(required(values, '--worker-attestation'))
 const sourceClassification = readJson(required(values, '--source-classification'))
+const sourceFinalClassification = readJson(required(values, '--source-final-classification'))
 const sourceControlled = readJson(required(values, '--source-controlled'))
 const sourceRepeatImport = readFileSync(resolve(required(values, '--source-repeat-import')), 'utf8')
 const firstImport = readFileSync(resolve(required(values, '--first-import')), 'utf8')
@@ -64,6 +66,22 @@ if (
 )
   throw new Error('Legacy Preview source classification is invalid.')
 const classifiedExpected = sourceClassification.expected as Record<string, unknown>
+const finalExpected = sourceFinalClassification.expected as Record<string, unknown>
+const finalObserved = sourceFinalClassification.observed as Record<string, unknown>
+const finalMigrationNames = finalObserved?.migrationNames as unknown
+const finalSiteIds = finalObserved?.siteIds as unknown
+const finalUnexpectedObjects = finalObserved?.unexpectedUserObjects as unknown
+if (
+  sourceFinalClassification.classification !== 'controlled-populated' ||
+  JSON.stringify(finalExpected?.migrationNames) !== JSON.stringify(canonicalLegacyMigrationNames) ||
+  JSON.stringify(finalMigrationNames) !== JSON.stringify(canonicalLegacyMigrationNames) ||
+  finalObserved?.schemaFingerprint !== finalExpected?.schemaFingerprint ||
+  JSON.stringify(finalSiteIds) !== JSON.stringify([siteId]) ||
+  JSON.stringify(finalUnexpectedObjects) !== JSON.stringify([]) ||
+  (finalObserved?.applicationSnapshot as { checksum?: unknown })?.checksum !==
+    finalExpected?.applicationSnapshotChecksum
+)
+  throw new Error('Final legacy source classification proof is incomplete or tampered.')
 const controlledSource = sourceControlled.source as { checksum?: unknown }
 if (
   sourceControlled.legacyLedger !== true ||
@@ -168,6 +186,12 @@ const evidence = {
   legacySource: {
     initialClassification: sourceClassification.classification,
     checksum: controlledSource.checksum,
+    classificationArtifact: sourceFinalClassification,
+    classificationDigest: previewReceiptSha256(sourceFinalClassification),
+    migrationNames: finalMigrationNames,
+    normalizedSchemaFingerprint: finalObserved.schemaFingerprint,
+    observedSiteIds: finalSiteIds,
+    unexpectedUserObjects: finalUnexpectedObjects,
     ledgerVerified: sourceControlled.legacyLedger,
     privateCounts: sourcePrivateCounts,
     repeatImportMode: 'verified-no-op'

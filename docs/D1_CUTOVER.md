@@ -68,6 +68,14 @@ safe no-op, while partial schema, different catalog state, or private rows stop 
 mutation rather than being overwritten. The replacement target remains distinct and
 empty (or an exact trusted prior receipt) until its fresh-history import.
 
+The immutable legacy lineage is one exported canonical filename list for
+`0001`–`0009`; generation and classification fail if the directory adds, removes, or
+renames any SQL file, so an accidental `0010` is never absorbed. The sealed Preview
+receipt embeds the complete final classifier artifact plus its canonical SHA-256,
+including exact migration names, normalized schema fingerprint, observed Site set,
+unexpected-object result, and full application/audit snapshot proof. Receipt
+validation recomputes that digest and cross-checks every summary field.
+
 The workflow derives the commit from trusted `GITHUB_SHA`, proves checked-out `HEAD`
 matches it, and seals the complete evidence object with SHA-256. The receipt contains
 the exact Site, full commit SHA, fresh-migration checksum, expected and observed

@@ -9,6 +9,7 @@ import {
   type ApplicationTableName,
   applicationColumnInventory,
   applicationTableNames,
+  canonicalLegacyMigrationNames,
   importOrder,
   toolOwnedTableNames
 } from './d1-replatform-inventory'
@@ -57,17 +58,6 @@ export interface MigrationResult {
 }
 
 const receiptPrefix = 'd1-replatform-v1:'
-const legacyMigrationNames = [
-  '0001_public_catalog.sql',
-  '0002_listing_slug_redirects.sql',
-  '0003_publication_run_provenance.sql',
-  '0004_listing_display_order.sql',
-  '0005_listing_submissions.sql',
-  '0006_submission_rate_limits.sql',
-  '0007_submission_notifications.sql',
-  '0008_submission_review_preview.sql',
-  '0009_related_listing_name_index.sql'
-] as const
 
 function quoteIdentifier(value: string): string {
   return `"${value.replaceAll('"', '""')}"`
@@ -457,7 +447,7 @@ export function migrateLocalD1(
     targetTransaction = true
     assertSchema(source, 'Source')
     assertSchema(destination, 'Target')
-    assertMigrationLedger(source, legacyMigrationNames, 'Source')
+    assertMigrationLedger(source, canonicalLegacyMigrationNames, 'Source')
     assertMigrationLedger(destination, freshMigrationNames(), 'Target')
     assertFreshSchemaObjects(destination)
     assertSourceIdentity(source, options.siteId)

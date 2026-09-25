@@ -6,21 +6,14 @@ import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { afterAll, describe, expect, it } from 'vitest'
 import { freshDatabaseIds } from './d1-drizzle-local'
 import { migrateLocalD1 } from './d1-replatform'
-import { applicationColumnInventory, applicationTableNames } from './d1-replatform-inventory'
+import {
+  applicationColumnInventory,
+  applicationTableNames,
+  canonicalLegacyMigrationNames
+} from './d1-replatform-inventory'
 import { resolveSiteTarget, type SiteId } from './site-targets'
 
 const temporaryDirectories: string[] = []
-const legacyMigrationNames = [
-  '0001_public_catalog.sql',
-  '0002_listing_slug_redirects.sql',
-  '0003_publication_run_provenance.sql',
-  '0004_listing_display_order.sql',
-  '0005_listing_submissions.sql',
-  '0006_submission_rate_limits.sql',
-  '0007_submission_notifications.sql',
-  '0008_submission_review_preview.sql',
-  '0009_related_listing_name_index.sql'
-]
 
 afterAll(() => {
   for (const directory of temporaryDirectories) rmSync(directory, { force: true, recursive: true })
@@ -55,10 +48,10 @@ function createLedger(database: DatabaseSync, names: string[]): void {
 function createSource(path: string, siteId: SiteId): void {
   const database = new DatabaseSync(path)
   database.exec('PRAGMA foreign_keys = ON')
-  for (const migration of legacyMigrationNames) {
+  for (const migration of canonicalLegacyMigrationNames) {
     database.exec(readFileSync(resolve('d1/migrations', migration), 'utf8'))
   }
-  createLedger(database, legacyMigrationNames)
+  createLedger(database, canonicalLegacyMigrationNames)
   seed(database, siteId)
   database.close()
 }
@@ -331,7 +324,7 @@ describe('local D1-to-D1 replatform migration', () => {
           .prepare('SELECT name FROM d1_migrations ORDER BY name')
           .all()
           .map(row => row.name)
-      ).toEqual(legacyMigrationNames)
+      ).toEqual(canonicalLegacyMigrationNames)
       expect(
         target.prepare('SELECT window_started_at FROM listing_submission_rate_limits').get()
           ?.window_started_at

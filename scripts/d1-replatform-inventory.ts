@@ -1,3 +1,15 @@
+export const canonicalLegacyMigrationNames = [
+  '0001_public_catalog.sql',
+  '0002_listing_slug_redirects.sql',
+  '0003_publication_run_provenance.sql',
+  '0004_listing_display_order.sql',
+  '0005_listing_submissions.sql',
+  '0006_submission_rate_limits.sql',
+  '0007_submission_notifications.sql',
+  '0008_submission_review_preview.sql',
+  '0009_related_listing_name_index.sql'
+] as const
+
 export const applicationColumnInventory = {
   sites: ['id', 'created_at', 'updated_at'],
   categories: [

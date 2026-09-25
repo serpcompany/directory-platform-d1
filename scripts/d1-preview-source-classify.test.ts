@@ -1,16 +1,15 @@
 import { createHash } from 'node:crypto'
 import { describe, expect, it } from 'vitest'
 import {
+  assertCanonicalLegacyMigrationSet,
   buildExpectedLegacySource,
   classifyLegacySource,
   type ExpectedLegacySource,
   type LegacySourceObservation
 } from './d1-preview-source-classify'
+import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 
-const migrationNames = Array.from(
-  { length: 9 },
-  (_, index) => `${String(index + 1).padStart(4, '0')}.sql`
-)
+const migrationNames = [...canonicalLegacyMigrationNames]
 const expected: ExpectedLegacySource = {
   applicationSnapshotChecksum: 'application-exact',
   migrationNames,
@@ -33,6 +32,17 @@ const exact: LegacySourceObservation = {
 }
 
 describe('legacy Preview source classification', () => {
+  it('rejects extra, missing, or renamed legacy migration SQL', () => {
+    const canonical = expected.migrationNames
+    expect(() => assertCanonicalLegacyMigrationSet(canonical)).not.toThrow()
+    expect(() => assertCanonicalLegacyMigrationSet([...canonical, '0010_forward.sql'])).toThrow(
+      'canonical immutable 0001-0009'
+    )
+    expect(() => assertCanonicalLegacyMigrationSet(canonical.slice(0, -1))).toThrow()
+    expect(() =>
+      assertCanonicalLegacyMigrationSet([...canonical.slice(0, -1), '0009_renamed.sql'])
+    ).toThrow()
+  })
   it.each(['serp.software', 'pornvideodownloaders.com'] as const)(
     'reconstructs the reviewed %s legacy schema and full artifact snapshot',
     siteId => {

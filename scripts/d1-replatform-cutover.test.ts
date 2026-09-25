@@ -11,6 +11,7 @@ import {
   validateReplatformTemplate,
   verifyPreviewRemoteIdentity
 } from './d1-replatform-cutover'
+import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 import { siteTargets } from './site-targets'
 
 const commitSha = 'a'.repeat(40)
@@ -39,6 +40,27 @@ function baseEvidence(environment: 'preview' | 'production') {
     service: 'worker-name',
     siteId
   }
+  const classificationArtifact = {
+    classification: 'controlled-populated',
+    expected: {
+      applicationSnapshotChecksum: 'e'.repeat(64),
+      migrationNames: [...canonicalLegacyMigrationNames],
+      schemaFingerprint: 'f'.repeat(64),
+      siteId
+    },
+    observed: {
+      applicationSnapshot: {
+        checksum: 'e'.repeat(64),
+        migrationNames: [...canonicalLegacyMigrationNames],
+        tables: {}
+      },
+      hasMigrationLedger: true,
+      migrationNames: [...canonicalLegacyMigrationNames],
+      schemaFingerprint: 'f'.repeat(64),
+      siteIds: [siteId],
+      unexpectedUserObjects: []
+    }
+  }
   return {
     siteId,
     environment,
@@ -47,6 +69,12 @@ function baseEvidence(environment: 'preview' | 'production') {
     legacySource: {
       initialClassification: 'blank',
       checksum: 'e'.repeat(64),
+      classificationArtifact,
+      classificationDigest: previewReceiptSha256(classificationArtifact),
+      migrationNames: [...canonicalLegacyMigrationNames],
+      normalizedSchemaFingerprint: 'f'.repeat(64),
+      observedSiteIds: [siteId],
+      unexpectedUserObjects: [],
       ledgerVerified: true,
       privateCounts: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
       repeatImportMode: 'verified-no-op'
@@ -359,6 +387,36 @@ describe('D1 replatform cutover preparation', () => {
     expect(() => validateCutoverEvidence(evidence, { commitSha: 'd'.repeat(40) })).toThrow(
       'trusted GITHUB_SHA'
     )
+  })
+
+  it('rejects a tampered full legacy source classification proof', () => {
+    const evidence = {
+      ...baseEvidence('preview'),
+      previewData: {
+        policy: 'controlled-fixtures',
+        copiedProduction: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
+        previewGenerated: { capabilityRows: 1, notificationSecretRows: 1, rateLimitRows: 1 }
+      }
+    }
+    const legacySource = evidence.legacySource
+    expect(() =>
+      validateCutoverEvidence(
+        {
+          ...evidence,
+          legacySource: {
+            ...legacySource,
+            classificationArtifact: {
+              ...legacySource.classificationArtifact,
+              observed: {
+                ...legacySource.classificationArtifact.observed,
+                migrationNames: [...canonicalLegacyMigrationNames, '0010_forward.sql']
+              }
+            }
+          }
+        },
+        { commitSha }
+      )
+    ).toThrow('artifact digest mismatch')
   })
 
   it('keeps the preparation workflow credential-free and non-mutating', () => {

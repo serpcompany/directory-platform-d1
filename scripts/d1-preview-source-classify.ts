@@ -5,7 +5,11 @@ import { DatabaseSync } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { type ApplicationSnapshot, readRemoteApplicationSnapshot } from './d1-preview-snapshot'
-import { applicationColumnInventory, applicationTableNames } from './d1-replatform-inventory'
+import {
+  applicationColumnInventory,
+  applicationTableNames,
+  canonicalLegacyMigrationNames
+} from './d1-replatform-inventory'
 import { resolveSiteTarget, type SiteId } from './site-targets'
 
 interface SchemaObject {
@@ -27,6 +31,11 @@ export interface ExpectedLegacySource {
   migrationNames: string[]
   schemaFingerprint: string
   siteId: SiteId
+}
+
+export function assertCanonicalLegacyMigrationSet(actual: readonly string[]): void {
+  if (actual.join('\0') !== canonicalLegacyMigrationNames.join('\0'))
+    throw new Error('d1/migrations SQL set must equal canonical immutable 0001-0009 exactly.')
 }
 
 function normalizeSchema(rows: SchemaObject[]): string {
@@ -77,6 +86,7 @@ export function buildExpectedLegacySource(siteId: SiteId): ExpectedLegacySource 
     const migrationNames = readdirSync(resolve('d1/migrations'))
       .filter(name => name.endsWith('.sql'))
       .sort()
+    assertCanonicalLegacyMigrationSet(migrationNames)
     for (const name of migrationNames)
       database.exec(readFileSync(resolve('d1/migrations', name), 'utf8'))
     const report = parse(readFileSync(resolve(target.parityReportPath), 'utf8')) as {

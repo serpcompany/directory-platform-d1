@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
+import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 import { replatformPreviewRef, resolveSiteTarget, type SiteId } from './site-targets'
 
 export type CutoverEnvironment = 'preview' | 'production'
@@ -533,6 +534,46 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
     )
       throw new Error('Legacy Preview source initial classification is invalid.')
     sha256(legacySource.checksum, 'legacySource.checksum')
+    const classificationArtifact = object(
+      legacySource.classificationArtifact,
+      'legacySource.classificationArtifact'
+    )
+    const classificationDigest = sha256(
+      legacySource.classificationDigest,
+      'legacySource.classificationDigest'
+    )
+    if (previewReceiptSha256(classificationArtifact) !== classificationDigest)
+      throw new Error('Legacy source classification artifact digest mismatch.')
+    if (classificationArtifact.classification !== 'controlled-populated')
+      throw new Error('Legacy source final classification must be controlled-populated.')
+    const expectedClassification = object(
+      classificationArtifact.expected,
+      'legacySource.classificationArtifact.expected'
+    )
+    const observedClassification = object(
+      classificationArtifact.observed,
+      'legacySource.classificationArtifact.observed'
+    )
+    exactArray(
+      expectedClassification.migrationNames,
+      canonicalLegacyMigrationNames,
+      'expected legacy migrations'
+    )
+    exactArray(
+      observedClassification.migrationNames,
+      canonicalLegacyMigrationNames,
+      'observed legacy migrations'
+    )
+    exactArray(observedClassification.siteIds, [siteId], 'observed legacy Sites')
+    exactArray(observedClassification.unexpectedUserObjects, [], 'unexpected legacy objects')
+    if (
+      observedClassification.schemaFingerprint !== expectedClassification.schemaFingerprint ||
+      legacySource.normalizedSchemaFingerprint !== observedClassification.schemaFingerprint ||
+      canonicalJson(legacySource.migrationNames) !== canonicalJson(canonicalLegacyMigrationNames) ||
+      canonicalJson(legacySource.observedSiteIds) !== canonicalJson([siteId]) ||
+      canonicalJson(legacySource.unexpectedUserObjects) !== canonicalJson([])
+    )
+      throw new Error('Legacy source classification summary does not match the full proof.')
     bool(legacySource.ledgerVerified, 'legacySource.ledgerVerified')
     if (legacySource.repeatImportMode !== 'verified-no-op')
       throw new Error('Legacy Preview source repeat import must be a verified no-op.')
