@@ -10,17 +10,18 @@ import {
 import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 
 const migrationNames = [...canonicalLegacyMigrationNames]
-const expected: ExpectedLegacySource = {
-  applicationSnapshotChecksum: 'application-exact',
-  migrationNames,
-  schemaFingerprint: 'schema-exact',
-  siteId: 'serp.software'
-}
 const tables = {
   sites: { count: 1, checksum: 'site' },
   listing_submissions: { count: 0, checksum: 'empty' },
   listing_submission_notifications: { count: 0, checksum: 'empty' },
   listing_submission_rate_limits: { count: 0, checksum: 'empty' }
+}
+const expected: ExpectedLegacySource = {
+  applicationSnapshotChecksum: 'application-exact',
+  applicationTables: tables,
+  migrationNames,
+  schemaFingerprint: 'schema-exact',
+  siteId: 'serp.software'
 }
 const exact: LegacySourceObservation = {
   applicationSnapshot: { checksum: 'application-exact', migrationNames, tables },

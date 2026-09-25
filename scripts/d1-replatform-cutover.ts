@@ -4,6 +4,7 @@ import { readdirSync, readFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
+import { pvdReviewedPrivateTableProof } from './d1-preview-sanitize'
 import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 import { replatformPreviewRef, resolveSiteTarget, type SiteId } from './site-targets'
 
@@ -1023,6 +1024,44 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
         generated[key] < 0
       )
         throw new Error(`Preview-generated ${key} must be a nonnegative isolated-row count.`)
+    }
+    if (policy.policy === 'sanitized-snapshot') {
+      if (siteId !== 'pornvideodownloaders.com')
+        throw new Error('Sanitized Preview evidence is registered only for PVD.')
+      const sanitization = object(policy.sanitization, 'previewData.sanitization')
+      if (
+        sanitization.sourceDatabaseId !== expectedIdentity.sourceDatabaseId ||
+        sanitization.afterChecksum !== legacySource.checksum ||
+        canonicalJson(sanitization.reviewedPrivateTableProof) !==
+          canonicalJson(pvdReviewedPrivateTableProof)
+      )
+        throw new Error('PVD sanitization evidence does not match the reviewed source proof.')
+      for (const field of [
+        'backupSha256',
+        'beforeChecksum',
+        'afterChecksum',
+        'journalDigest',
+        'resultDigest'
+      ])
+        sha256(sanitization[field], `previewData.sanitization.${field}`)
+      const mode = text(sanitization.mode, 'previewData.sanitization.mode')
+      if (!['sanitized', 'recovered-after-uncertain-response', 'already-sanitized'].includes(mode))
+        throw new Error('PVD sanitization mode is invalid.')
+      const identifiers = ['submissionId', 'eventId', 'rateFingerprint'] as const
+      if (mode === 'already-sanitized') {
+        if (
+          sanitization.deletedPrivateRows !== 0 ||
+          identifiers.some(field => sanitization[field] !== null)
+        )
+          throw new Error('Already-sanitized PVD evidence must not invent deleted row identities.')
+      } else {
+        if (sanitization.deletedPrivateRows !== 3)
+          throw new Error('PVD sanitization must record exactly three deleted private rows.')
+        for (const field of identifiers)
+          text(sanitization[field], `previewData.sanitization.${field}`)
+      }
+    } else if (siteId !== 'serp.software' || policy.sanitization !== undefined) {
+      throw new Error('Controlled-fixture Preview evidence must be unsanitized SERP evidence.')
     }
     return
   }

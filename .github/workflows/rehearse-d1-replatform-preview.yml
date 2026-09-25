@@ -35,7 +35,7 @@ jobs:
       GITHUB_SHA: ${{ github.sha }}
       WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
       D1_RELEASE_GENERATION: replatform
-      D1_PREVIEW_DATA_POLICY: controlled-fixtures
+      D1_PREVIEW_DATA_POLICY: ${{ inputs.site_id == 'pornvideodownloaders.com' && 'sanitized-snapshot' || 'controlled-fixtures' }}
       D1_PROTECTED_ENVIRONMENT: ${{ inputs.site_id == 'serp.software' && 'serp-software-preview' || 'pornvideodownloaders-preview' }}
       CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
       CLOUDFLARE_EXPECTED_ACCOUNT_ID: ${{ vars.CLOUDFLARE_EXPECTED_ACCOUNT_ID }}
@@ -167,6 +167,31 @@ jobs:
           test -n "$source_backup"
           cp "$source_backup" "$REPLATFORM_EVIDENCE_DIR/source-pre-bootstrap.sql"
 
+      - name: Upload PVD source recovery backup before sanitization
+        if: inputs.site_id == 'pornvideodownloaders.com'
+        uses: actions/upload-artifact@v6
+        with:
+          name: pornvideodownloaders.com-preview-pre-sanitization-backup-${{ github.sha }}
+          path: ${{ runner.temp }}/d1-replatform-evidence/source-pre-bootstrap.sql
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Re-observe PVD identity before bounded sanitization
+        if: inputs.site_id == 'pornvideodownloaders.com'
+        run: pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/pvd-sanitization-identity.json"
+
+      - name: Sanitize exact known PVD Preview private graph
+        if: inputs.site_id == 'pornvideodownloaders.com'
+        run: |
+          set -euo pipefail
+          source_backup="$(find .wrangler/backups -path "*/preview/$GITHUB_SHA.sql" -print -quit)"
+          test -n "$source_backup"
+          pnpm tsx scripts/d1-preview-sanitize.ts \
+            --identity "$REPLATFORM_EVIDENCE_DIR/pvd-sanitization-identity.json" \
+            --backup "$source_backup" \
+            --journal "$REPLATFORM_EVIDENCE_DIR/pvd-sanitization-journal.json" \
+            --output "$REPLATFORM_EVIDENCE_DIR/pvd-sanitization-result.json"
+
       - name: Retain empty replacement Preview backup
         run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
 
@@ -284,7 +309,16 @@ jobs:
           pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
 
       - name: Build and validate sealed exact-commit Preview receipt
-        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --initial-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" --secret-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-secret-worker-deployment.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-classification "$REPLATFORM_EVIDENCE_DIR/source-classification.json" --source-final-classification "$REPLATFORM_EVIDENCE_DIR/source-final-classification.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
+        run: |
+          sanitizer_args=()
+          if [ "${{ inputs.site_id }}" = 'pornvideodownloaders.com' ]
+          then
+            sanitizer_args+=(
+              --sanitization-journal "$REPLATFORM_EVIDENCE_DIR/pvd-sanitization-journal.json"
+              --sanitization-result "$REPLATFORM_EVIDENCE_DIR/pvd-sanitization-result.json"
+            )
+          fi
+          pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --initial-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" --secret-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-secret-worker-deployment.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-classification "$REPLATFORM_EVIDENCE_DIR/source-classification.json" --source-final-classification "$REPLATFORM_EVIDENCE_DIR/source-final-classification.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" "${sanitizer_args[@]}" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
 
       - name: Seal trusted Preview evidence
         run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json" > "$REPLATFORM_EVIDENCE_DIR/preview-receipt.json"

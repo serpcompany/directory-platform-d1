@@ -109,6 +109,23 @@ safe no-op, while partial schema, different catalog state, or private rows stop 
 mutation rather than being overwritten. The replacement target remains distinct and
 empty (or an exact trusted prior receipt) until its fresh-history import.
 
+PVD's pre-rehearsal source contains one historical Preview-only submission, its one
+event, and one rate-limit fingerprint while every public/audit table, legacy schema,
+migration ledger, and Site identity matches the reviewed controlled fixture. The PVD
+path may sanitize only that exact `1/1/1` graph. It first retains and uploads the
+source backup, re-verifies the full remote identity, writes a mode-`0600` recovery
+journal, and then sends one transactional D1 batch containing three ID-bound deletes
+with one-row assertions. Submission children or notifications, a linked Listing,
+another Site/status, broader private counts, public/audit drift, schema drift, or an
+unretained/stale backup stop before deletion. A rerun over the exact sanitized fixture
+is a verified no-op; an uncertain response is re-observed and retried only when the
+same exact graph remains. The reviewed opaque full-row digests identify the historical
+graph without committing its private content; every delete predicate binds every
+observed column so a between-check-and-delete change rolls back the batch. The sealed
+Preview receipt records the `sanitized-snapshot` policy, backup digest, before/after
+snapshot checksums, reviewed table digests, journal/result digests, and exact deleted
+row identities. Production and local databases are not selectable.
+
 The immutable legacy lineage is one exported canonical filename list for
 `0001`–`0009`; generation and classification fail if the directory adds, removes, or
 renames any SQL file, so an accidental `0010` is never absorbed. The sealed Preview

@@ -52,6 +52,18 @@ function readJson(path: string): Record<string, unknown> {
 const values = argumentsMap(process.argv.slice(2))
 const siteId = resolveSiteTarget(required(values, '--site')).siteId
 const target = resolveSiteTarget(siteId)
+const previewDataPolicy = requiredEnv('D1_PREVIEW_DATA_POLICY')
+const sanitizationJournalPath = values.get('--sanitization-journal')
+const sanitizationResultPath = values.get('--sanitization-result')
+const sanitizationJournal = sanitizationJournalPath ? readJson(sanitizationJournalPath) : undefined
+const sanitizationResult = sanitizationResultPath ? readJson(sanitizationResultPath) : undefined
+if (
+  (siteId === 'pornvideodownloaders.com' &&
+    (previewDataPolicy !== 'sanitized-snapshot' || !sanitizationJournal || !sanitizationResult)) ||
+  (siteId === 'serp.software' &&
+    (previewDataPolicy !== 'controlled-fixtures' || sanitizationJournal || sanitizationResult))
+)
+  throw new Error('Preview sanitization evidence does not match the selected Site data policy.')
 const identity = readJson(required(values, '--identity'))
 const initialWorkerObservation = readJson(required(values, '--initial-worker-deployment'))
 const secretWorkerObservation = readJson(required(values, '--secret-worker-deployment'))
@@ -242,6 +254,52 @@ if (
 const afterCleanup = submission.targetPrivateRowsAfterCleanup as Record<string, unknown>
 if (!afterCleanup || Object.values(afterCleanup).some(value => Number(value) !== 0))
   throw new Error('Submission journey cleanup deleted or retained unexpected state.')
+let sanitization: Record<string, unknown> | undefined
+if (sanitizationJournal && sanitizationResult) {
+  const journalProof = sanitizationJournal.reviewedPrivateTableProof
+  const resultProof = sanitizationResult.reviewedPrivateTableProof
+  const mode = sanitizationResult.mode
+  const sanitizedInThisRun = mode === 'sanitized' || mode === 'recovered-after-uncertain-response'
+  if (
+    sanitizationJournal.version !== 1 ||
+    sanitizationJournal.siteId !== siteId ||
+    sanitizationJournal.commitSha !== process.env.GITHUB_SHA ||
+    sanitizationJournal.sourceDatabaseId !== process.env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID ||
+    sanitizationJournal.backupSha256 !== sanitizationResult.backupSha256 ||
+    sanitizationJournal.beforeChecksum !== sanitizationResult.beforeChecksum ||
+    sanitizationJournal.expectedAfterChecksum !== sanitizationResult.afterChecksum ||
+    JSON.stringify(journalProof) !== JSON.stringify(resultProof) ||
+    !['sanitized', 'recovered-after-uncertain-response', 'already-sanitized'].includes(
+      String(mode)
+    ) ||
+    (sanitizedInThisRun &&
+      (!sanitizationJournal.submissionId ||
+        !sanitizationJournal.eventId ||
+        !sanitizationJournal.rateFingerprint ||
+        sanitizationJournal.submissionId !== sanitizationResult.submissionId ||
+        sanitizationJournal.eventId !== sanitizationResult.eventId ||
+        sanitizationJournal.rateFingerprint !== sanitizationResult.rateFingerprint)) ||
+    (!sanitizedInThisRun &&
+      (sanitizationJournal.submissionId !== null ||
+        sanitizationJournal.eventId !== null ||
+        sanitizationJournal.rateFingerprint !== null))
+  )
+    throw new Error('PVD Preview sanitization journal/result evidence is incomplete or mismatched.')
+  sanitization = {
+    mode,
+    backupSha256: sanitizationResult.backupSha256,
+    beforeChecksum: sanitizationResult.beforeChecksum,
+    afterChecksum: sanitizationResult.afterChecksum,
+    sourceDatabaseId: sanitizationJournal.sourceDatabaseId,
+    reviewedPrivateTableProof: resultProof,
+    journalDigest: previewReceiptSha256(sanitizationJournal),
+    resultDigest: previewReceiptSha256(sanitizationResult),
+    deletedPrivateRows: sanitizedInThisRun ? 3 : 0,
+    submissionId: sanitizationResult.submissionId,
+    eventId: sanitizationResult.eventId,
+    rateFingerprint: sanitizationResult.rateFingerprint
+  }
+}
 const artifactFiles = readdirSync(resolve(target.artifactBatchDirectory))
   .filter(file => file.endsWith('.sql'))
   .sort()
@@ -307,9 +365,10 @@ const evidence = {
     submission.sourceUnchanged === true &&
     Object.values(afterCleanup).every(value => Number(value) === 0),
   previewData: {
-    policy: process.env.D1_PREVIEW_DATA_POLICY,
+    policy: previewDataPolicy,
     copiedProduction,
-    previewGenerated
+    previewGenerated,
+    ...(sanitization ? { sanitization } : {})
   }
 }
 writeFileSync(resolve(required(values, '--output')), `${JSON.stringify(evidence, null, 2)}\n`)

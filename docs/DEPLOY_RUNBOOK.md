@@ -94,6 +94,17 @@ empty export first, rejects populated nonmatching or private state before mutati
 proves a repeated import no-op, and retains the populated rollback export. This does
 not authorize access to or copying from Production.
 
+PVD has one narrowly reviewed pre-rehearsal sanitization exception for its exact
+Preview-only private graph: one unlinked pending/verified Submission, its one event,
+and one rate-limit fingerprint, with zero repeatable children and notifications. The
+workflow uploads the source backup before the mutation, re-observes identity, and uses
+one transactional, ID-bound batch with exact `changes()` assertions. Any broader
+graph or public/schema/ledger drift fails closed. Never generalize this into age-,
+count-, or Site-wide deletion, and never run it against Production. The sealed receipt
+must label this path `sanitized-snapshot` and bind the reviewed opaque full-row
+digests, retained-backup checksum, sanitizer journal, exact result, and before/after
+application snapshots.
+
 SERP's one-time missing-Worker bootstrap exception is retired now that its Preview
 Worker exists. Both Sites require the exact existing Worker identity, then repeat
 preflight and deploy the exact main commit without transient authority against the
