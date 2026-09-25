@@ -169,12 +169,8 @@ function requiredTrimmedText(value: unknown, field: string): string {
 
 function absoluteUrl(value: unknown, field: string): string {
   const text = requiredText(value, field)
-  try {
-    new URL(text)
-    return text
-  } catch {
-    throw new Error(`Invalid D1 submission preview ${field}.`)
-  }
+  if (!validatePublicHttpUrl(text).ok) throw new Error(`Invalid D1 submission preview ${field}.`)
+  return text
 }
 
 function assetReference(value: unknown, field: string): string {

@@ -285,6 +285,26 @@ describe('shared submission data operations', () => {
       {
         corrupt: () =>
           sqlite.database
+            .prepare("UPDATE listing_submissions SET website='javascript:alert(1)' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET website=? WHERE id=?')
+            .run(input.website, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare("UPDATE listing_submissions SET website='http://127.0.0.1/private' WHERE id=?")
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare('UPDATE listing_submissions SET website=? WHERE id=?')
+            .run(input.website, saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
             .prepare("UPDATE listing_submissions SET logo_url='not an asset' WHERE id=?")
             .run(saved.id),
         restore: () =>
@@ -331,6 +351,34 @@ describe('shared submission data operations', () => {
           sqlite.database
             .prepare(
               "UPDATE listing_submission_resource_links SET url='not a URL' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET url='https://example.com/docs' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET url='file:///tmp/private' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id),
+        restore: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET url='https://example.com/docs' WHERE submission_id=? AND sort_order=0"
+            )
+            .run(saved.id)
+      },
+      {
+        corrupt: () =>
+          sqlite.database
+            .prepare(
+              "UPDATE listing_submission_resource_links SET url='http://169.254.169.254/latest' WHERE submission_id=? AND sort_order=0"
             )
             .run(saved.id),
         restore: () =>

@@ -5,7 +5,7 @@ database. GitHub Pages repo sync and local remote deploys are not supported.
 
 | Site | Deployment workflow | Preview environment | Production environment |
 | --- | --- | --- | --- |
-| `serp.software` | `build-and-deploy.yml` | `serp-software-preview` prepared, not provisioned | `production` |
+| `serp.software` | `build-and-deploy.yml` | `serp-software-preview` provisioned and rehearsed | `production` |
 | `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 ## Local verification
@@ -71,10 +71,12 @@ verification. Run it once from empty publication state, then repeat it after the
 catalog is populated to prove the identical checksum produces an import no-op before
 authorizing production.
 
-Existing exception: `serp.software` predates that requirement and currently has no
-provisioned preview Worker/D1/protected environment. Issue #72 prepares the explicit
-`serp-software-preview` contract, but it remains inert until separately approved and
-provisioned. See [the replacement cutover contract](./D1_CUTOVER.md).
+`serp.software` predates that requirement, but Issue #72 has now provisioned its
+isolated source/replacement Preview D1 databases, Worker, and protected environment.
+The protected rehearsal passed on commit
+`47ec54fc87d3ddf7fb31b3de1f5dc0ab55b83a30`; retained evidence is attached to
+[the successful workflow run](https://github.com/serpcompany/directory-platform-d1/actions/runs/36087909482).
+See [the replacement cutover contract](./D1_CUTOVER.md).
 
 The separately protected `rehearse-d1-replatform-preview.yml` workflow is the only
 prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves

@@ -49,10 +49,10 @@ for D1 features that Drizzle cannot express completely.
 Public queries require the Worker-selected site ID, approved status, active rows, and
 a publication time that is not in the future. `serp.software` and
 `pornvideodownloaders.com` use separate local and production D1 databases as well as
-tenant predicates, so an incorrect binding or site ID fails closed. PVD additionally
-has an isolated preview database. SERP's replacement Preview identity is checked in
-but its D1 database is not provisioned; see
-[the replacement cutover contract](./D1_CUTOVER.md).
+tenant predicates, so an incorrect binding or site ID fails closed. Both Sites have
+isolated Preview databases. SERP's protected source/replacement Preview databases
+were provisioned and successfully rehearsed on the exact Issue #72 integration
+commit; see [the replacement cutover contract](./D1_CUTOVER.md).
 
 Public catalog reads are implemented once in `packages/data-ops/`. Each application
 adapter supplies its validated D1 binding and checked-in site identity explicitly.

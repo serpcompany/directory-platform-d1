@@ -118,10 +118,11 @@ Listing, Submission, event, publication-state, and audit statements together.
 Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local
 state subdirectory, production D1 resource, Worker name, route, confirmation strings,
-and protected production environment. PVD also has isolated preview resources. SERP
-has a checked-in, unprovisioned `serp-software-preview` replacement contract; it is
-not a remote path until separately approved and provisioned. Future sites must not
-copy the old missing-preview exception.
+and protected production environment. Both Sites have isolated Preview resources.
+SERP's `serp-software-preview` source/replacement D1 databases, Worker, and protected
+environment were provisioned and rehearsed through the protected Issue #72 workflow
+on commit `47ec54fc87d3ddf7fb31b3de1f5dc0ab55b83a30`. Future sites must establish the
+same isolated Preview evidence before Production work.
 Shared publication and submission tools bind their SQL to the selected site and
 reject mismatches. Adding a third site still requires the full tenancy and isolation
 work in [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/`
