@@ -77,6 +77,7 @@ function readJson(path: string): unknown {
 }
 
 interface D1Envelope {
+  errors?: Array<{ code?: number; message?: string }>
   result?: Array<{ results?: Json[]; success?: boolean }>
   success?: boolean
 }
@@ -100,8 +101,17 @@ export function remoteD1Transport(
       payload.success === false ||
       !payload.result?.length ||
       payload.result.some(item => item.success === false)
-    )
-      throw new Error('Bounded remote D1 operation failed.')
+    ) {
+      const errorCodes = (payload.errors ?? [])
+        .map(error => error.code)
+        .filter(code => typeof code === 'number')
+      const failedResults = (payload.result ?? [])
+        .map((item, index) => (item.success === false ? index : -1))
+        .filter(index => index >= 0)
+      throw new Error(
+        `Bounded remote D1 operation failed (HTTP ${response.status}; provider codes ${errorCodes.join(',') || 'none'}; failed result indexes ${failedResults.join(',') || 'none'}).`
+      )
+    }
     return payload
   }
   return {
@@ -425,18 +435,28 @@ export async function acquireCutoverLock(
   cutoverId: string,
   now: string
 ): Promise<string> {
+  return acquireCutoverLockWithTransport(remoteD1Transport(databaseId), siteValue, cutoverId, now)
+}
+
+export async function acquireCutoverLockWithTransport(
+  transport: SnapshotTransferTransport,
+  siteValue: string,
+  cutoverId: string,
+  now: string
+): Promise<string> {
   const siteId = parseSiteId(siteValue)
   if (!cutoverId || cutoverId.includes(':')) throw new Error('Cutover identity is malformed.')
   const id = `${CUTOVER_LOCK_ID_PREFIX}${siteId}:${cutoverId}`
-  const transport = remoteD1Transport(databaseId)
+  const manifestIdentity = `production-cutover-lock:${cutoverId}`
   await transport.batch([
     {
       sql: `INSERT INTO migration_runs (id,site_id,schema_version,manifest_identity,input_checksum,target_checksum,affected_records,outcome,error,started_at,completed_at)
-      SELECT ?,?,'cutover-v1','production-cutover-lock','','',0,'started',NULL,?,NULL
+      SELECT ?,?,1,?,'','',0,'started',NULL,?,NULL
       WHERE NOT EXISTS (SELECT 1 FROM migration_runs WHERE site_id=? AND id LIKE ? ESCAPE '\\' AND outcome='started')`,
       params: [
         id,
         siteId,
+        manifestIdentity,
         now,
         siteId,
         `${CUTOVER_LOCK_ID_PREFIX.replaceAll('_', '\\_')}${siteId}:%`
@@ -444,10 +464,27 @@ export async function acquireCutoverLock(
     }
   ])
   const rows = await transport.query({
-    sql: "SELECT id FROM migration_runs WHERE site_id=? AND id LIKE ? AND outcome='started' ORDER BY id",
+    sql: `SELECT id,site_id,schema_version,manifest_identity,input_checksum,target_checksum,
+      affected_records,outcome,error,started_at,completed_at
+      FROM migration_runs WHERE site_id=? AND id LIKE ? AND outcome='started' ORDER BY id`,
     params: [siteId, `${CUTOVER_LOCK_ID_PREFIX}${siteId}:%`]
   })
-  if (rows.length !== 1 || rows[0]?.id !== id)
+  const lock = rows[0]
+  if (
+    rows.length !== 1 ||
+    lock?.id !== id ||
+    lock.site_id !== siteId ||
+    lock.schema_version !== 1 ||
+    lock.manifest_identity !== manifestIdentity ||
+    lock.input_checksum !== '' ||
+    lock.target_checksum !== '' ||
+    lock.affected_records !== 0 ||
+    lock.outcome !== 'started' ||
+    lock.error !== null ||
+    typeof lock.started_at !== 'string' ||
+    !lock.started_at ||
+    lock.completed_at !== null
+  )
     throw new Error('Unable to prove the sole exact immutable Production cutover lock.')
   return id
 }

@@ -1,9 +1,11 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import yaml from 'js-yaml'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
   acquireCutoverLock,
+  acquireCutoverLockWithTransport,
   activeDeployment,
   finalizeActiveLock,
   sealProductionEvidence,
@@ -167,7 +169,26 @@ describe('Production provider boundaries', () => {
     const bodies: unknown[] = []
     const responses = [
       [{ success: true, results: [] }],
-      [{ success: true, results: [{ id: 'd1-cutover-lock-v1:serp.software:cutover' }] }],
+      [
+        {
+          success: true,
+          results: [
+            {
+              affected_records: 0,
+              completed_at: null,
+              error: null,
+              id: 'd1-cutover-lock-v1:serp.software:cutover',
+              input_checksum: '',
+              manifest_identity: 'production-cutover-lock:cutover',
+              outcome: 'started',
+              schema_version: 1,
+              site_id: 'serp.software',
+              started_at: 'now',
+              target_checksum: ''
+            }
+          ]
+        }
+      ],
       [
         { success: true, results: [] },
         { success: true, results: [{ value: 1 }] }
@@ -193,6 +214,120 @@ describe('Production provider boundaries', () => {
     expect(bodies[0]).toEqual(expect.objectContaining({ batch: expect.any(Array) }))
     expect((bodies[0] as { batch: unknown[] }).batch).toHaveLength(1)
     expect((bodies[2] as { batch: unknown[] }).batch).toHaveLength(2)
+  })
+
+  it('uses the real STRICT legacy lock schema and supports exact retries and later cutovers', async () => {
+    const db = new DatabaseSync(':memory:')
+    db.exec(readFileSync(resolve('d1/migrations/0001_public_catalog.sql'), 'utf8'))
+    db.prepare('INSERT INTO sites (id) VALUES (?)').run('serp.software')
+    const transport = {
+      async query(statement: { params: unknown[]; sql: string }) {
+        return db.prepare(statement.sql).all(...(statement.params as SQLInputValue[])) as Array<
+          Record<string, unknown>
+        >
+      },
+      async batch(statements: ReadonlyArray<{ params: unknown[]; sql: string }>) {
+        db.exec('BEGIN IMMEDIATE')
+        try {
+          for (const statement of statements)
+            db.prepare(statement.sql).run(...(statement.params as SQLInputValue[]))
+          db.exec('COMMIT')
+        } catch (error) {
+          db.exec('ROLLBACK')
+          throw error
+        }
+      }
+    }
+
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'run-1', '2026-01-01')
+    ).resolves.toBe('d1-cutover-lock-v1:serp.software:run-1')
+    const first = db
+      .prepare(
+        'SELECT id,typeof(schema_version) AS schema_type,schema_version,manifest_identity,outcome FROM migration_runs'
+      )
+      .get() as Record<string, unknown>
+    expect(first).toEqual(
+      expect.objectContaining({
+        manifest_identity: 'production-cutover-lock:run-1',
+        outcome: 'started',
+        schema_type: 'integer',
+        schema_version: 1
+      })
+    )
+
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'run-1', '2026-01-02')
+    ).resolves.toContain('run-1')
+    expect(db.prepare('SELECT COUNT(*) AS count FROM migration_runs').get()).toEqual({ count: 1 })
+    db.prepare('UPDATE migration_runs SET manifest_identity=? WHERE id=?').run(
+      'tampered-provenance',
+      'd1-cutover-lock-v1:serp.software:run-1'
+    )
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'run-1', '2026-01-02')
+    ).rejects.toThrow('sole exact immutable')
+    db.prepare('UPDATE migration_runs SET manifest_identity=? WHERE id=?').run(
+      'production-cutover-lock:run-1',
+      'd1-cutover-lock-v1:serp.software:run-1'
+    )
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'conflict', '2026-01-02')
+    ).rejects.toThrow('sole exact immutable')
+
+    db.prepare("UPDATE migration_runs SET outcome='succeeded',completed_at=? WHERE id=?").run(
+      '2026-01-03',
+      'd1-cutover-lock-v1:serp.software:run-1'
+    )
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'run-2', '2026-02-01')
+    ).resolves.toContain('run-2')
+    db.prepare("UPDATE migration_runs SET outcome='failed',completed_at=? WHERE id=?").run(
+      '2026-02-02',
+      'd1-cutover-lock-v1:serp.software:run-2'
+    )
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'run-3', '2026-03-01')
+    ).resolves.toContain('run-3')
+    expect(
+      db
+        .prepare('SELECT manifest_identity FROM migration_runs ORDER BY started_at')
+        .all()
+        .map(row => row.manifest_identity)
+    ).toEqual([
+      'production-cutover-lock:run-1',
+      'production-cutover-lock:run-2',
+      'production-cutover-lock:run-3'
+    ])
+    db.close()
+  })
+
+  it('reports bounded provider diagnostics without echoing SQL parameters', async () => {
+    process.env.CLOUDFLARE_ACCOUNT_ID = 'account'
+    process.env.CLOUDFLARE_API_TOKEN = 'token'
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(
+            JSON.stringify({
+              errors: [{ code: 7500, message: 'secret-value must not be reflected' }],
+              result: [{ success: false }],
+              success: false
+            }),
+            { status: 400, headers: { 'content-type': 'application/json' } }
+          )
+      )
+    )
+    let message = ''
+    try {
+      await acquireCutoverLock('database', 'serp.software', 'secret-value', 'now')
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).toContain('HTTP 400; provider codes 7500; failed result indexes 0')
+    expect(message).not.toContain('secret-value')
+    expect(message).not.toContain('INSERT INTO migration_runs')
   })
 
   it('observes the exact emitted sole version, script, route, and D1 binding', async () => {
