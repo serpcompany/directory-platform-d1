@@ -96,6 +96,14 @@ guards. This lets the sealed Preview receipt match the exact commit later presen
 to the Production cutover. Preview and Production still require separate protected
 environments and confirmations.
 
+Production cutover Stage 3 contains no workflow or mutation executor. Its reusable
+read-only preflight accepts only the named successful exact-`main` Preview artifact,
+revalidates the complete sealed receipt against a protected digest, and observes the
+Production account, source/replacement D1 identities, Worker, active apex zone/route,
+sole 100-percent active version, and current source D1 binding. A passing preflight is
+evidence for a later separately approved executor; it is not permission to lock,
+backup, migrate, import, deploy, rebind, or otherwise mutate Production.
+
 The same approved Preview run may bootstrap an empty legacy Preview source solely
 from `d1/migrations/0001`-`0009` plus the reviewed controlled artifact. It retains the
 empty export first, rejects populated nonmatching or private state before mutation,
