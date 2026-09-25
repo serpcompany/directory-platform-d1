@@ -81,8 +81,8 @@ After both retention deadlines:
 6. remove the retired lineage, cutover-only code, environment values, and workflows
    in a reviewed pull request.
 
-The two unbound source Preview databases were deleted through the protected,
-main-only `delete-retired-preview-d1.yml` workflow after explicit authorization:
+The two unbound source Preview databases were deleted through a protected,
+main-only workflow after explicit authorization:
 
 - `serp-software-replatform-source-preview`
   (`5e96a9f0-e11a-4c60-8dd3-02299c032466`):
@@ -95,5 +95,6 @@ main-only `delete-retired-preview-d1.yml` workflow after explicit authorization:
 Both final receipts record `action=deleted`; account inventory and public HTTP checks
 re-proved the active replacement Preview databases and Worker bindings afterward.
 The temporary OAuth and retired Preview identity secrets were removed, and the
-deletion workflow was disabled. This grants no authority over either retained
+single-use deletion executor was removed after its receipts were verified. This
+grants no authority over either retained
 Production source, which remains governed by Issue #88 and the deadlines above.
