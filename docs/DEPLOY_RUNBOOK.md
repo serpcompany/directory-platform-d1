@@ -86,6 +86,31 @@ The protected rehearsal passed on commit
 [the successful workflow run](https://github.com/serpcompany/directory-platform-d1/actions/runs/36087909482).
 See [the replacement cutover contract](./D1_CUTOVER.md).
 
+### Fresh-D1 Production cutover
+
+Never run the replacement transfer or binding switch from a developer terminal.
+After an exact-main Preview rehearsal, configure the selected Site's protected
+Production environment with the exact source/replacement D1 identities, Worker,
+account, `PRODUCTION_BASE_URL`, one-element `D1_CUTOVER_ALLOWED_SITE_IDS`, successful
+`TRUSTED_PREVIEW_RUN_ID`, and separately reviewed
+`TRUSTED_PREVIEW_RECEIPT_SHA256`. Dispatch
+`cutover-d1-replatform-production.yml` from `main` with the Site, exact
+`cutover-<site>-production` phrase, and a new stable cutover ID.
+
+Do not approve finalization immediately. Preserve the successful run URL, commit,
+cutover ID, receipt digest, source/target version IDs, and backup artifact expiry.
+During the stabilization window writes intentionally remain frozen. If rollback is
+required, configure the protected `TRUSTED_PRODUCTION_RECEIPT_SHA256` and dispatch
+`rollback-d1-replatform-production.yml` with the original run ID, commit SHA, and
+exact `rollback-<site>-production` phrase. It changes only the Worker version/binding.
+
+After the responsible Maintainer accepts the stabilization evidence, dispatch
+`finalize-d1-replatform-production.yml` with the same run ID and commit SHA and exact
+`finalize-<site>-production` phrase. Finalization fails unless the recorded target
+version is solely active and both locks remain. It unfreezes only the active target;
+the inactive source stays locked. Database deletion and SQL restore are never part of
+these workflows.
+
 The separately protected `rehearse-d1-replatform-preview.yml` workflow is the only
 prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
 the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,

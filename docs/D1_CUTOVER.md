@@ -272,14 +272,53 @@ distinguishes real revocation from an invalid probe.
 
 ## Production cutover
 
-Workflow preparation never executes Production mutation. A future Production
-executor requires a separate protected-environment approval and exact confirmation.
-It must acquire one Site-wide mutation lock that freezes Submission, Publication,
-approval, and notification writes before the final identified source snapshot. That
-exact snapshot is the only authorized import input. Exact parity must pass before the
-Worker binding changes.
+Production execution is split across three protected, main-only workflows:
 
-Stage 1 lock enforcement is implemented independently of that future executor. The
+- `cutover-d1-replatform-production.yml` uses the exact
+  `cutover-<site>-production` confirmation;
+- `rollback-d1-replatform-production.yml` uses the exact
+  `rollback-<site>-production` confirmation; and
+- `finalize-d1-replatform-production.yml` uses the exact
+  `finalize-<site>-production` confirmation.
+
+All three select one explicit Site and its registered protected Production
+environment and share the non-canceling `<site>-production-d1` concurrency group with
+the normal deploy, publication, and approval workflows. The cutover consumes the sole
+successful, unexpired exact-main Preview artifact and separately protected receipt
+digest. It proves the Cloudflare account, both D1 UUID/name pairs, Worker, active sole
+version, source binding, zone, and apex route before mutation.
+
+The cutover deploys the exact checked-out main commit source-bound before acquiring an
+immutable Site-wide lock. The lock is the first statement in every application and
+operator mutation batch, so Submission, Publication, approval, and notification
+writes fail closed. A real HTTP write probe must return the stable frozen response.
+Two identical full database proofs then capture the exact frozen 17-table source
+snapshot; any drift stops the run.
+
+The replacement must have the reviewed fresh Drizzle schema and be empty, or contain
+only the exact resumable marker/subset for the same Site, cutover ID, source UUID,
+schema, migration ledger, and snapshot. A divergent or ambiguous partial target stops
+without cleanup. Exact per-table and whole-snapshot parity, foreign keys, and the
+sealed transfer receipt must pass before the same commit is deployed target-bound.
+Production-safe catalog gates and the frozen-write probe run against the public apex.
+
+The successful executor rehearses rollback by selecting the recorded immutable
+source-bound Worker version—never rebuilding—then restores the recorded immutable
+target-bound version and re-attests the sole 100-percent deployment and binding. Both
+databases remain locked. A failed executor never unfreezes either database and, when
+the reviewed source version was recorded, restores that version fail-closed before
+retaining evidence. The stable operator-supplied cutover ID must be reused for an
+interrupted retry; a different lock or snapshot is ambiguous and rejected.
+
+Source and pre-cutover target exports plus measured evidence are retained for at
+least 90 days. No workflow deletes a database. Rollback consumes the sealed cutover
+receipt and protected digest, deploys only its recorded source version, performs no
+build and no SQL restore, and leaves both locks active. Finalization consumes the
+same receipt, proves the recorded target version is the sole active target-bound
+version, repeats public catalog gates, proves both locks, and conditionally marks
+only the active replacement lock succeeded. The inactive source remains locked.
+
+Stage 1 lock enforcement is the runtime foundation consumed by the executor. The
 lock is an active reserved `migration_runs` row with ID prefix
 `d1-cutover-lock-v1:<site>:`. Public write batches, protected publication and
 submission decisions, notification delivery, and generic Production migration/import
@@ -287,18 +326,18 @@ all fail closed while it is active. Production D1 workflows for a Site share the
 same `<site>-production-d1` concurrency group. This enforcement does not itself
 create a lock or authorize a Production cutover.
 
-Stage 2 prepares the deterministic snapshot boundary independently of a Production
-executor. The shared canonical engine covers all 17 application tables, preserves
+Stage 2 supplies the executor's deterministic snapshot boundary. The shared canonical
+engine covers all 17 application tables, preserves
 private and audit rows plus full signed 64-bit integers, and uses bounded reads and
 writes. Capture requires the exact active Stage 1 lock and two identical full source
 proofs. A fresh target may resume only through a deterministic marker for the same
 Site, cutover identity, source identity, schema, ledger, and snapshot checksum;
 `INSERT OR IGNORE` never authorizes divergent partial data. The target replatform
 receipt is created only after exact per-table/whole-snapshot and foreign-key parity.
-No Production workflow or remote resource selection is introduced by Stage 2.
+Stage 2 itself contains no remote resource selection or authority.
 
-Stage 3 prepares two read-only trust boundaries independently of a Production
-executor. `scripts/d1-replatform-production-preflight.ts` first consumes one
+Stage 3 supplies the executor's two read-only trust boundaries.
+`scripts/d1-replatform-production-preflight.ts` first consumes one
 explicit GitHub Actions run and its exact-name retained Preview artifact. It accepts
 only a successful `workflow_dispatch` run from this repository's
 `.github/workflows/rehearse-d1-replatform-preview.yml` on `main` whose `head_sha`
@@ -315,21 +354,22 @@ active apex zone and sole exact apex route; latest active deployment with one ve
 at 100 percent; and that version's sole `DB` D1 binding still points at the protected
 source UUID. Every untrusted request, GitHub response, Cloudflare envelope, array,
 ZIP entry, and receipt is parsed at runtime and mismatch errors include a remediation.
-This module does not acquire a mutation lock, write D1, deploy or rebind a Worker,
-create a workflow, or authorize a Production cutover.
+This module does not itself acquire a mutation lock, write D1, deploy or rebind a
+Worker, or authorize a Production cutover.
 
-The old D1 remains intact and read-only for at least 30 days. Record its backup
+The old D1 remains intact and read-only for at least 90 days. Record its backup
 artifact, retention expiry, protected rollback operation, and responsible Maintainer.
 Rollback changes only the Worker binding; it never deletes either database. Unless a
 tested replay exists for every post-cutover write, Submission, Publication, approval,
 and notification mutation remain frozen for the rollback window.
 
-## Current authorization boundary
+## Authorization boundary
 
 Allowed now:
 
 ```bash
 pnpm d1:replatform:config:validate
+pnpm d1:replatform:production:validate
 pnpm d1:replatform:plan:preview
 pnpm d1:replatform:plan:production
 ```
@@ -342,14 +382,12 @@ workflow authorizes only its read-only identity calls and single missing replace
 Preview D1 creation described above. It does not authorize a local equivalent or any
 subsequent schema/data/Worker operation.
 
-The Preview workflow is the only prepared remote executor. There is deliberately no
-Production mutation job in either preparation workflow. A later Production executor
-must consume the trusted sealed Preview receipt and implement every Production gate
-above under a separate `cutover-<site>-production` approval.
+The three Production workflows are inert until their Site-specific protected
+environment has exact source/replacement identities, Preview run and digest trust,
+Cloudflare authority, public base URL, required reviewer, and receipt trust for later
+rollback/finalization. Checked-in code and a passing harness do not authorize a run.
 
-Before remote rehearsal, the Maintainer must choose and approve the concrete SERP
-Preview Worker/D1 names, Preview URL or route, Cloudflare account, protected
-environment reviewer, backup retention, rollback-window duration, and responsible
-Maintainer. The prepared executor uses controlled fixtures; a sanitized-snapshot
-executor requires its own reviewed implementation. Confirm the same
-choices independently for PVD without replacing its existing Preview identity.
+Before remote execution, the Maintainer must independently confirm each Site's
+Preview receipt, Production source and replacement identities, protected environment
+reviewer, 90-day artifact retention, stabilization duration, and responsible
+Maintainer. Do not replace either Site's established Preview identity.
