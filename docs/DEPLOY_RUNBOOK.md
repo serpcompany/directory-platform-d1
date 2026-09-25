@@ -252,6 +252,26 @@ different values even when the dashboard presents them together; never infer the
 from clipboard order or labels. Record redacted identity evidence, resource IDs, and
 workflow run URLs on the governing GitHub issue without committing credentials.
 
+PVD's missing replacement Preview D1 has a narrower one-time workflow:
+`.github/workflows/provision-pornvideodownloaders-replacement-preview.yml`. Dispatch
+it only from the reviewed `main` commit through `pornvideodownloaders-preview` with
+`provision-pornvideodownloaders.com-replacement-preview`. The protected environment
+must already contain the account ID, source Preview D1 UUID/name, Preview Worker
+name, and scoped Cloudflare token. Leave both replacement Preview D1 values absent on
+the first run. The workflow proves those identities read-only, creates only
+`pornvideodownloaders-replatform-preview` in the source jurisdiction or primary
+region, reads it back, and retains a non-secret identity receipt. It performs no SQL,
+migration, import, Worker deployment, deletion, Production action, or GitHub secret
+write.
+
+After reviewing the retained receipt, manually configure both
+`CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID` and
+`CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME` in the same protected environment.
+Only an exact pair permits a read-only rerun; an unexpected same-name resource or a
+partial/mismatched pair fails closed. Provisioning alone is not a rehearsal and does
+not authorize `.github/workflows/rehearse-d1-replatform-preview.yml` until the
+protected replacement identity is configured and independently checked.
+
 For each new site, update and verify:
 
 1. `scripts/site-targets.ts`, `configs/wrangler/<site-id>/`, and synthetic local

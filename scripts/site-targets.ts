@@ -14,6 +14,9 @@ export interface SiteTarget {
       preview: string
       production: string
     }
+    provision: {
+      replacementPreview: string
+    }
     publish: string
     replatform: {
       preview: string
@@ -38,6 +41,7 @@ export interface SiteTarget {
   }
   replatform: {
     allowMissingPreviewWorkerBootstrap: boolean
+    previewDatabaseName: string
     previewConfigPath: string
     productionConfigPath: string
   }
@@ -56,6 +60,9 @@ export const siteTargets = {
       plan: {
         preview: 'plan-pornvideodownloaders.com-preview',
         production: 'plan-pornvideodownloaders.com-production'
+      },
+      provision: {
+        replacementPreview: 'provision-pornvideodownloaders.com-replacement-preview'
       },
       publish: 'publish-pornvideodownloaders.com-production',
       replatform: {
@@ -81,6 +88,7 @@ export const siteTargets = {
     },
     replatform: {
       allowMissingPreviewWorkerBootstrap: false,
+      previewDatabaseName: 'pornvideodownloaders-replatform-preview',
       previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-preview.jsonc',
       productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-production.jsonc'
     },
@@ -97,6 +105,9 @@ export const siteTargets = {
       plan: {
         preview: 'plan-serp.software-preview',
         production: 'plan-serp.software-production'
+      },
+      provision: {
+        replacementPreview: 'provision-serp.software-replacement-preview'
       },
       publish: 'publish-serp.software-production',
       replatform: {
@@ -122,6 +133,7 @@ export const siteTargets = {
     },
     replatform: {
       allowMissingPreviewWorkerBootstrap: false,
+      previewDatabaseName: 'serp-software-replatform-preview',
       previewConfigPath: 'configs/wrangler/serp.software/replatform-preview.jsonc',
       productionConfigPath: 'configs/wrangler/serp.software/replatform-production.jsonc'
     },
