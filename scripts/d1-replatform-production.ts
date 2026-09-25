@@ -464,10 +464,27 @@ export async function acquireCutoverLockWithTransport(
     }
   ])
   const rows = await transport.query({
-    sql: "SELECT id FROM migration_runs WHERE site_id=? AND id LIKE ? AND outcome='started' ORDER BY id",
+    sql: `SELECT id,site_id,schema_version,manifest_identity,input_checksum,target_checksum,
+      affected_records,outcome,error,started_at,completed_at
+      FROM migration_runs WHERE site_id=? AND id LIKE ? AND outcome='started' ORDER BY id`,
     params: [siteId, `${CUTOVER_LOCK_ID_PREFIX}${siteId}:%`]
   })
-  if (rows.length !== 1 || rows[0]?.id !== id)
+  const lock = rows[0]
+  if (
+    rows.length !== 1 ||
+    lock?.id !== id ||
+    lock.site_id !== siteId ||
+    lock.schema_version !== 1 ||
+    lock.manifest_identity !== manifestIdentity ||
+    lock.input_checksum !== '' ||
+    lock.target_checksum !== '' ||
+    lock.affected_records !== 0 ||
+    lock.outcome !== 'started' ||
+    lock.error !== null ||
+    typeof lock.started_at !== 'string' ||
+    !lock.started_at ||
+    lock.completed_at !== null
+  )
     throw new Error('Unable to prove the sole exact immutable Production cutover lock.')
   return id
 }

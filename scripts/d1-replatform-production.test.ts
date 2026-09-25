@@ -169,7 +169,26 @@ describe('Production provider boundaries', () => {
     const bodies: unknown[] = []
     const responses = [
       [{ success: true, results: [] }],
-      [{ success: true, results: [{ id: 'd1-cutover-lock-v1:serp.software:cutover' }] }],
+      [
+        {
+          success: true,
+          results: [
+            {
+              affected_records: 0,
+              completed_at: null,
+              error: null,
+              id: 'd1-cutover-lock-v1:serp.software:cutover',
+              input_checksum: '',
+              manifest_identity: 'production-cutover-lock:cutover',
+              outcome: 'started',
+              schema_version: 1,
+              site_id: 'serp.software',
+              started_at: 'now',
+              target_checksum: ''
+            }
+          ]
+        }
+      ],
       [
         { success: true, results: [] },
         { success: true, results: [{ value: 1 }] }
@@ -241,6 +260,17 @@ describe('Production provider boundaries', () => {
       acquireCutoverLockWithTransport(transport, 'serp.software', 'run-1', '2026-01-02')
     ).resolves.toContain('run-1')
     expect(db.prepare('SELECT COUNT(*) AS count FROM migration_runs').get()).toEqual({ count: 1 })
+    db.prepare('UPDATE migration_runs SET manifest_identity=? WHERE id=?').run(
+      'tampered-provenance',
+      'd1-cutover-lock-v1:serp.software:run-1'
+    )
+    await expect(
+      acquireCutoverLockWithTransport(transport, 'serp.software', 'run-1', '2026-01-02')
+    ).rejects.toThrow('sole exact immutable')
+    db.prepare('UPDATE migration_runs SET manifest_identity=? WHERE id=?').run(
+      'production-cutover-lock:run-1',
+      'd1-cutover-lock-v1:serp.software:run-1'
+    )
     await expect(
       acquireCutoverLockWithTransport(transport, 'serp.software', 'conflict', '2026-01-02')
     ).rejects.toThrow('sole exact immutable')
@@ -289,9 +319,15 @@ describe('Production provider boundaries', () => {
           )
       )
     )
-    await expect(
-      acquireCutoverLock('database', 'serp.software', 'secret-value', 'now')
-    ).rejects.toThrow('HTTP 400; provider codes 7500; failed result indexes 0')
+    let message = ''
+    try {
+      await acquireCutoverLock('database', 'serp.software', 'secret-value', 'now')
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+    expect(message).toContain('HTTP 400; provider codes 7500; failed result indexes 0')
+    expect(message).not.toContain('secret-value')
+    expect(message).not.toContain('INSERT INTO migration_runs')
   })
 
   it('observes the exact emitted sole version, script, route, and D1 binding', async () => {
