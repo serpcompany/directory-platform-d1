@@ -109,11 +109,11 @@ Before returning the shared listing-detail DTO, the preview boundary validates t
 required text, category, publication date, website, media, and resource URLs and
 fails closed on malformed migrated or staged data.
 
-Conditional badge verification, rejection, and approval plans create a temporary
-CHECK-constrained guard inside the same D1 batch. Every compare-and-swap transition
-must change exactly one expected row; a stale status, category, publication version,
-or checksum violates the guard and rolls back the Listing, Submission, event,
-publication-state, and audit statements together.
+Conditional badge verification, rejection, and approval plans place a D1-compatible
+`changes()` assertion after every compare-and-swap transition in the same batch. The
+assertion deliberately raises a SQLite JSON error unless exactly one expected row
+changed, so a stale status, category, publication version, or checksum rolls back the
+Listing, Submission, event, publication-state, and audit statements together.
 
 Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local

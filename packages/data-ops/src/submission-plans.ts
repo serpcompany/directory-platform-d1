@@ -15,10 +15,6 @@ export interface SubmissionApprovalSnapshot {
 
 const CHANNEL = 'github_issue'
 
-function guardMutationPlans(plans: SubmissionStatementPlan[]): SubmissionStatementPlan[] {
-  return plans
-}
-
 /**
  * SQLite evaluates only the selected CASE branch. A zero-row or multi-row
  * conditional transition therefore reaches malformed JSON and fails the D1
@@ -49,7 +45,7 @@ export function buildRejectSubmissionPlans(input: {
   siteId: ActiveCheckedInSiteId
   submissionId: string
 }): SubmissionStatementPlan[] {
-  return guardMutationPlans([
+  return [
     {
       sql: `UPDATE listing_submissions SET status='rejected',reviewed_at=?,reviewed_by=?,updated_at=?
         WHERE id=? AND site_id=? AND status IN ('pending_badge','verified')`,
@@ -61,7 +57,7 @@ export function buildRejectSubmissionPlans(input: {
         VALUES (?,'rejected',?)`,
       params: [input.submissionId, input.reviewer]
     }
-  ])
+  ]
 }
 
 export function buildApproveSubmissionPlans(input: {
@@ -78,7 +74,7 @@ export function buildApproveSubmissionPlans(input: {
   version: number
 }): SubmissionStatementPlan[] {
   const nextVersion = input.version + 1
-  return guardMutationPlans([
+  return [
     {
       sql: `INSERT INTO publication_runs
         (id,site_id,manifest_id,base_version,input_checksum,affected_records,affected_routes,outcome,
@@ -202,7 +198,7 @@ export function buildApproveSubmissionPlans(input: {
       params: [nextVersion, input.now, input.runId, input.siteId]
     },
     assertPreviousStatementChangedOne('publication_audit_completed')
-  ])
+  ]
 }
 
 export function selectVerifiedSubmissionNotificationPlans(

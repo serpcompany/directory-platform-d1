@@ -32,8 +32,9 @@ and records one deterministic receipt in `migration_runs`. See
 Runtime Submission reads and writes are implemented once in `packages/data-ops/`
 through an injected Site-explicit Drizzle client. Multi-row intake and conditional
 state transitions use D1 batches. Verification, rejection, and approval transitions
-assert their expected row change with a temporary CHECK-constrained guard in that
-same batch, so stale or concurrent decisions roll back their events and every
+follow each compare-and-swap statement with a D1-compatible `changes()` assertion in
+that same batch. The assertion raises a SQLite JSON error unless exactly one expected
+row changed, so stale or concurrent decisions roll back their events and every
 catalog/publication/audit side effect.
 
 Private preview hydration treats even verified staging rows as untrusted persisted
