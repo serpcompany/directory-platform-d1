@@ -36,7 +36,7 @@ jobs:
       CLOUDFLARE_WORKER_PREVIEW_NAME: ${{ secrets.CLOUDFLARE_WORKER_PREVIEW_NAME }}
     steps:
       - name: Checkout exact main commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ref: ${{ github.sha }}
 
@@ -56,7 +56,7 @@ jobs:
             --output "$RUNNER_TEMP/d1-preview-provision/result.json"
 
       - name: Retain non-secret provisioning identity
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pornvideodownloaders.com-replacement-preview-d1-${{ github.sha }}
           path: ${{ runner.temp }}/d1-preview-provision/result.json

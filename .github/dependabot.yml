@@ -10,18 +10,6 @@ updates:
       timezone: Etc/UTC
     open-pull-requests-limit: 5
     versioning-strategy: increase
-    groups:
-      production-minor-and-patch:
-        dependency-type: production
-        update-types:
-          - minor
-          - patch
-      development-minor-and-patch:
-        dependency-type: development
-        update-types:
-          - minor
-          - patch
-
   - package-ecosystem: github-actions
     directory: /
     schedule:

@@ -38,7 +38,7 @@ jobs:
       name: production
     steps:
       - name: Checkout reviewed source
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: Install dependencies
         uses: ./.github/actions/install
@@ -86,7 +86,7 @@ jobs:
 
       - name: Retain production D1 backup
         if: inputs.release_mode == 'database-and-worker'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: serp-software-d1-${{ github.sha }}
           path: .wrangler/backups/serp-software/production/${{ github.sha }}.replatform.sql

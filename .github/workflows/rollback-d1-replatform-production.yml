@@ -29,7 +29,7 @@ jobs:
       CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
       CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID }}
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
       - uses: ./.github/actions/install
       - run: |
           printf '%s\n' "EVIDENCE_DIR=$RUNNER_TEMP/d1-production-rollback" >> "$GITHUB_ENV"
@@ -59,5 +59,5 @@ jobs:
           pnpm tsx scripts/d1-replatform-production.ts inspect-version --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --version-id "$source_version" --output "$EVIDENCE_DIR/source-version-preflight.json"
           pnpm exec wrangler versions deploy "${source_version}@100" --name "$CLOUDFLARE_WORKER_PRODUCTION_NAME" --message "protected D1 source binding rollback"
           pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --version-id "$source_version" --output "$EVIDENCE_DIR/rollback.json"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with: { name: '${{ inputs.site_id }}-production-binding-rollback-${{ github.sha }}', path: '${{ runner.temp }}/d1-production-rollback/', if-no-files-found: error, retention-days: 90 }

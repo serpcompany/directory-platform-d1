@@ -42,7 +42,7 @@ describe('main validation workflow', () => {
   it('validates every pushed main revision without deployment authority', () => {
     const workflow = loadWorkflow()
     const job = workflow.jobs.validate
-    const checkout = job.steps?.find(step => step.uses === 'actions/checkout@v6')
+    const checkout = job.steps?.find(step => step.uses === 'actions/checkout@v7')
     const commands = job.steps?.map(step => step.run).filter(Boolean)
 
     expect(workflow.on.push?.branches).toEqual(['main'])
@@ -58,7 +58,7 @@ describe('main validation workflow', () => {
     })
     expect(checkout?.with?.['fetch-depth']).toBe(0)
     expect(job.steps?.map(step => step.uses).filter(Boolean)).toEqual([
-      'actions/checkout@v6',
+      'actions/checkout@v7',
       './.github/actions/install'
     ])
     expect(commands).toEqual(['pnpm harness:check'])
