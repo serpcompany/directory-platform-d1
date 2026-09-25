@@ -93,7 +93,10 @@ after the replacement or restoration deploy. The attestation gate creates one
 run/hostname-bound token and retries only network failures, HTTP 404, and HTTP 5xx for
 at most 30 seconds with bounded backoff. A successful response must still match every
 Site, environment, service, hostname, commit, run, and binding-nonce field exactly.
-Other statuses and any 200 identity mismatch fail immediately without retry.
+Each fetch is aborted at the remaining overall deadline, and a response received at or
+after that deadline is rejected even if it is HTTP 200. Deadline abort is a final
+fail-closed timeout, not another retry. Other statuses and any 200 identity mismatch
+fail immediately without retry.
 
 SERP has no pre-existing populated legacy Preview source. Within this same approved
 run, the workflow therefore initializes the isolated source before replacement import:

@@ -119,7 +119,8 @@ After replacement and restoration deploys, allow only bounded edge-propagation r
 for attestation: reuse one short-lived run/hostname token for no more than 30 seconds,
 and retry only network errors, 404, or 5xx with backoff. Never retry a 200 response whose
 identity differs, or another definitive HTTP status. Full attestation identity equality
-remains mandatory before continuing.
+remains mandatory before continuing. Give every fetch an abort signal bounded to the
+remaining overall window; a deadline abort or even a late 200 is a final timeout.
 
 ## Verified public submissions
 

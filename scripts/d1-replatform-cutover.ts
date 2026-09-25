@@ -636,8 +636,10 @@ export async function attestPreviewWorker(
   env: NodeJS.ProcessEnv,
   fetcher: typeof fetch = fetch,
   retry: {
+    cancelAbort?: (handle: unknown) => void
     maxWaitMs?: number
     now?: () => number
+    scheduleAbort?: (callback: () => void, milliseconds: number) => unknown
     sleep?: (milliseconds: number) => Promise<void>
   } = {}
 ): Promise<Record<string, unknown>> {
@@ -665,16 +667,35 @@ export async function attestPreviewWorker(
   const sleep =
     retry.sleep ??
     ((milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds)))
+  const scheduleAbort =
+    retry.scheduleAbort ??
+    ((callback: () => void, milliseconds: number) => setTimeout(callback, milliseconds))
+  const cancelAbort =
+    retry.cancelAbort ??
+    ((handle: unknown) => clearTimeout(handle as ReturnType<typeof setTimeout>))
   const maxWaitMs = Math.min(retry.maxWaitMs ?? 30_000, 30_000)
   if (!Number.isFinite(maxWaitMs) || maxWaitMs < 0)
     throw new Error('Preview attestation retry window is invalid.')
   const startedAt = now()
   let retryCount = 0
   while (true) {
+    const remainingBeforeFetch = maxWaitMs - (now() - startedAt)
+    if (remainingBeforeFetch <= 0)
+      throw new Error('Preview Worker attestation did not propagate within the retry window.')
+    const controller = new AbortController()
+    const abortHandle = scheduleAbort(() => controller.abort(), remainingBeforeFetch)
     let response: Response
     try {
-      response = await fetcher(url, { headers: { Accept: 'application/json' } })
+      response = await fetcher(url, {
+        headers: { Accept: 'application/json' },
+        signal: controller.signal
+      })
     } catch (error) {
+      cancelAbort(abortHandle)
+      if (controller.signal.aborted)
+        throw new Error('Preview Worker attestation did not propagate within the retry window.', {
+          cause: error
+        })
       const elapsed = now() - startedAt
       if (elapsed >= maxWaitMs)
         throw new Error('Preview Worker attestation did not propagate within the retry window.', {
@@ -685,12 +706,31 @@ export async function attestPreviewWorker(
       await sleep(delay)
       continue
     }
+    if (now() - startedAt >= maxWaitMs) {
+      cancelAbort(abortHandle)
+      throw new Error('Preview Worker attestation did not propagate within the retry window.')
+    }
     if (response.ok) {
-      const observed = object(await response.json(), 'Preview Worker attestation')
+      let payload: unknown
+      try {
+        payload = await response.json()
+      } catch (error) {
+        cancelAbort(abortHandle)
+        if (controller.signal.aborted)
+          throw new Error('Preview Worker attestation did not propagate within the retry window.', {
+            cause: error
+          })
+        throw error
+      }
+      cancelAbort(abortHandle)
+      if (now() - startedAt >= maxWaitMs)
+        throw new Error('Preview Worker attestation did not propagate within the retry window.')
+      const observed = object(payload, 'Preview Worker attestation')
       for (const [key, value] of Object.entries(expected))
         if (observed[key] !== value) throw new Error(`Preview Worker attestation ${key} mismatch.`)
       return { expected, observed }
     }
+    cancelAbort(abortHandle)
     const transient = response.status === 404 || response.status >= 500
     if (!transient)
       throw new Error(`Deployed Preview Worker attestation failed with status ${response.status}.`)

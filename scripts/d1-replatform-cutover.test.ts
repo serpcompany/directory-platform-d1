@@ -582,6 +582,55 @@ describe('D1 replatform cutover preparation', () => {
     ).rejects.toThrow('did not propagate')
     expect(timeoutCalls).toBeGreaterThan(1)
 
+    let hungCalls = 0
+    await expect(
+      attestPreviewWorker(
+        'serp.software',
+        env,
+        async (_input, init) => {
+          hungCalls += 1
+          return new Promise<Response>((_resolve, reject) => {
+            init?.signal?.addEventListener('abort', () => reject(init.signal?.reason), {
+              once: true
+            })
+          })
+        },
+        {
+          cancelAbort: () => undefined,
+          maxWaitMs: 500,
+          now: () => 0,
+          scheduleAbort: callback => {
+            queueMicrotask(callback)
+            return 'abort-handle'
+          },
+          sleep: async () => undefined
+        }
+      )
+    ).rejects.toThrow('did not propagate')
+    expect(hungCalls).toBe(1)
+
+    let lateNow = 0
+    let lateCalls = 0
+    await expect(
+      attestPreviewWorker(
+        'serp.software',
+        env,
+        async () => {
+          lateCalls += 1
+          lateNow = 501
+          return Response.json(observed)
+        },
+        {
+          cancelAbort: () => undefined,
+          maxWaitMs: 500,
+          now: () => lateNow,
+          scheduleAbort: () => 'abort-handle',
+          sleep: async () => undefined
+        }
+      )
+    ).rejects.toThrow('did not propagate')
+    expect(lateCalls).toBe(1)
+
     let mismatchCalls = 0
     await expect(
       attestPreviewWorker(
