@@ -277,9 +277,10 @@ describe('PVD replacement Preview provisioning workflow contract', () => {
   it('derives the exact replacement name from the registry while the template stays credential-free', () => {
     const target = siteTargets['pornvideodownloaders.com']
     expect(target.replatform.previewDatabaseName).toBe(replacementName)
-    expect(target.confirmation.provision.replacementPreview).toBe(
+    expect(target.replatform.previewProvisioningConfirmation).toBe(
       'provision-pornvideodownloaders.com-replacement-preview'
     )
+    expect(siteTargets['serp.software'].replatform.previewProvisioningConfirmation).toBeUndefined()
     const template = readFileSync(target.replatform.previewConfigPath, 'utf8')
     expect(template).toContain('$' + '{CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME}')
     expect(template).not.toContain(replacementId)
