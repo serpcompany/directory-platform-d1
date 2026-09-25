@@ -1,12 +1,30 @@
 import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
 import { resolveSiteTarget } from './site-targets'
 
 async function expectRoute(baseUrl: URL, path: string): Promise<void> {
   const response = await fetch(new URL(path, baseUrl), { redirect: 'manual' })
-  if (response.status < 200 || response.status >= 400)
+  if (response.status < 200 || response.status >= 300)
     throw new Error(`Preview route ${path} returned ${response.status}.`)
+}
+
+async function expectLegacyRedirect(
+  baseUrl: URL,
+  legacyPath: string,
+  expectedPath: string
+): Promise<void> {
+  const response = await fetch(new URL(legacyPath, baseUrl), { redirect: 'manual' })
+  if (![301, 302, 303, 307, 308].includes(response.status))
+    throw new Error(
+      `Preview legacy route ${legacyPath} returned ${response.status}, not a redirect.`
+    )
+  const location = response.headers.get('location')
+  const expected = new URL(expectedPath, baseUrl)
+  const observed = location ? new URL(location, baseUrl) : undefined
+  if (!observed || observed.href !== expected.href)
+    throw new Error(`Preview legacy route ${legacyPath} did not redirect to ${expectedPath}.`)
 }
 
 export async function runPreviewHttpGates(siteValue: string, baseUrlValue: string): Promise<void> {
@@ -27,7 +45,7 @@ export async function runPreviewHttpGates(siteValue: string, baseUrlValue: strin
     expectRoute(baseUrl, `/api/search?q=${encodeURIComponent(listingSlug)}`),
     expectRoute(baseUrl, '/rss.xml'),
     expectRoute(baseUrl, '/sitemap-index.xml'),
-    expectRoute(baseUrl, `/${listingSlug}/`),
+    expectLegacyRedirect(baseUrl, `/${listingSlug}/`, `/products/${listingSlug}/`),
     expectRoute(baseUrl, '/submit/')
   ])
 }
@@ -40,10 +58,11 @@ async function main(): Promise<void> {
   if (output)
     writeFileSync(
       resolve(output),
-      `${JSON.stringify({ home: true, category: true, detail: true, search: true, rss: true, sitemap: true, legacyRedirect: true })}\n`
+      `${JSON.stringify({ home: true, category: true, detail: true, search: true, rss: true, sitemap: true, legacyRedirect: true, submit: true })}\n`
     )
 }
-void main().catch(error => {
-  console.error(error instanceof Error ? error.message : String(error))
-  process.exitCode = 1
-})
+if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1]))
+  void main().catch(error => {
+    console.error(error instanceof Error ? error.message : String(error))
+    process.exitCode = 1
+  })

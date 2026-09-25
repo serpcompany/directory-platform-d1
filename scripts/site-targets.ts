@@ -1,6 +1,6 @@
 export const siteIds = ['pornvideodownloaders.com', 'serp.software'] as const
 export type SiteId = (typeof siteIds)[number]
-export const replatformPreviewRef = 'refs/heads/codex/issue-72-preview-cutover' as const
+export const replatformPreviewRef = 'refs/heads/main' as const
 
 export interface SiteTarget {
   appPackageName: SiteId
@@ -121,7 +121,7 @@ export const siteTargets = {
       productionConfigPath: 'configs/wrangler/serp.software/production.jsonc'
     },
     replatform: {
-      allowMissingPreviewWorkerBootstrap: true,
+      allowMissingPreviewWorkerBootstrap: false,
       previewConfigPath: 'configs/wrangler/serp.software/replatform-preview.jsonc',
       productionConfigPath: 'configs/wrangler/serp.software/replatform-production.jsonc'
     },

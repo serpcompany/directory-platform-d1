@@ -183,10 +183,28 @@ if (
   measuredTarget.checksum !== postJourneyTarget?.checksum
 )
   throw new Error('Measured source, target, and repeated target checksums differ.')
-const allTrue = (record: Record<string, unknown>, label: string): void => {
-  if (Object.values(record).some(value => value !== true)) throw new Error(`${label} did not pass.`)
+const catalogJourneyKeys = [
+  'category',
+  'detail',
+  'home',
+  'legacyRedirect',
+  'rss',
+  'search',
+  'sitemap',
+  'submit'
+] as const
+const allTrue = (
+  record: Record<string, unknown>,
+  expectedKeys: readonly string[],
+  label: string
+): void => {
+  if (
+    Object.keys(record).sort().join('\0') !== [...expectedKeys].sort().join('\0') ||
+    expectedKeys.some(key => record[key] !== true)
+  )
+    throw new Error(`${label} did not pass with the exact required journey set.`)
 }
-allTrue(catalog, 'Catalog journeys')
+allTrue(catalog, catalogJourneyKeys, 'Catalog journeys')
 for (const key of [
   'intake',
   'rateLimit',
@@ -210,8 +228,8 @@ if (
   !rateLimitEvidence.ownedFingerprint
 )
   throw new Error('Submission rate-limit evidence is not a bounded real 429 result.')
-allTrue(rollbackSource, 'Source rollback route gates')
-allTrue(rollbackTarget, 'Replacement restoration route gates')
+allTrue(rollbackSource, catalogJourneyKeys, 'Source rollback route gates')
+allTrue(rollbackTarget, catalogJourneyKeys, 'Replacement restoration route gates')
 const copiedProduction = measured.privateCounts as Record<string, unknown>
 if (!copiedProduction || Object.values(copiedProduction).some(value => Number(value) !== 0))
   throw new Error('Measured copied Production private-state counts must be zero.')
@@ -264,7 +282,16 @@ const evidence = {
     exactParity: measured.exactParity,
     freshMigrationLedger: measured.freshLedger
   },
-  catalogJourneys: ['home', 'category', 'detail', 'search', 'rss', 'sitemap', 'legacy-redirect'],
+  catalogJourneys: [
+    'home',
+    'category',
+    'detail',
+    'search',
+    'rss',
+    'sitemap',
+    'legacy-redirect',
+    'submit'
+  ],
   submissionJourneys: [
     'intake',
     'rate-limit',
