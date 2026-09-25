@@ -21,6 +21,7 @@ Validation: `pnpm docs:check`
 | [Confidence system](./CONFIDENCE_SYSTEM.md) | Active map | product and release engineering | 2026-08-13 | `pnpm docs:check` |
 | [Maintainer onboarding](./ONBOARDING.md) | Active | repository orientation | 2026-07-30 | `pnpm docs:check` |
 | [Live Visitor baseline](./LIVE_VISITOR_BASELINE.md) | Point-in-time research | product and release engineering | 2026-08-13 | `pnpm docs:check` |
+| [Dependency security](./DEPENDENCY_SECURITY.md) | Active | repository and release engineering | 2026-09-26 | `pnpm security:audit:production` |
 
 ## Agent operating system
 
