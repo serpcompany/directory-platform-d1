@@ -60,7 +60,8 @@ describe('ci workflow install isolation', () => {
     )
 
     const productionD1Group = `${githubExpression('{{ inputs.site_id }}')}-production-d1`
-    expect(buildWorkflow.concurrency?.group).toBe(productionD1Group)
+    expect(buildWorkflow.concurrency?.group).toContain("'serp.software-production-d1'")
+    expect(buildWorkflow.concurrency?.group).not.toContain('inputs.site_id')
     expect(publishWorkflow.concurrency?.group).toBe(productionD1Group)
     expect(approvalWorkflow.concurrency?.group).toBe(productionD1Group)
     expect(pvdWorkflow.concurrency?.group).toContain("'pornvideodownloaders.com-production-d1'")

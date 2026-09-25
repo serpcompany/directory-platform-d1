@@ -5,7 +5,7 @@ database. GitHub Pages repo sync and local remote deploys are not supported.
 
 | Site | Deployment workflow | Preview environment | Production environment |
 | --- | --- | --- | --- |
-| `serp.software` | `build-and-deploy.yml` | `serp-software-preview` provisioned and rehearsed | `production` |
+| `serp.software` | `build-and-deploy.yml` | `serp-software-preview` | `production` |
 | `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 ## Local verification
@@ -37,22 +37,34 @@ lock receipts do not freeze writes.
 Merging to `main` does not deploy either site automatically. Manually dispatch the
 selected site's workflow from the reviewed `main` commit. The workflow requires:
 
-- the site's protected production environment;
-- `deploy-<site-id>-production` exactly;
+- the site's protected Preview or Production environment;
+- `deploy-<site-id>-<preview|production>` exactly; and
 - successful configuration, D1 contract, type, and Worker build checks.
 
-Routine SERP Production and PVD Preview/Production releases explicitly select
+Routine SERP and PVD Preview/Production releases explicitly select
 `D1_RELEASE_GENERATION=replatform`, the replacement D1 identity secrets, replacement
 Wrangler templates, and `d1/drizzle/`. Publication, submission approval, and
 notification workflows alias their canonical runtime variable names to those same
 replacement secrets. The locked legacy source identities are never routine targets.
+
+Each Site's deployment workflow accepts an explicit `preview` or `production` target.
+Preview dispatches require the Site-specific protected Preview environment and exact
+`deploy-<site-id>-preview` confirmation. Before the first remote backup, migration,
+schema query, or deployment, the SERP workflow uses read-only Cloudflare observations
+to prove the selected protected values match the checked-in active account, D1 UUID
+and name, and Worker name. Wrong, stale source, Production, or PVD identities stop
+before any remote operation. A successful SERP Preview deployment then
+runs bounded route checks and the multisite Playwright smoke suite against the
+protected environment's `PREVIEW_BASE_URL`, and retains the route report and browser
+artifacts for 14 days. The Preview origin guard rejects either registered Production
+hostname before Playwright runs.
 
 Choose the release mode from the reviewed diff:
 
 | Release mode | Select it when | Remote behavior |
 | --- | --- | --- |
 | `worker-only` | The commit adds no unapplied D1 migration and requires no newer schema. | Reads applied migration names to prove compatibility, then deploys the Worker. It does not back up, migrate, import, or write D1. |
-| `database-and-worker` | The commit adds a migration, the target may be behind, or compatibility cannot be proven. | Retains a D1 export, applies forward migrations, verifies schema compatibility, then deploys the Worker without replaying the initial catalog. |
+| `database-and-worker` | The commit adds a migration, the target may be behind, or compatibility cannot be proven. | Production retains an export, applies forward migrations, proves schema compatibility, and deploys without replaying bootstrap data. Preview first retains an export, applies migrations, permits the initial catalog only for an empty database or as an exact-checksum no-op, verifies exact bootstrap parity, proves schema compatibility, and deploys. |
 
 Do not use `worker-only` merely because a change is described as application code.
 The workflow's `check-schema` operation compares every checked-in migration required
@@ -62,7 +74,7 @@ unavailable evidence stops the shell before the deploy command. The remediation 
 to review the pending migrations and rerun the same commit as
 `database-and-worker`, not to bypass the check.
 
-The database-and-Worker path is always:
+The Production database-and-Worker path is always:
 
 1. retained pre-change D1 export;
 2. forward migrations;
@@ -70,9 +82,13 @@ The database-and-Worker path is always:
 4. Worker deployment.
 
 A failed backup, migration, or schema verification stops before Worker deployment.
-Initial catalog import and exact bootstrap parity belong only to initial site release
-or an explicitly reviewed migration, never to a routine forward migration. Do not run
-production Wrangler or D1 commands from a local worktree.
+Production never runs the initial import or requires bootstrap parity during a
+routine forward migration. The controlled routine Preview path deliberately matches
+the existing PVD behavior: after backup and migration, `import` accepts only an empty
+database or the reviewed bootstrap checksum as a no-op, and exact `verify` must pass
+before schema proof and deployment. Any different or partial Preview publication
+fails closed and requires recovery from the retained backup. Do not run Preview or
+Production Wrangler or D1 commands from a local worktree.
 
 ## Initial site release and preview rehearsal
 
