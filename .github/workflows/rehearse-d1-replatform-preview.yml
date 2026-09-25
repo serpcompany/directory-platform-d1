@@ -242,7 +242,7 @@ jobs:
           E2E_LISTING_COUNT: ${{ inputs.site_id == 'serp.software' && '339' || '286' }}
           E2E_CATEGORY_SLUG: video-downloaders
           PLAYWRIGHT_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
-          PLAYWRIGHT_WEB_SERVER_COMMAND: node -e "setInterval(() => {}, 1000)"
+          PLAYWRIGHT_EXTERNAL_SERVER: '1'
         run: |
           pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
           pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json"
