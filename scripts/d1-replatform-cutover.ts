@@ -527,6 +527,11 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
   bool(root.nothingDeleted, 'nothingDeleted')
   if (environment === 'preview') {
     const legacySource = object(root.legacySource, 'legacySource')
+    if (
+      legacySource.initialClassification !== 'blank' &&
+      legacySource.initialClassification !== 'controlled-populated'
+    )
+      throw new Error('Legacy Preview source initial classification is invalid.')
     sha256(legacySource.checksum, 'legacySource.checksum')
     bool(legacySource.ledgerVerified, 'legacySource.ledgerVerified')
     if (legacySource.repeatImportMode !== 'verified-no-op')

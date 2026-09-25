@@ -42,6 +42,7 @@ const siteId = resolveSiteTarget(required(values, '--site')).siteId
 const target = resolveSiteTarget(siteId)
 const identity = readJson(required(values, '--identity'))
 const workerAttestation = readJson(required(values, '--worker-attestation'))
+const sourceClassification = readJson(required(values, '--source-classification'))
 const sourceControlled = readJson(required(values, '--source-controlled'))
 const sourceRepeatImport = readFileSync(resolve(required(values, '--source-repeat-import')), 'utf8')
 const firstImport = readFileSync(resolve(required(values, '--first-import')), 'utf8')
@@ -58,10 +59,18 @@ const rollbackSource = readJson(required(values, '--rollback-source'))
 const rollbackTarget = readJson(required(values, '--rollback-target'))
 const sourcePrivateCounts = sourceControlled.sourcePrivateCounts as Record<string, unknown>
 if (
+  sourceClassification.classification !== 'blank' &&
+  sourceClassification.classification !== 'controlled-populated'
+)
+  throw new Error('Legacy Preview source classification is invalid.')
+const classifiedExpected = sourceClassification.expected as Record<string, unknown>
+const controlledSource = sourceControlled.source as { checksum?: unknown }
+if (
   sourceControlled.legacyLedger !== true ||
   !sourcePrivateCounts ||
   Object.values(sourcePrivateCounts).some(value => Number(value) !== 0) ||
-  !sourceRepeatImport.includes('import is a no-op')
+  !sourceRepeatImport.includes('import is a no-op') ||
+  classifiedExpected?.applicationSnapshotChecksum !== controlledSource?.checksum
 )
   throw new Error('Controlled legacy Preview source evidence is incomplete or unsafe.')
 if (JSON.stringify(first) !== JSON.stringify(repeat))
@@ -157,7 +166,8 @@ const evidence = {
   migrationChecksum: freshMigrationChecksum(),
   identity: { ...identity, attestation: workerAttestation },
   legacySource: {
-    checksum: (sourceControlled.source as { checksum?: unknown }).checksum,
+    initialClassification: sourceClassification.classification,
+    checksum: controlledSource.checksum,
     ledgerVerified: sourceControlled.legacyLedger,
     privateCounts: sourcePrivateCounts,
     repeatImportMode: 'verified-no-op'

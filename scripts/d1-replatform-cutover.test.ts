@@ -45,6 +45,7 @@ function baseEvidence(environment: 'preview' | 'production') {
     commitSha,
     migrationChecksum: checksum,
     legacySource: {
+      initialClassification: 'blank',
       checksum: 'e'.repeat(64),
       ledgerVerified: true,
       privateCounts: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
@@ -438,7 +439,7 @@ describe('D1 replatform cutover preparation', () => {
     expect(firstCleanupMutation).toBeGreaterThan(identityFailureExit)
     expect(raw).toContain('Retain cleanup and manual-recovery evidence')
     expect(raw).toContain('D1_RELEASE_GENERATION: legacy')
-    expect(raw).toContain('d1-preview-measure.ts source-preflight')
+    expect(raw).toContain('d1-preview-source-classify.ts')
     expect(raw).toContain('d1-preview-measure.ts source')
     expect(raw).toContain('source-pre-bootstrap.sql')
     expect(raw).toContain('source-repeat-import.txt')
@@ -448,16 +449,16 @@ describe('D1 replatform cutover preparation', () => {
     const sourceStep =
       job.steps.find(step => step.name === 'Initialize or verify controlled legacy Preview source')
         ?.run ?? ''
-    expect(sourceStep.indexOf('source_rows')).toBeLessThan(
+    expect(sourceStep.indexOf('source_class')).toBeLessThan(
       sourceStep.indexOf('worker-release.ts migrate preview')
     )
     expect(sourceStep.indexOf('worker-release.ts verify preview')).toBeLessThan(
       sourceStep.indexOf('worker-release.ts migrate preview')
     )
-    const measurement = readFileSync('scripts/d1-preview-measure.ts', 'utf8')
-    expect(measurement).toContain("phase === 'source-preflight'")
-    expect(measurement).toContain('sourcePrivateCounts')
-    expect(measurement).toContain('legacyLedger')
+    const classifier = readFileSync('scripts/d1-preview-source-classify.ts', 'utf8')
+    expect(classifier).toContain('schemaFingerprint')
+    expect(classifier).toContain('applicationSnapshotChecksum')
+    expect(classifier).toContain('unexpectedUserObjects')
   })
 
   it('keeps the controlled badge fixture Preview-only and capability-gated', () => {
@@ -492,6 +493,7 @@ describe('D1 replatform cutover preparation', () => {
     const source = readFileSync('scripts/d1-preview-evidence.ts', 'utf8')
     expect(source).toContain("required(values, '--measurement')")
     expect(source).toContain("required(values, '--source-controlled')")
+    expect(source).toContain("required(values, '--source-classification')")
     expect(source).toContain("required(values, '--source-repeat-import')")
     expect(source).toContain("required(values, '--submission-journeys')")
     expect(source).toContain("required(values, '--post-journey-measurement')")
