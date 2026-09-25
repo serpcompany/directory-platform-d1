@@ -275,7 +275,7 @@ jobs:
           PLAYWRIGHT_EXTERNAL_SERVER: '1'
         run: |
           pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts preview "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json"
 
       - name: Repeat import and prove verified no-op with unchanged parity
         run: |
@@ -302,11 +302,11 @@ jobs:
           set -euo pipefail
           pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-rollback.json"
           D1_RELEASE_GENERATION=legacy pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-source.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts preview "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-source.json"
           pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity-before-restoration.json"
           pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
           pnpm tsx scripts/d1-replatform-cutover.ts attest-preview --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-attestation-after-restoration.json"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts preview "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
 
       - name: Build and validate sealed exact-commit Preview receipt
         run: |

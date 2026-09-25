@@ -42,7 +42,7 @@ jobs:
           pnpm tsx scripts/d1-replatform-production.ts validate-receipt --site "${{ inputs.site_id }}" --receipt "$EVIDENCE_DIR/cutover/receipt.json" --output "$EVIDENCE_DIR/validated.json"
           target_version="$(node -e 'console.log(require(process.argv[1]).evidence.rollback.targetVersionId)' "$EVIDENCE_DIR/validated.json")"
           pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID" --version-id "$target_version" --output "$EVIDENCE_DIR/active-target.json"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/catalog-gates.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts production "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/catalog-gates.json"
       - name: Unfreeze only the confirmed active replacement database
         run: |
           cutover_id="$(node -e 'console.log(require(process.argv[1]).evidence.cutoverId)' "$EVIDENCE_DIR/validated.json")"

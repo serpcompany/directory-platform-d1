@@ -128,7 +128,7 @@ jobs:
           pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID" --version-id "$target_version" --output "$EVIDENCE_DIR/target-deployment.json"
       - name: Run Production-safe catalog and frozen-write gates
         run: |
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/catalog-gates.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts production "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/catalog-gates.json"
           status="$(curl --silent --show-error --output "$EVIDENCE_DIR/target-frozen-write.json" --write-out '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' --data '{}' "${PRODUCTION_BASE_URL%/}/api/submissions")"
           test "$status" = 503
           grep -F 'cutover_frozen' "$EVIDENCE_DIR/target-frozen-write.json"
@@ -151,7 +151,7 @@ jobs:
           source_version="$(node -e 'console.log(require(process.argv[1]).versionId)' "$EVIDENCE_DIR/source-deployment.json")"
           pnpm exec wrangler versions deploy "${source_version}@100" --name "$CLOUDFLARE_WORKER_PRODUCTION_NAME" --message "${{ inputs.site_id }} D1 cutover source rollback rehearsal"
           pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --version-id "$source_version" --output "$EVIDENCE_DIR/rollback-source.json"
-          pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/rollback-source-gates.json"
+          pnpm tsx scripts/d1-preview-http-gates.ts production "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/rollback-source-gates.json"
       - name: Restore exact target version and leave both databases locked
         run: |
           target_version="$(node -e 'console.log(require(process.argv[1]).versionId)' "$EVIDENCE_DIR/target-deployment.json")"
