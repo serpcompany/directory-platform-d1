@@ -118,6 +118,6 @@ outcomes; this repository can only enforce the technical inputs it controls.
 2. What constitutes sufficient local, preview, and live evidence for each required
    capability?
 3. Which accessibility and performance thresholds are release-blocking?
-4. How should SERP releases compensate for the absence of an isolated preview?
+4. How should the shared SERP Preview target evolve to isolate concurrent pull requests?
 5. Which live checks run before deployment, immediately afterward, and continuously?
 6. What rollback or traffic response follows a failed post-deployment invariant?

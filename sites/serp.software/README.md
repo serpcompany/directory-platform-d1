@@ -4,9 +4,10 @@
 public listing and category data is read at request time from the `DB` Cloudflare D1
 binding. Public product detail pages remain under `/products/[slug]/`.
 
-SERP has local and production identities but no proper remote preview
-Worker/D1/protected environment. Do not treat the local `worker:preview` command as
-that missing platform environment.
+SERP has separate local, protected Preview, and Production identities. Its isolated
+source/replacement Preview D1 databases, Worker, and protected environment were
+provisioned and rehearsed by Issue #72. The local `worker:preview` command remains a
+local-only environment and must not be treated as the remote Preview target.
 
 ## Data ownership
 

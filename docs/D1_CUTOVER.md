@@ -13,7 +13,7 @@ resources in its protected environment:
 
 | Site | Preview environment | Preview resources | Production replacement resources |
 | --- | --- | --- | --- |
-| `serp.software` | `serp-software-preview` (new) | new Preview Worker and new Preview D1 | new replacement D1; existing Production Worker is rebound only at cutover |
+| `serp.software` | `serp-software-preview` (provisioned) | provisioned Preview Worker plus distinct source and replacement Preview D1 databases | new replacement D1; existing Production Worker is rebound only at cutover |
 | `pornvideodownloaders.com` | `pornvideodownloaders-preview` (existing) | existing Preview Worker plus a distinct replacement Preview D1 | new replacement D1; existing Production Worker is rebound only at cutover |
 
 The protected environment must store the expected account ID, source D1 UUID/name,
@@ -56,12 +56,12 @@ The approved Preview run then:
 9. repeat and prove `verified-no-op` with unchanged data checksums; and
 10. rehearse the old binding rollback without deleting either database.
 
-SERP also begins without a Preview Worker. The first protected run performs a
-read-only preflight that still proves the exact account, source and replacement D1
-UUID/name pairs, Site, environment, integration ref, and checked-out SHA. It may
-classify a missing Worker only for the checked-in SERP bootstrap exception; PVD and
-wrong existing Worker identities fail closed. Missing and existing Workers then use
-the same path: the run immediately repeats preflight, deploys the checked-out reviewed
+Before its first protected rehearsal, SERP also had no Preview Worker. That run's
+read-only preflight still proved the exact account, source and replacement D1
+UUID/name pairs, Site, environment, integration ref, and checked-out SHA. The workflow
+may classify a missing Worker only for that checked-in SERP bootstrap exception; PVD
+and wrong existing Worker identities fail closed. Missing and existing Workers then
+use the same path: the run immediately repeats preflight, deploys the checked-out reviewed
 commit with the legacy/source Preview D1 binding and no transient rehearsal authority,
 captures the single version UUID emitted by that deploy, and reads back the active
 Cloudflare deployment, sole 100-percent version, script etag, source D1 binding,
