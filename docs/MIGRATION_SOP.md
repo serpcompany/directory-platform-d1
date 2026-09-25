@@ -20,9 +20,9 @@ SOP exists.
 The current repository deploys two explicitly registered tenants:
 `serp.software` and `pornvideodownloaders.com`. Each has a distinct app, Worker,
 local state, production D1 database, protected production environment, initial
-artifact, parity report, and browser coverage. PVD also has an isolated preview
-Worker/D1/environment. SERP has isolated source/replacement Preview D1 databases, a
-Preview Worker, and a protected environment provisioned and rehearsed by Issue #72.
+artifact, parity report, and browser coverage. Both Sites have one isolated active
+replacement Preview D1, Preview Worker, and protected environment. Their temporary
+Issue #72 source Preview databases were deleted after the completed cutover.
 Shared publication, submission, and release tools require an explicit site ID from
 `scripts/site-targets.ts`.
 

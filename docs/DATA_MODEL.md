@@ -65,9 +65,9 @@ Public queries require the Worker-selected site ID, approved status, active rows
 a publication time that is not in the future. `serp.software` and
 `pornvideodownloaders.com` use separate local and production D1 databases as well as
 tenant predicates, so an incorrect binding or site ID fails closed. Both Sites have
-isolated Preview databases. SERP's protected source/replacement Preview databases
-were provisioned and successfully rehearsed on the exact Issue #72 integration
-commit; see [the replacement cutover contract](./D1_CUTOVER.md).
+one isolated active replacement Preview database. The temporary Issue #72 source
+Preview databases were deleted after retained exports and binding proofs; see
+[the replacement cutover record](./D1_CUTOVER.md).
 
 Public catalog reads are implemented once in `packages/data-ops/`. Each application
 adapter supplies its validated D1 binding and checked-in site identity explicitly.

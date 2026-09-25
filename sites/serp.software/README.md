@@ -4,15 +4,15 @@
 public listing and category data is read at request time from the `DB` Cloudflare D1
 binding. Public product detail pages remain under `/products/[slug]/`.
 
-SERP has separate local, protected Preview, and Production identities. Its isolated
-source/replacement Preview D1 databases, Worker, and protected environment were
-provisioned and rehearsed by Issue #72. The local `worker:preview` command remains a
-local-only environment and must not be treated as the remote Preview target.
+SERP has separate local, protected Preview, and Production identities. Its active
+replacement Preview D1, Worker, and protected environment were rehearsed by Issue
+#72; the temporary source Preview D1 was later deleted with retained evidence. The
+local `worker:preview` command remains local-only and is not the remote Preview target.
 
 ## Data ownership
 
 - Canonical runtime data: Cloudflare D1.
-- Schema changes: `d1/migrations/`.
+- Schema changes: reviewed Drizzle history under `d1/drizzle/`.
 - Badge-verified intake: normalized private D1 submission tables with assigned
   private GitHub review notifications.
 - Approved mutations: versioned YAML manifests under `d1/publications/`.

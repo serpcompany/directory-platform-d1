@@ -88,9 +88,9 @@ outcomes; this repository can only enforce the technical inputs it controls.
   categories, Listing set, and network-brand group.
 - PVD has checked-in logo, favicon, and Open Graph assets; SERP currently uses shared
   or fallback branding behavior.
-- Both Sites have isolated Preview Workers and D1 databases. SERP's source and
-  replacement Preview resources are protected Issue #72 infrastructure, not
-  permission to create or substitute Preview identities implicitly.
+- Both Sites have one isolated active replacement Preview Worker/D1 identity. Their
+  temporary Issue #72 source Preview databases were deleted with retained exports and
+  receipts; that evidence is not permission to create substitute Preview identities.
 - Both Sites currently enable Brands and newsletter surfaces and disable auth, docs,
   dedicated favorites, guides, projects, creator-projects, and external-resources
   surfaces.
