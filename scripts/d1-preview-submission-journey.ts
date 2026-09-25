@@ -69,7 +69,10 @@ async function post(url: URL, body: unknown): Promise<Record<string, unknown>> {
     body: JSON.stringify(body)
   })
   const payload = (await response.json()) as Record<string, unknown>
-  if (!response.ok) throw new Error(`Preview submission request failed (${response.status}).`)
+  if (!response.ok) {
+    const reason = payload.lastVerificationError ?? payload.code ?? 'unknown'
+    throw new Error(`Preview submission request failed (${response.status}): ${String(reason)}`)
+  }
   return payload
 }
 async function exerciseRateLimit(base: URL): Promise<{ attempts: number; status: number }> {
