@@ -18,9 +18,10 @@ Browser
         -> shared catalog data operations
            -> D1 binding (DB)
               -> public catalog tables
-     -> server-only submission repository
-        -> D1 binding (DB)
-           -> private submission tables
+     -> server-only submission adapter
+        -> shared Submission data operations
+           -> D1 binding (DB)
+              -> private submission tables
 ```
 
 The same repository supplies home/category/product pages, `/api/search`, RSS, and
@@ -38,9 +39,9 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
 - `apps/<site-id>/lib/catalog/` owns OpenNext binding acquisition, runtime
   environment validation, explicit site selection, request-local React
   deduplication, and server-only enforcement. It contains no catalog SQL.
-- `apps/<site-id>/lib/submissions/` owns private intake, submitter and reviewer
-  capability access, rate limits, badge verification state, and the D1-backed draft
-  preview mapping.
+- `apps/<site-id>/lib/submissions/` validates the OpenNext binding/runtime
+  environment and explicit Site identity, performs bounded badge HTTP verification,
+  and delegates every Submission database operation to `packages/data-ops/`.
 - `sites/<site-id>/` owns checked-in presentation, route, feature, and public site
   settings.
 - `configs/wrangler/<site-id>/` owns checked-in local, preview, and production Worker
@@ -48,20 +49,31 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   grouped by lifecycle under `.wrangler/`.
 - `packages/web-core/` owns reusable page/view behavior but never obtains a database
   binding directly.
-- `packages/data-ops/` owns public catalog DTOs, eligibility SQL, projection-specific
+- `packages/data-ops/` owns the shared Drizzle schema and injected, Site-explicit D1
+  client as well as public catalog DTOs, eligibility SQL, projection-specific
   hydration, pagination, redirects, related ranking, indexed adjacency, bounded
-  publication-versioned caching contracts, and safe per-statement D1 telemetry. It receives
-  the database, site identity, clock, cache, and observer explicitly; it never
-  imports OpenNext or selects a site from global authority.
-- `d1/migrations/` owns forward schema history.
+  publication-versioned caching contracts, safe per-statement D1 telemetry, and all
+  Submission intake, capability, rate-limit, verification, draft-preview, repeatable
+  field, event, and notification-ledger operations. It receives the database, site
+  identity, clock, cache, and observer explicitly; it never imports OpenNext or
+  selects a site from global authority. Its environment-neutral public-URL policy is
+  shared by intake and each Site's badge verifier.
+- `d1/drizzle/` owns the fresh Drizzle-generated schema history applied by Wrangler to
+  replacement databases. `d1/migrations/0001`-`0009` remains immutable legacy history
+  for the current database generation until the protected cutover is complete.
 - `d1/publications/` owns reviewed ongoing catalog mutations.
 - `d1/artifacts/` preserves the immutable initial bootstrap and parity evidence.
 - `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`,
   `scripts/d1-submission-notifier.ts`, and protected workflows own remote release,
-  review, and private admin-notification execution.
+  review, and private admin-notification execution. Approval and notification
+  scripts consume credential-free typed statement plans from `packages/data-ops/`;
+  the protected scripts remain the only layer that acquires credentials or calls
+  remote APIs.
 - `scripts/harness/` owns local feedback, runtime evidence, and worktree isolation.
 - `scripts/migration/` may inspect an explicit external source but is not imported by
   runtime or build code.
+- `scripts/d1-replatform.ts` owns guarded, local-only transfer and exact parity
+  between an explicit legacy D1 export and an empty fresh-history D1 database.
 
 ## Dependency and trust direction
 
@@ -89,17 +101,37 @@ include the explicit site and current publication version; authenticated page
 responses are never inserted into that data cache.
 
 The private admin preview route reuses the public listing-detail renderer but not its
-public catalog lookup or structured-data slot. Its server-only repository reads the
-normalized staging tables through `DB`, requires `verified` status and a hashed
-review capability, and fails closed with the same runtime-environment checks as the
-other D1 boundaries.
+public catalog lookup or structured-data slot. Its thin server-only adapter passes
+the validated `DB` binding and Site identity to the shared Submission operations,
+which read normalized staging tables, require `verified` status and a hashed review
+capability, and revoke access on every terminal status.
+Before returning the shared listing-detail DTO, the preview boundary validates the
+required text, category, publication date, website, media, and resource URLs and
+fails closed on malformed migrated or staged data.
+
+Conditional badge verification, rejection, and approval plans place a D1-compatible
+`changes()` assertion after every compare-and-swap transition in the same batch. The
+assertion deliberately raises a SQLite JSON error unless exactly one expected row
+changed, so a stale status, category, publication version, or checksum rolls back the
+Listing, Submission, event, publication-state, and audit statements together.
 
 Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local
 state subdirectory, production D1 resource, Worker name, route, confirmation strings,
-and protected production environment. PVD also has isolated preview resources. SERP
-does not yet have a proper preview path; future sites must not copy that exception.
+and protected production environment. Both Sites have isolated Preview resources.
+SERP's `serp-software-preview` source/replacement D1 databases, Worker, and protected
+environment were provisioned and rehearsed through the protected Issue #72 workflow
+on commit `47ec54fc87d3ddf7fb31b3de1f5dc0ab55b83a30`. Future sites must establish the
+same isolated Preview evidence before Production work.
 Shared publication and submission tools bind their SQL to the selected site and
 reject mismatches. Adding a third site still requires the full tenancy and isolation
 work in [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/`
 directory.
+
+The shared client is constructed only from an injected `D1Database` and an explicit
+supported Site ID. Applications must not define a schema or construct an app-local
+Drizzle client. `drizzle.config.ts` is target-neutral and credential-free: it generates
+reviewable SQL in `d1/drizzle/`; Wrangler, not Drizzle push, owns migration application
+and the `d1_migrations` ledger. During the replacement-database project, checked-in
+Preview and Production templates continue to point at the immutable legacy history;
+their protected switch to the fresh history is intentionally deferred to the cutover.

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest'
+import { createSiteDatabase } from './client'
 import type { CatalogQueryEvent } from './contracts'
 import { MemoryCatalogCache, SqliteD1, seedContractFixture } from './test-support'
 
@@ -41,6 +42,13 @@ function bindSql(sql: string, bindings: unknown[]): string {
   return bound
 }
 
+function scanRows(line: string): number | null {
+  const labelled = /\brows=(\d+)\b/u.exec(line)
+  if (labelled?.[1]) return Number(labelled[1])
+  const columns = /\s+(\d+)\s+(\d+)\s*$/u.exec(line)
+  return columns?.[2] ? Number(columns[2]) : null
+}
+
 function scan(databasePath: string, sql: string): ScanEvidence {
   const output = execFileSync(
     'sqlite3',
@@ -62,8 +70,9 @@ function scan(databasePath: string, sql: string): ScanEvidence {
             !line.includes('candidate_ids') &&
             !line.includes('CONSTANT ROWS')
         )
-        .flatMap(line => [...line.matchAll(/\brows=(\d+)\b/gu)])
-        .reduce((total, match) => total + Number(match[1]), 0)
+        .map(scanRows)
+        .filter((rows): rows is number => rows !== null)
+        .reduce((total, rows) => total + rows, 0)
     : null
   return {
     plan: output
@@ -172,12 +181,11 @@ describe('representative D1 query benchmark', () => {
     const events: CatalogQueryEvent[] = []
     const catalog = createCatalogOperations({
       cache: new MemoryCatalogCache(),
+      client: createSiteDatabase(sqlite.asD1Database(), 'serp.software'),
       clock: benchmarkNow,
-      database: sqlite.asD1Database(),
       observe: event => {
         if (event.event === 'd1_query') events.push(event)
-      },
-      siteId: 'serp.software'
+      }
     })
     const currentId = 'serp-bench-160'
     const currentSlug = 'bench-160'

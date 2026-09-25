@@ -1,6 +1,17 @@
 # D1 data model
 
-The schema is versioned in `d1/migrations/`.
+The application-owned schema is modeled once in `packages/data-ops/src/schema.ts`.
+`drizzle-kit generate` writes a separate fresh-database history under `d1/drizzle/`,
+and Wrangler applies that SQL while recording its canonical `d1_migrations` ledger.
+The released `d1/migrations/0001`-`0009` files remain byte-for-byte immutable legacy
+history for the current databases and are never scanned or combined with the fresh
+history. `drizzle-kit push` is not an approved shared-environment migration path.
+
+The local replacement transfer preserves every application-owned source column and
+excludes only SQLite, Wrangler, and Cloudflare-owned metadata. It compares canonical
+per-table and whole-snapshot checksums, retains the target's fresh migration ledger,
+and records one deterministic receipt in `migration_runs`. See
+[D1 replacement-database transfer](./D1_REPLATFORM.md).
 
 - `sites` identifies the tenant.
 - `categories` stores active taxonomy rows and display order.
@@ -18,11 +29,30 @@ The schema is versioned in `d1/migrations/`.
   capability. The raw capability is never stored in D1. This table is an operational
   delivery ledger, not the submission source of truth.
 
+Runtime Submission reads and writes are implemented once in `packages/data-ops/`
+through an injected Site-explicit Drizzle client. Multi-row intake and conditional
+state transitions use D1 batches. Verification, rejection, and approval transitions
+follow each compare-and-swap statement with a D1-compatible `changes()` assertion in
+that same batch. The assertion raises a SQLite JSON error unless exactly one expected
+row changed, so stale or concurrent decisions roll back their events and every
+catalog/publication/audit side effect.
+
+Private preview hydration treats even verified staging rows as untrusted persisted
+input. The shared mapper revalidates required listing text, category, date, website,
+media references, and resource URLs before exposing a draft DTO.
+
+D1-specific `STRICT` tables, checks, partial and collated indexes, and cross-table
+publication triggers are preserved in the reviewed generated migration SQL. The
+schema and relations remain the typed application model; reviewed SQL is the authority
+for D1 features that Drizzle cannot express completely.
+
 Public queries require the Worker-selected site ID, approved status, active rows, and
 a publication time that is not in the future. `serp.software` and
 `pornvideodownloaders.com` use separate local and production D1 databases as well as
-tenant predicates, so an incorrect binding or site ID fails closed. PVD additionally
-has an isolated preview database. SERP does not yet have a proper preview database.
+tenant predicates, so an incorrect binding or site ID fails closed. Both Sites have
+isolated Preview databases. SERP's protected source/replacement Preview databases
+were provisioned and successfully rehearsed on the exact Issue #72 integration
+commit; see [the replacement cutover contract](./D1_CUTOVER.md).
 
 Public catalog reads are implemented once in `packages/data-ops/`. Each application
 adapter supplies its validated D1 binding and checked-in site identity explicitly.

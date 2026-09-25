@@ -1,5 +1,3 @@
-import { isIP } from 'node:net'
-
 const BLOCKED_HOSTNAMES = new Set([
   'localhost',
   'localhost.localdomain',
@@ -20,25 +18,16 @@ const URL_ERROR = {
   RESTRICTED_HOST: 'URL points to a restricted network address'
 } as const
 
-/**
- * Parse strict dotted-quad IPv4 literals.
- */
 function parseIPv4(ip: string): number[] | null {
   const octets = ip.split('.')
-  if (octets.length !== 4) return null
-
-  const parsed = octets.map(o => Number.parseInt(o, 10))
-  if (parsed.some(n => Number.isNaN(n) || n < 0 || n > 255)) return null
-  return parsed
+  if (octets.length !== 4 || octets.some(octet => !/^\d{1,3}$/u.test(octet))) return null
+  const parsed = octets.map(Number)
+  return parsed.some(octet => octet < 0 || octet > 255) ? null : parsed
 }
 
-/**
- * Identify private, loopback, link-local, and other non-public IPv4 ranges.
- */
 function isPrivateIPv4(ip: string): boolean {
   const octets = parseIPv4(ip)
   if (!octets) return false
-
   const [a, b] = octets
   return (
     a === 0 ||
@@ -53,63 +42,36 @@ function isPrivateIPv4(ip: string): boolean {
   )
 }
 
-/**
- * Identify private/local IPv6 ranges and IPv4-mapped private addresses.
- * Handles both dotted-decimal (::ffff:127.0.0.1) and hex (::ffff:7f00:1) forms.
- */
 function isPrivateIPv6(ip: string): boolean {
   const value = ip.toLowerCase()
-
   if (value === '::1' || value === '::') return true
   if (value.startsWith('fc') || value.startsWith('fd')) return true
-  if (/^fe[89ab]/.test(value)) return true
+  if (/^fe[89ab]/u.test(value)) return true
+  if (!value.startsWith('::ffff:')) return false
 
-  // Handle IPv4-mapped addresses (e.g. ::ffff:127.0.0.1 or ::ffff:7f00:1)
-  if (value.startsWith('::ffff:')) {
-    const mapped = value.slice('::ffff:'.length)
-
-    // Dotted-decimal form: ::ffff:127.0.0.1
-    if (mapped.includes('.')) {
-      return isPrivateIPv4(mapped)
-    }
-
-    // Hex form: ::ffff:7f00:1 → two 16-bit groups encoding the IPv4 address
-    const hexParts = mapped.split(':')
-    if (hexParts.length === 2) {
-      const hi = Number.parseInt(hexParts[0], 16)
-      const lo = Number.parseInt(hexParts[1], 16)
-      if (!Number.isNaN(hi) && !Number.isNaN(lo) && hi <= 0xffff && lo <= 0xffff) {
-        const a = (hi >> 8) & 0xff
-        const b = hi & 0xff
-        const c = (lo >> 8) & 0xff
-        const d = lo & 0xff
-        return isPrivateIPv4(`${a}.${b}.${c}.${d}`)
-      }
-    }
-  }
-
-  return false
+  const mapped = value.slice('::ffff:'.length)
+  if (mapped.includes('.')) return isPrivateIPv4(mapped)
+  const hexParts = mapped.split(':')
+  if (hexParts.length !== 2) return false
+  const high = Number.parseInt(hexParts[0] || '', 16)
+  const low = Number.parseInt(hexParts[1] || '', 16)
+  if (!Number.isInteger(high) || !Number.isInteger(low) || high > 0xffff || low > 0xffff)
+    return false
+  return isPrivateIPv4(`${high >> 8}.${high & 0xff}.${low >> 8}.${low & 0xff}`)
 }
 
-/**
- * Check whether a host resolves to a blocked local/private target.
- */
 function isRestrictedHost(hostname: string): boolean {
   const normalized = hostname
     .trim()
-    .replace(/^\[/, '')
-    .replace(/\]$/, '')
-    .replace(/\.$/, '')
+    .replace(/^\[/u, '')
+    .replace(/\]$/u, '')
+    .replace(/\.$/u, '')
     .toLowerCase()
   if (!normalized) return true
-
   if (BLOCKED_HOSTNAMES.has(normalized)) return true
   if (BLOCKED_HOST_SUFFIXES.some(suffix => normalized.endsWith(suffix))) return true
-
-  const ipVersion = isIP(normalized)
-  if (ipVersion === 4) return isPrivateIPv4(normalized)
-  if (ipVersion === 6) return isPrivateIPv6(normalized)
-
+  if (parseIPv4(normalized)) return isPrivateIPv4(normalized)
+  if (normalized.includes(':')) return isPrivateIPv6(normalized)
   return false
 }
 
@@ -118,8 +80,9 @@ export type PublicUrlValidationResult =
   | { ok: false; error: (typeof URL_ERROR)[keyof typeof URL_ERROR] }
 
 /**
- * Validates user-provided URLs for server-side fetch use cases.
- * Blocks non-http(s) protocols and common private/local network targets.
+ * Environment-neutral validation for every URL that the Worker may fetch.
+ * WHATWG URL parsing canonicalizes alternate IP literal forms before the
+ * private/local network policy is evaluated.
  */
 export function validatePublicHttpUrl(value: string): PublicUrlValidationResult {
   let parsed: URL
@@ -128,15 +91,12 @@ export function validatePublicHttpUrl(value: string): PublicUrlValidationResult 
   } catch {
     return { ok: false, error: URL_ERROR.FORMAT }
   }
-
-  if (!['http:', 'https:'].includes(parsed.protocol)) {
+  if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
     return { ok: false, error: URL_ERROR.PROTOCOL }
   }
-
   if (isRestrictedHost(parsed.hostname)) {
     return { ok: false, error: URL_ERROR.RESTRICTED_HOST }
   }
-
   return { ok: true, url: parsed }
 }
 

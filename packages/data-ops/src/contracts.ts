@@ -1,4 +1,5 @@
 import type { ActiveCheckedInSiteId } from '@serpdirectory/site-contract/active-site-ids'
+import type { SiteDatabase } from './client'
 
 export type CatalogOperation =
   | 'autocomplete'
@@ -156,8 +157,7 @@ export interface CatalogOperations {
 
 export interface CatalogOperationsConfig {
   cache: CatalogDataCache
+  client: SiteDatabase
   clock: () => Date
-  database: D1Database
   observe: CatalogObserver
-  siteId: ActiveCheckedInSiteId
 }

@@ -183,9 +183,11 @@ describe('local D1 cutover contracts', () => {
     const route = readFileSync(resolve('apps/serp.software/app/products/[slug]/page.tsx'), 'utf8')
     expect(repository).toContain("from '@serpdirectory/data-ops/catalog'")
     expect(repository).not.toMatch(/\b(?:SELECT|WITH)\b/u)
-    expect(dataOperations).toContain('JOIN listings l ON l.id = r.listing_id')
-    expect(dataOperations).toContain('r.site_id = ? AND r.old_slug = ?')
-    expect(dataOperations).toContain('[siteId, oldSlug, siteId, asOf]')
+    expect(dataOperations).toContain(
+      '.innerJoin(listings, eq(listings.id, listingSlugRedirects.listingId))'
+    )
+    expect(dataOperations).toContain('eq(listingSlugRedirects.oldSlug, oldSlug)')
+    expect(dataOperations).toMatch(/sql`\$\{listings\.publishedAt\} <= \$\{asOf\}`/u)
     expect(route.indexOf('permanentRedirect')).toBeLessThan(
       route.indexOf('notFound()', route.indexOf('if (!project)'))
     )
@@ -308,7 +310,7 @@ describe('local D1 cutover contracts', () => {
       expect(repository).not.toMatch(/\b(?:SELECT|WITH)\b/u)
     }
     expect(environmentTypes).toContain("'local' | 'preview' | 'production'")
-    expect(dataOperations).toContain('[siteId, oldSlug, siteId, asOf]')
+    expect(dataOperations).toContain('eq(listingSlugRedirects.siteId, siteId)')
     expect(dataOperations).toContain('normalized.split(/\\s+/u)')
     expect(dataOperations).toContain('lower(l.website) LIKE ?')
     expect(dataOperations).toContain('l.display_order ASC')

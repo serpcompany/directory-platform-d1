@@ -64,6 +64,7 @@ describe('private submission review preview', () => {
       resolve('apps/serp.software/lib/submissions/review-preview-repository.ts'),
       'utf8'
     )
+    const sharedOperations = readFileSync(resolve('packages/data-ops/src/submissions.ts'), 'utf8')
     const route = readFileSync(
       resolve('apps/serp.software/app/admin/submissions/[id]/preview/[token]/page.tsx'),
       'utf8'
@@ -78,9 +79,12 @@ describe('private submission review preview', () => {
       'utf8'
     )
 
-    expect(repository).toContain("s.status='verified'")
-    expect(repository).toContain('n.preview_token_hash=?')
-    expect(repository).toContain('.bind(CHANNEL, access.id, SITE_ID, await sha256(access.token))')
+    expect(repository).toContain('@serpdirectory/data-ops/submissions')
+    expect(repository).toContain('createSiteDatabase(workerEnv.DB, siteId)')
+    expect(repository).not.toMatch(/\b(?:SELECT|INSERT|UPDATE|DELETE|WITH)\b/u)
+    expect(sharedOperations).toContain("eq(listingSubmissions.status, 'verified')")
+    expect(sharedOperations).toContain('listingSubmissionNotifications.previewTokenHash')
+    expect(sharedOperations).toContain('eq(listingSubmissions.siteId, siteId)')
     expect(repository).not.toMatch(/readFile|\\.json/)
     expect(route).toContain('JsonLd: PrivatePreviewJsonLd')
     expect(route).toContain('structuredData={false}')

@@ -69,7 +69,10 @@ listing. After either successful decision, it comments on and closes the matchin
 review issue. The draft link then stops working.
 
 The public form is implemented in
-`packages/web-core/src/forms/d1-submission-form.tsx`; each server-only write boundary
-lives at `apps/<site-id>/lib/submissions/repository.ts`. Submission intake does not
-use GitHub Issues or catalog files as data sources; an assigned private issue is only
-the admin notification and inbox.
+`packages/web-core/src/forms/d1-submission-form.tsx`. Each Site's server-only adapter
+at `apps/<site-id>/lib/submissions/repository.ts` only validates its OpenNext binding,
+runtime environment, and Site identity before calling the shared operations in
+`packages/data-ops/src/submissions.ts`. Protected approval and notifier scripts use
+pure shared statement plans but retain exclusive credential and remote-mutation
+authority. Submission intake does not use GitHub Issues or catalog files as data
+sources; an assigned private issue is only the admin notification and inbox.

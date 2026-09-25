@@ -5,7 +5,7 @@ database. GitHub Pages repo sync and local remote deploys are not supported.
 
 | Site | Deployment workflow | Preview environment | Production environment |
 | --- | --- | --- | --- |
-| `serp.software` | `build-and-deploy.yml` | Not provisioned; use local validation only | `production` |
+| `serp.software` | `build-and-deploy.yml` | `serp-software-preview` provisioned and rehearsed | `production` |
 | `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 ## Local verification
@@ -71,9 +71,58 @@ verification. Run it once from empty publication state, then repeat it after the
 catalog is populated to prove the identical checksum produces an import no-op before
 authorizing production.
 
-Existing exception: `serp.software` predates that requirement and currently has no
-proper preview Worker/D1/protected environment. Do not infer or provision one during
-unrelated maintenance; track it as explicit platform work.
+`serp.software` predates that requirement, but Issue #72 has now provisioned its
+isolated source/replacement Preview D1 databases, Worker, and protected environment.
+The protected rehearsal passed on commit
+`47ec54fc87d3ddf7fb31b3de1f5dc0ab55b83a30`; retained evidence is attached to
+[the successful workflow run](https://github.com/serpcompany/directory-platform-d1/actions/runs/36087909482).
+See [the replacement cutover contract](./D1_CUTOVER.md).
+
+The separately protected `rehearse-d1-replatform-preview.yml` workflow is the only
+prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
+the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,
+and rehearses the old binding before restoring the replacement binding. It contains
+no Production mutation path. It runs only from the reviewed integration ref
+`refs/heads/codex/issue-72-preview-cutover` before merge; arbitrary branches, tags,
+pull-request refs, and `main` are rejected by both workflow and release guards.
+Production and every other remote mutation remain `refs/heads/main`-only.
+
+The same approved Preview run may bootstrap an empty legacy Preview source solely
+from `d1/migrations/0001`-`0009` plus the reviewed controlled artifact. It retains the
+empty export first, rejects populated nonmatching or private state before mutation,
+proves a repeated import no-op, and retains the populated rollback export. This does
+not authorize access to or copying from Production.
+
+For SERP's first run only, read-only preflight may accept the explicitly configured
+missing Preview Worker after all account and D1 identities pass. PVD never permits a
+missing Worker bootstrap. Both missing and existing paths repeat preflight and deploy
+the exact stacked commit without transient authority against the legacy/source Preview
+D1 binding. The workflow must then read back the active service, workers.dev hostname,
+100-percent deployment/version, script etag, and source D1 binding. Its version UUID
+must exactly match the sole UUID emitted by the immediately preceding guarded deploy;
+otherwise a concurrent or ambiguous deployment fails closed. The workflow binds that
+proof to the sealed receipt before installing any rehearsal secret. The later
+replacement deployment is separate.
+
+Before secret installation, inspect the reviewed version bindings and require all six
+rehearsal secret names to be absent. A Worker code deploy can preserve omitted secrets;
+an etag match therefore does not prove a credential-free version. Preserved rehearsal
+authority requires explicit manual recovery, with no automatic cleanup or database
+mutation from that failed run. Seal the positive credential-free and absent-name proof.
+
+Install transient rehearsal authority with one mode-`0600`, runner-temporary
+`wrangler secret bulk` file, never sequential `secret put` calls. Remove the file
+immediately. Read deployments again and require exactly one new active 100-percent
+version after the reviewed source-bound deployment, the same script etag and source D1
+binding, and all six expected secret names. Seal both version/deployment identities;
+any concurrent deployment or code/binding drift stops the run.
+
+After replacement and restoration deploys, allow only bounded edge-propagation retries
+for attestation: reuse one short-lived run/hostname token for no more than 30 seconds,
+and retry only network errors, 404, or 5xx with backoff. Never retry a 200 response whose
+identity differs, or another definitive HTTP status. Full attestation identity equality
+remains mandatory before continuing. Give every fetch an abort signal bounded to the
+remaining overall window; a deadline abort or even a late 200 is a final timeout.
 
 ## Verified public submissions
 

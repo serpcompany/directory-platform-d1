@@ -7,7 +7,9 @@ whose directory catalog is stored in its own Cloudflare D1 database.
 There is one catalog authority:
 
 - runtime listings, categories, search, RSS, and sitemaps read from the `DB` binding;
-- schema changes live in `d1/migrations/`;
+- the shared schema lives in `packages/data-ops/src/schema.ts` and fresh replacement
+  database migrations live in `d1/drizzle/`; released `d1/migrations/0001`-`0009`
+  remain immutable legacy history;
 - reviewed catalog mutations live in `d1/publications/`;
 - the initial SQL bootstrap and its parity evidence live in `d1/artifacts/`.
 

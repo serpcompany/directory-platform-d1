@@ -1,8 +1,6 @@
-import { DatabaseSync } from 'node:sqlite'
+import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import type { ActiveCheckedInSiteId } from '@serpdirectory/site-contract/active-site-ids'
 import type { CatalogDataCache } from './contracts'
-
-type SqlPrimitive = null | number | string
 
 export class MemoryCatalogCache implements CatalogDataCache {
   readonly ttlSeconds = new Map<string, number>()
@@ -27,8 +25,9 @@ export class SqliteD1 {
   readonly database: DatabaseSync
   readonly statements: RecordedStatement[] = []
 
-  constructor(path = ':memory:') {
+  constructor(path = ':memory:', initializeCatalog = true) {
     this.database = new DatabaseSync(path)
+    if (!initializeCatalog) return
     this.database.exec(`
       PRAGMA foreign_keys = ON;
       CREATE TABLE sites (id TEXT PRIMARY KEY);
@@ -120,31 +119,56 @@ export class SqliteD1 {
 
   asD1Database(): D1Database {
     const owner = this
-    return {
+    const binding = {
       prepare(sql: string) {
         let bindings: unknown[] = []
+        const execute = <T>() => {
+          owner.statements.push({ bindings, sql })
+          const statement = owner.database.prepare(sql)
+          const values = bindings as SQLInputValue[]
+          let results: T[] = []
+          if (statement.columns().length > 0) results = statement.all(...values) as T[]
+          else statement.run(...values)
+          return {
+            results,
+            success: true as const,
+            meta: {
+              duration: 0,
+              rows_read: results.length,
+              rows_written: 0
+            }
+          }
+        }
         return {
           bind(...values: unknown[]) {
             bindings = values
             return this
           },
           async all<T>() {
-            owner.statements.push({ bindings, sql })
-            const statement = owner.database.prepare(sql)
-            const results = statement.all(...(bindings as SqlPrimitive[])) as T[]
-            return {
-              results,
-              success: true,
-              meta: {
-                duration: 0,
-                rows_read: results.length,
-                rows_written: 0
-              }
-            }
+            return execute<T>()
+          },
+          async first<T>() {
+            return execute<T>().results[0] ?? null
+          },
+          async run<T>() {
+            return execute<T>()
           }
         } as unknown as D1PreparedStatement
+      },
+      async batch<T>(statements: D1PreparedStatement[]) {
+        owner.database.exec('BEGIN')
+        try {
+          const results: D1Result<T>[] = []
+          for (const statement of statements) results.push(await statement.run<T>())
+          owner.database.exec('COMMIT')
+          return results
+        } catch (error) {
+          owner.database.exec('ROLLBACK')
+          throw error
+        }
       }
-    } as unknown as D1Database
+    }
+    return binding as unknown as D1Database
   }
 }
 

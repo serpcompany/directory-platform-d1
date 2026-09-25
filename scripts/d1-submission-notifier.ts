@@ -1,9 +1,13 @@
 import { createHash, randomBytes } from 'node:crypto'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  recordSubmissionNotificationPlan,
+  type SubmissionStatementPlan,
+  selectVerifiedSubmissionNotificationPlans
+} from '@serpdirectory/data-ops/submission-plans'
 import { resolveSiteTarget, type SiteId, type SiteTarget } from './site-targets'
 
-const CHANNEL = 'github_issue'
 const EXPECTED_REPOSITORY = 'serpcompany/directory-platform-d1'
 const WORKFLOW_PATH = '/.github/workflows/notify-d1-submissions.yml@'
 const REVIEW_WORKFLOW_URL =
@@ -21,11 +25,6 @@ interface D1Response {
   errors?: Array<{ message?: string }>
   result?: D1Result[]
   success?: boolean
-}
-
-interface Statement {
-  sql: string
-  params: unknown[]
 }
 
 interface SubmissionRow {
@@ -120,7 +119,7 @@ function d1Error(payload: D1Response, status: number): Error {
 }
 
 async function query(
-  statements: Statement[],
+  statements: SubmissionStatementPlan[],
   env: NodeJS.ProcessEnv,
   fetcher: typeof fetch
 ): Promise<D1Result[]> {
@@ -382,51 +381,7 @@ export async function notifyVerifiedSubmissions(
   let selected: D1Result[]
   try {
     selected = await query(
-      [
-        {
-          sql: `SELECT s.id,s.slug,s.name,s.description,s.website,s.content,s.category_slug,
-              s.logo_url,s.video_url,s.verification_attempts,s.badge_verified_at,s.created_at
-            FROM listing_submissions s
-            LEFT JOIN listing_submission_notifications n
-              ON n.submission_id=s.id AND n.channel=?
-            WHERE s.site_id=? AND s.status='verified'
-              AND (n.submission_id IS NULL OR n.preview_token_hash IS NULL)
-            ORDER BY s.badge_verified_at,s.created_at LIMIT ?`,
-          params: [CHANNEL, target.siteId, MAX_SUBMISSIONS_PER_RUN]
-        },
-        {
-          sql: `WITH pending AS (
-              SELECT candidate.id FROM listing_submissions candidate
-              LEFT JOIN listing_submission_notifications notification
-                ON notification.submission_id=candidate.id AND notification.channel=?
-              WHERE candidate.site_id=? AND candidate.status='verified'
-                AND (notification.submission_id IS NULL
-                  OR notification.preview_token_hash IS NULL)
-              ORDER BY candidate.badge_verified_at,candidate.created_at LIMIT ?
-            )
-            SELECT r.submission_id,r.label,r.url,r.sort_order
-            FROM listing_submission_resource_links r
-            JOIN pending ON pending.id=r.submission_id
-            ORDER BY r.submission_id,r.sort_order`,
-          params: [CHANNEL, target.siteId, MAX_SUBMISSIONS_PER_RUN]
-        },
-        {
-          sql: `WITH pending AS (
-              SELECT candidate.id FROM listing_submissions candidate
-              LEFT JOIN listing_submission_notifications notification
-                ON notification.submission_id=candidate.id AND notification.channel=?
-              WHERE candidate.site_id=? AND candidate.status='verified'
-                AND (notification.submission_id IS NULL
-                  OR notification.preview_token_hash IS NULL)
-              ORDER BY candidate.badge_verified_at,candidate.created_at LIMIT ?
-            )
-            SELECT f.submission_id,f.question,f.answer,f.sort_order
-            FROM listing_submission_faqs f
-            JOIN pending ON pending.id=f.submission_id
-            ORDER BY f.submission_id,f.sort_order`,
-          params: [CHANNEL, target.siteId, MAX_SUBMISSIONS_PER_RUN]
-        }
-      ],
+      selectVerifiedSubmissionNotificationPlans(target.siteId, MAX_SUBMISSIONS_PER_RUN),
       env,
       fetcher
     )
@@ -464,25 +419,14 @@ export async function notifyVerifiedSubmissions(
     else recovered += 1
     await query(
       [
-        {
-          sql: `INSERT INTO listing_submission_notifications
-              (submission_id,channel,external_id,external_url,recipient,preview_token_hash)
-            VALUES (?,?,?,?,?,?)
-            ON CONFLICT(submission_id,channel) DO UPDATE SET
-              external_id=excluded.external_id,
-              external_url=excluded.external_url,
-              recipient=excluded.recipient,
-              preview_token_hash=excluded.preview_token_hash,
-              updated_at=CURRENT_TIMESTAMP`,
-          params: [
-            submission.id,
-            CHANNEL,
-            String(issueResult.issue.number),
-            issueResult.issue.html_url,
-            reviewer,
-            previewTokenHash
-          ]
-        }
+        recordSubmissionNotificationPlan({
+          externalId: String(issueResult.issue.number),
+          externalUrl: issueResult.issue.html_url,
+          previewTokenHash,
+          recipient: reviewer,
+          siteId: target.siteId,
+          submissionId: submission.id
+        })
       ],
       env,
       fetcher

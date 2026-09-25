@@ -88,8 +88,9 @@ outcomes; this repository can only enforce the technical inputs it controls.
   categories, Listing set, and network-brand group.
 - PVD has checked-in logo, favicon, and Open Graph assets; SERP currently uses shared
   or fallback branding behavior.
-- PVD has an isolated preview Worker and D1 database. SERP's missing preview
-  environment is a known platform gap and not permission to invent one implicitly.
+- Both Sites have isolated Preview Workers and D1 databases. SERP's source and
+  replacement Preview resources are protected Issue #72 infrastructure, not
+  permission to create or substitute Preview identities implicitly.
 - Both Sites currently enable Brands and newsletter surfaces and disable auth, docs,
   dedicated favorites, guides, projects, creator-projects, and external-resources
   surfaces.
@@ -117,6 +118,6 @@ outcomes; this repository can only enforce the technical inputs it controls.
 2. What constitutes sufficient local, preview, and live evidence for each required
    capability?
 3. Which accessibility and performance thresholds are release-blocking?
-4. How should SERP releases compensate for the absence of an isolated preview?
+4. How should the shared SERP Preview target evolve to isolate concurrent pull requests?
 5. Which live checks run before deployment, immediately afterward, and continuously?
 6. What rollback or traffic response follows a failed post-deployment invariant?

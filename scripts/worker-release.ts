@@ -4,10 +4,12 @@ import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, relative, resolve, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parse } from 'yaml'
-import { resolveSiteTarget, type SiteTarget } from './site-targets'
+import { validateReplatformTemplate } from './d1-replatform-cutover'
+import { replatformPreviewRef, resolveSiteTarget, type SiteTarget } from './site-targets'
 
 const environments = ['preview', 'production'] as const
 type WorkerEnvironment = (typeof environments)[number]
+type DatabaseGeneration = 'legacy' | 'replatform'
 type ReleaseCommand =
   | 'backup'
   | 'check-schema'
@@ -27,6 +29,34 @@ const placeholders: Record<WorkerEnvironment, Record<string, string>> = {
     CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: '${CLOUDFLARE_D1_PRODUCTION_DATABASE_ID}',
     CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME: '${CLOUDFLARE_D1_PRODUCTION_DATABASE_NAME}',
     CLOUDFLARE_WORKER_PRODUCTION_NAME: '${CLOUDFLARE_WORKER_PRODUCTION_NAME}'
+  }
+}
+
+const replatformDatabasePlaceholders: Record<WorkerEnvironment, Record<string, string>> = {
+  preview: {
+    CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID:
+      '${CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID}',
+    CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME:
+      '${CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME}'
+  },
+  production: {
+    CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID:
+      '${CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID}',
+    CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME:
+      '${CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME}'
+  }
+}
+
+function releasePlaceholders(
+  environment: WorkerEnvironment,
+  generation: DatabaseGeneration
+): Record<string, string> {
+  if (generation === 'legacy') return placeholders[environment]
+  const upper = environment.toUpperCase()
+  return {
+    [`CLOUDFLARE_WORKER_${upper}_NAME`]:
+      placeholders[environment][`CLOUDFLARE_WORKER_${upper}_NAME`],
+    ...replatformDatabasePlaceholders[environment]
   }
 }
 
@@ -91,33 +121,51 @@ function parseEnvironment(value: string | undefined): WorkerEnvironment {
   throw new Error('Worker environment must be "preview" or "production".')
 }
 
+export function parseDatabaseGeneration(
+  value: string | undefined,
+  options: { requireExplicit: boolean }
+): DatabaseGeneration {
+  if (value === 'legacy' || value === 'replatform') return value
+  if (value === undefined && !options.requireExplicit) return 'legacy'
+  throw new Error('D1_RELEASE_GENERATION must explicitly equal legacy or replatform.')
+}
+
 function readTemplate(
   target: SiteTarget,
-  environment: WorkerEnvironment
+  environment: WorkerEnvironment,
+  generation: DatabaseGeneration = 'legacy'
 ): { config: WorkerConfig; source: string } {
+  const paths = generation === 'replatform' ? target.replatform : target.remote
   const configPath =
-    environment === 'preview' ? target.remote.previewConfigPath : target.remote.productionConfigPath
+    environment === 'preview' ? paths.previewConfigPath : paths.productionConfigPath
   const source = readFileSync(resolve(configPath), 'utf8')
   return { config: JSON.parse(source) as WorkerConfig, source }
 }
 
-export function validateWorkerConfig(environment: WorkerEnvironment, siteId: string): void {
+export function validateWorkerConfig(
+  environment: WorkerEnvironment,
+  siteId: string,
+  generation: DatabaseGeneration = 'legacy'
+): void {
   const target = resolveSiteTarget(siteId)
-  const { config, source } = readTemplate(target, environment)
+  if (generation === 'replatform') validateReplatformTemplate(target.siteId, environment)
+  const { config, source } = readTemplate(target, environment, generation)
   const binding = config.d1_databases?.find(item => item.binding === 'DB')
-  const expected = placeholders[environment]
+  const expected = releasePlaceholders(environment, generation)
   const upper = environment.toUpperCase()
   const otherEnvironment = environment === 'preview' ? 'production' : 'preview'
   const appPath = `apps/${target.appPackageName}/.open-next`
+  const paths = generation === 'replatform' ? target.replatform : target.remote
   const configPath =
-    environment === 'preview' ? target.remote.previewConfigPath : target.remote.productionConfigPath
+    environment === 'preview' ? paths.previewConfigPath : paths.productionConfigPath
   const expectedSchemaPath = pathRelativeToConfig(
     configPath,
     'node_modules/wrangler/config-schema.json'
   )
   const expectedWorkerPath = pathRelativeToConfig(configPath, `${appPath}/worker.js`)
   const expectedAssetsPath = pathRelativeToConfig(configPath, `${appPath}/assets`)
-  const expectedMigrationsPath = pathRelativeToConfig(configPath, 'd1/migrations')
+  const migrationsDirectory = generation === 'replatform' ? 'd1/drizzle' : 'd1/migrations'
+  const expectedMigrationsPath = pathRelativeToConfig(configPath, migrationsDirectory)
   if (config.$schema !== expectedSchemaPath) throw new Error('Unexpected Wrangler schema path.')
   if (config.name !== expected[`CLOUDFLARE_WORKER_${upper}_NAME`])
     throw new Error('Unexpected Worker name placeholder.')
@@ -137,9 +185,11 @@ export function validateWorkerConfig(environment: WorkerEnvironment, siteId: str
     throw new Error('D1_RUNTIME_ENV must match the template environment.')
   if (config.vars?.SITE_ID !== target.siteId || config.vars.NEXT_PUBLIC_SITE_ID !== target.siteId)
     throw new Error(`Worker templates must remain scoped to ${target.siteId}.`)
-  if (binding?.database_id !== expected[`CLOUDFLARE_D1_${upper}_DATABASE_ID`])
+  const databasePrefix =
+    generation === 'replatform' ? `CLOUDFLARE_D1_REPLACEMENT_${upper}` : `CLOUDFLARE_D1_${upper}`
+  if (binding?.database_id !== expected[`${databasePrefix}_DATABASE_ID`])
     throw new Error('Unexpected D1 ID placeholder.')
-  if (binding?.database_name !== expected[`CLOUDFLARE_D1_${upper}_DATABASE_NAME`])
+  if (binding?.database_name !== expected[`${databasePrefix}_DATABASE_NAME`])
     throw new Error('Unexpected D1 name placeholder.')
   if (binding?.migrations_dir !== expectedMigrationsPath)
     throw new Error('Unexpected D1 migrations directory.')
@@ -156,7 +206,11 @@ function assertProtectedWorkflow(
   const workflowRef = env.GITHUB_WORKFLOW_REF || ''
   const isDeployWorkflow =
     workflowRef.includes('/.github/workflows/build-and-deploy.yml@') ||
-    workflowRef.includes('/.github/workflows/deploy-pornvideodownloaders.yml@')
+    workflowRef.includes('/.github/workflows/deploy-pornvideodownloaders.yml@') ||
+    workflowRef.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+  const isReplatformPreviewWorkflow = workflowRef.includes(
+    '/.github/workflows/rehearse-d1-replatform-preview.yml@'
+  )
   const isPublicationWorkflow = workflowRef.includes('/.github/workflows/publish-d1.yml@')
   const isSubmissionApprovalWorkflow = workflowRef.includes(
     '/.github/workflows/approve-d1-submission.yml@'
@@ -167,15 +221,26 @@ function assertProtectedWorkflow(
     (!isDeployWorkflow && !isPublicationWorkflow && !isSubmissionApprovalWorkflow)
   )
     throw new Error('Remote execution is authorized only by a protected GitHub Actions workflow.')
-  if (env.GITHUB_REF !== 'refs/heads/main' || !env.GITHUB_SHA)
-    throw new Error('Remote execution requires the main branch and a nonempty GitHub SHA.')
+  if (!env.GITHUB_SHA) throw new Error('Remote execution requires a nonempty GitHub SHA.')
+  if (isReplatformPreviewWorkflow) {
+    if (
+      environment !== 'preview' ||
+      env.GITHUB_REF !== replatformPreviewRef ||
+      !workflowRef.endsWith(`@${replatformPreviewRef}`)
+    )
+      throw new Error('Replatform Preview execution requires the exact checked-in integration ref.')
+  } else if (env.GITHUB_REF !== 'refs/heads/main') {
+    throw new Error('Remote execution requires the main branch.')
+  }
   if (environment === 'preview' && (isPublicationWorkflow || isSubmissionApprovalWorkflow))
     throw new Error('Publication and submission approval are production-only operations.')
   const expectedConfirmation = isPublicationWorkflow
     ? target.confirmation.publish
     : isSubmissionApprovalWorkflow
       ? target.confirmation.submission
-      : target.confirmation.deploy[environment]
+      : isReplatformPreviewWorkflow
+        ? target.confirmation.replatform[environment]
+        : target.confirmation.deploy[environment]
   if (env.WORKER_PRODUCTION_CONFIRM !== expectedConfirmation)
     throw new Error('Explicit protected-environment confirmation is required.')
   const status = dependencies.run('git', ['status', '--porcelain', '--untracked-files=normal'], {
@@ -191,11 +256,13 @@ function assertProtectedWorkflow(
 function materializeConfig(
   target: SiteTarget,
   environment: WorkerEnvironment,
-  env: NodeJS.ProcessEnv
+  env: NodeJS.ProcessEnv,
+  generation: DatabaseGeneration
 ): { configPath: string; databaseName: string } {
-  validateWorkerConfig(environment, target.siteId)
-  let { source } = readTemplate(target, environment)
-  for (const [name, placeholder] of Object.entries(placeholders[environment])) {
+  validateWorkerConfig(environment, target.siteId, generation)
+  let { source } = readTemplate(target, environment, generation)
+  const selectedPlaceholders = releasePlaceholders(environment, generation)
+  for (const [name, placeholder] of Object.entries(selectedPlaceholders)) {
     const value = env[name]
     if (!value || value === placeholder)
       throw new Error(`Missing required environment value ${name}.`)
@@ -206,7 +273,7 @@ function materializeConfig(
   const appPath = `apps/${target.appPackageName}/.open-next`
   const configPath = resolve(
     '.wrangler/generated',
-    `${target.siteId.replaceAll('.', '-')}.${environment}.jsonc`
+    `${target.siteId.replaceAll('.', '-')}.${environment}${generation === 'replatform' ? '.replatform' : ''}.jsonc`
   )
   config.$schema = pathRelativeToConfig(
     configPath,
@@ -216,13 +283,19 @@ function materializeConfig(
   if (config.assets)
     config.assets.directory = pathRelativeToConfig(configPath, resolve(`${appPath}/assets`))
   const binding = config.d1_databases?.find(item => item.binding === 'DB')
-  if (binding) binding.migrations_dir = pathRelativeToConfig(configPath, resolve('d1/migrations'))
+  const migrationsDirectory = generation === 'replatform' ? 'd1/drizzle' : 'd1/migrations'
+  if (binding)
+    binding.migrations_dir = pathRelativeToConfig(configPath, resolve(migrationsDirectory))
   source = `${JSON.stringify(config, null, 2)}\n`
   mkdirSync(dirname(configPath), { recursive: true })
   writeFileSync(configPath, source)
   return {
     configPath,
-    databaseName: env[`CLOUDFLARE_D1_${environment.toUpperCase()}_DATABASE_NAME`] as string
+    databaseName: env[
+      generation === 'replatform'
+        ? `CLOUDFLARE_D1_REPLACEMENT_${environment.toUpperCase()}_DATABASE_NAME`
+        : `CLOUDFLARE_D1_${environment.toUpperCase()}_DATABASE_NAME`
+    ] as string
   }
 }
 
@@ -358,7 +431,12 @@ function runRemote(
   dependencies: WorkerReleaseDependencies
 ): void {
   assertProtectedWorkflow(target, environment, env, dependencies)
-  const { configPath, databaseName } = materializeConfig(target, environment, env)
+  const generation = parseDatabaseGeneration(env.D1_RELEASE_GENERATION, {
+    requireExplicit: Boolean(
+      env.GITHUB_WORKFLOW_REF?.includes('/.github/workflows/rehearse-d1-replatform-preview.yml@')
+    )
+  })
+  const { configPath, databaseName } = materializeConfig(target, environment, env, generation)
   if (command === 'upload' || command === 'deploy') {
     runChecked(dependencies, 'pnpm', [
       '--filter',
@@ -376,7 +454,7 @@ function runRemote(
       '.wrangler/backups',
       target.siteId.replaceAll('.', '-'),
       environment,
-      `${env.GITHUB_SHA}.sql`
+      `${env.GITHUB_SHA}${generation === 'replatform' ? '.replatform.sql' : '.sql'}`
     )
     mkdirSync(dirname(backupPath), { recursive: true })
     runChecked(dependencies, 'pnpm', [
@@ -420,7 +498,9 @@ function runRemote(
         true
       )
       const rows = parseD1Rows(String(result.stdout ?? ''))
-      const required = requiredMigrationNames()
+      const required = requiredMigrationNames(
+        resolve(generation === 'replatform' ? 'd1/drizzle' : 'd1/migrations')
+      )
       assertSchemaCompatible(required, rows)
       console.log(
         JSON.stringify({
@@ -598,6 +678,10 @@ export function runWorkerRelease(
   const { command, environment, target } = parseSiteArgument(argv)
   if (command === 'validate') {
     validateWorkerConfig(environment, target.siteId)
+    return
+  }
+  if (command === 'validate-replatform') {
+    validateWorkerConfig(environment, target.siteId, 'replatform')
     return
   }
   if (command === 'plan-migration' || command === 'plan-verify') {

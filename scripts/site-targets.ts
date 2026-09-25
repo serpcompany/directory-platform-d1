@@ -1,5 +1,6 @@
 export const siteIds = ['pornvideodownloaders.com', 'serp.software'] as const
 export type SiteId = (typeof siteIds)[number]
+export const replatformPreviewRef = 'refs/heads/codex/issue-72-preview-cutover' as const
 
 export interface SiteTarget {
   appPackageName: SiteId
@@ -14,6 +15,10 @@ export interface SiteTarget {
       production: string
     }
     publish: string
+    replatform: {
+      preview: string
+      production: string
+    }
     submission: string
   }
   local: {
@@ -28,6 +33,11 @@ export interface SiteTarget {
     production: string
   }
   remote: {
+    previewConfigPath: string
+    productionConfigPath: string
+  }
+  replatform: {
+    allowMissingPreviewWorkerBootstrap: boolean
     previewConfigPath: string
     productionConfigPath: string
   }
@@ -48,6 +58,10 @@ export const siteTargets = {
         production: 'plan-pornvideodownloaders.com-production'
       },
       publish: 'publish-pornvideodownloaders.com-production',
+      replatform: {
+        preview: 'rehearse-pornvideodownloaders.com-preview',
+        production: 'cutover-pornvideodownloaders.com-production'
+      },
       submission: 'approve-pornvideodownloaders.com-submission-production'
     },
     local: {
@@ -65,6 +79,11 @@ export const siteTargets = {
       previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/preview.jsonc',
       productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/production.jsonc'
     },
+    replatform: {
+      allowMissingPreviewWorkerBootstrap: false,
+      previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-preview.jsonc',
+      productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-production.jsonc'
+    },
     siteId: 'pornvideodownloaders.com'
   },
   'serp.software': {
@@ -80,6 +99,10 @@ export const siteTargets = {
         production: 'plan-serp.software-production'
       },
       publish: 'publish-serp.software-production',
+      replatform: {
+        preview: 'rehearse-serp.software-preview',
+        production: 'cutover-serp.software-production'
+      },
       submission: 'approve-serp.software-submission-production'
     },
     local: {
@@ -90,12 +113,17 @@ export const siteTargets = {
     },
     parityReportPath: 'd1/artifacts/serp-software-v1-parity.yaml',
     protectedEnvironment: {
-      preview: 'preview',
+      preview: 'serp-software-preview',
       production: 'production'
     },
     remote: {
       previewConfigPath: 'configs/wrangler/serp.software/preview.jsonc',
       productionConfigPath: 'configs/wrangler/serp.software/production.jsonc'
+    },
+    replatform: {
+      allowMissingPreviewWorkerBootstrap: true,
+      previewConfigPath: 'configs/wrangler/serp.software/replatform-preview.jsonc',
+      productionConfigPath: 'configs/wrangler/serp.software/replatform-production.jsonc'
     },
     siteId: 'serp.software'
   }

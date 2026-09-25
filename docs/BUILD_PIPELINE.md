@@ -11,7 +11,8 @@ sync in either release path.
 - `sites/<site-id>/site-config.ts`: checked-in application configuration.
 - `configs/wrangler/<site-id>/*.jsonc`: checked-in Worker and D1 binding templates.
 - `packages/content/data/**/*.mdx`: file-authored documentation and legal content.
-- `d1/migrations/`: versioned D1 schema.
+- `d1/drizzle/`: fresh Drizzle-generated D1 history for replacement databases;
+  `d1/migrations/0001`-`0009` remains immutable current-database history until cutover.
 - `d1/artifacts/`: deterministic initial migration and parity evidence.
 - `listing_submissions` and child tables: private, badge-gated public intake.
 - `d1/publications/`: approved, versioned mutation manifests.
@@ -35,11 +36,16 @@ pnpm worker:build
 
 The OpenNext build emits one `.open-next/worker.js` and asset set under each app.
 Both sites have separate local and production Wrangler identities and bindings.
-PVD also has separate preview configuration; SERP's missing remote preview path is a
-known follow-up. Configuration validation rejects cross-environment and cross-site
-references. Release tooling materializes ignored environment-specific configuration
+Both also have separate Preview configuration and provisioned Preview resources;
+SERP's protected source/replacement Preview path was rehearsed by Issue #72.
+Configuration validation rejects cross-environment and cross-site references. Release tooling materializes
+ignored environment-specific configuration
 under `.wrangler/generated/` and rebases Worker, asset, schema, and migration paths
 relative to that generated configuration.
+
+Replacement templates are separate `replatform-*.jsonc` files and point only at
+`d1/drizzle/`. They do not replace released templates before protected cutover. See
+[the replacement cutover contract](./D1_CUTOVER.md).
 
 ## Protected production release
 
