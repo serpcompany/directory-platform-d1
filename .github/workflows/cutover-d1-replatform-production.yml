@@ -50,7 +50,7 @@ jobs:
       CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
     steps:
       - name: Checkout exact reviewed main commit
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
       - name: Install dependencies
         uses: ./.github/actions/install
       - name: Initialize runner-only evidence
