@@ -109,7 +109,8 @@ const requiredCatalogJourneys = [
   'search',
   'rss',
   'sitemap',
-  'legacy-redirect'
+  'legacy-redirect',
+  'submit'
 ] as const
 const requiredSubmissionJourneys = [
   'intake',

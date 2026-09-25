@@ -129,7 +129,16 @@ function baseEvidence(environment: 'preview' | 'production') {
       exactParity: true,
       freshMigrationLedger: true
     },
-    catalogJourneys: ['home', 'category', 'detail', 'search', 'rss', 'sitemap', 'legacy-redirect'],
+    catalogJourneys: [
+      'home',
+      'category',
+      'detail',
+      'search',
+      'rss',
+      'sitemap',
+      'legacy-redirect',
+      'submit'
+    ],
     submissionJourneys: [
       'intake',
       'rate-limit',
@@ -257,10 +266,10 @@ describe('D1 replatform cutover preparation', () => {
     const env = {
       GITHUB_ACTIONS: 'true',
       CI: 'true',
-      GITHUB_REF: 'refs/heads/codex/issue-72-preview-cutover',
+      GITHUB_REF: 'refs/heads/main',
       GITHUB_SHA: commitSha,
       GITHUB_WORKFLOW_REF:
-        'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/codex/issue-72-preview-cutover',
+        'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/main',
       WORKER_PRODUCTION_CONFIRM: 'rehearse-serp.software-preview',
       CLOUDFLARE_ACCOUNT_ID: 'account-id',
       CLOUDFLARE_EXPECTED_ACCOUNT_ID: 'account-id',
@@ -470,7 +479,7 @@ describe('D1 replatform cutover preparation', () => {
         { ...dependencies, fetchWorker: async () => ({ success: true, result: null }) },
         { allowConfiguredMissingWorker: true }
       )
-    ).resolves.toEqual(expect.objectContaining({ workerState: 'missing-allowed' }))
+    ).rejects.toThrow('does not exist')
     await expect(
       verifyPreviewRemoteIdentity('serp.software', env, {
         ...dependencies,
@@ -497,12 +506,7 @@ describe('D1 replatform cutover preparation', () => {
         dependencies
       )
     ).rejects.toThrow('checked-out HEAD')
-    for (const ref of [
-      'refs/heads/main',
-      'refs/heads/codex/other',
-      'refs/tags/preview',
-      'refs/pull/72/merge'
-    ])
+    for (const ref of ['refs/heads/codex/other', 'refs/tags/preview', 'refs/pull/72/merge'])
       await expect(
         verifyPreviewRemoteIdentity(
           'serp.software',
@@ -866,8 +870,8 @@ describe('D1 replatform cutover preparation', () => {
     }
     const job = workflow.jobs.rehearse
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    expect(job.if).toContain("github.ref == 'refs/heads/codex/issue-72-preview-cutover'")
-    expect(job.if).not.toContain("github.ref == 'refs/heads/main'")
+    expect(job.if).toContain("github.ref == 'refs/heads/main'")
+    expect(job.if).not.toContain('refs/heads/codex/')
     expect(raw).toContain('ref: $' + '{{ github.sha }}')
     expect(job.environment.name).toContain('serp-software-preview')
     expect(raw).not.toContain('cutover-')
@@ -907,6 +911,8 @@ describe('D1 replatform cutover preparation', () => {
       'echo "REPLATFORM_EVIDENCE_DIR=$RUNNER_TEMP/d1-replatform-evidence" >> "$GITHUB_ENV"'
     )
     expect(raw).toContain("PLAYWRIGHT_EXTERNAL_SERVER: '1'")
+    expect(raw).toContain("'123Movies Video Downloader' || '321tube Video Downloader'")
+    expect(raw).toContain("'123movies-downloader' || '321tube-downloader'")
     expect(raw).not.toContain('PLAYWRIGHT_WEB_SERVER_COMMAND: node -e')
     expect(raw).toContain('pnpm --filter e2e exec playwright install --with-deps chromium')
     expect(raw).not.toMatch(/(?:>|tee)\s+preview-[a-z-]+\.(?:json|txt)/u)

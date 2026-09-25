@@ -25,7 +25,7 @@ permissions:
 jobs:
   rehearse:
     name: Rehearse ${{ inputs.site_id }} replacement Preview
-    if: github.ref == 'refs/heads/codex/issue-72-preview-cutover' && inputs.confirmation == format('rehearse-{0}-preview', inputs.site_id)
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == format('rehearse-{0}-preview', inputs.site_id)
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.site_id == 'serp.software' && 'serp-software-preview' || 'pornvideodownloaders-preview' }}
@@ -243,6 +243,8 @@ jobs:
           E2E_SITE_ID: ${{ inputs.site_id }}
           E2E_SITE_NAME: ${{ inputs.site_id == 'serp.software' && 'SERP Software' || 'Porn Video Downloaders' }}
           E2E_LISTING_COUNT: ${{ inputs.site_id == 'serp.software' && '339' || '286' }}
+          E2E_LISTING_NAME: ${{ inputs.site_id == 'serp.software' && '123Movies Video Downloader' || '321tube Video Downloader' }}
+          E2E_LISTING_SLUG: ${{ inputs.site_id == 'serp.software' && '123movies-downloader' || '321tube-downloader' }}
           E2E_CATEGORY_SLUG: video-downloaders
           PLAYWRIGHT_BASE_URL: ${{ vars.PREVIEW_BASE_URL }}
           PLAYWRIGHT_EXTERNAL_SERVER: '1'

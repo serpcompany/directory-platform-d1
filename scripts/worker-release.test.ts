@@ -353,8 +353,8 @@ describe('Worker release guard', () => {
     const previewEnv = {
       ...productionEnv,
       GITHUB_WORKFLOW_REF:
-        'serpcompany/directory-platform-d1/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/codex/issue-72-preview-cutover',
-      GITHUB_REF: 'refs/heads/codex/issue-72-preview-cutover',
+        'serpcompany/directory-platform-d1/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/main',
+      GITHUB_REF: 'refs/heads/main',
       WORKER_PRODUCTION_CONFIRM: 'rehearse-serp.software-preview',
       D1_RELEASE_GENERATION: 'replatform',
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'replacement-preview-id',
@@ -393,12 +393,7 @@ describe('Worker release guard', () => {
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'replacement-preview-name',
       CLOUDFLARE_WORKER_PREVIEW_NAME: 'serp-preview-worker'
     }
-    for (const ref of [
-      'refs/heads/main',
-      'refs/heads/codex/other-branch',
-      'refs/tags/preview',
-      'refs/pull/72/merge'
-    ])
+    for (const ref of ['refs/heads/codex/other-branch', 'refs/tags/preview', 'refs/pull/72/merge'])
       expect(() =>
         runWorkerRelease(
           ['migrate', 'preview', '--site', 'serp.software'],
@@ -415,9 +410,9 @@ describe('Worker release guard', () => {
         ['migrate', 'production', '--site', 'serp.software'],
         {
           ...base,
-          GITHUB_REF: 'refs/heads/codex/issue-72-preview-cutover',
+          GITHUB_REF: 'refs/heads/main',
           GITHUB_WORKFLOW_REF:
-            'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/codex/issue-72-preview-cutover'
+            'owner/repo/.github/workflows/rehearse-d1-replatform-preview.yml@refs/heads/main'
         },
         dependencies()
       )

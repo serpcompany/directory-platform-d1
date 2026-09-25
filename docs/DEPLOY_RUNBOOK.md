@@ -82,10 +82,11 @@ The separately protected `rehearse-d1-replatform-preview.yml` workflow is the on
 prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
 the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,
 and rehearses the old binding before restoring the replacement binding. It contains
-no Production mutation path. It runs only from the reviewed integration ref
-`refs/heads/codex/issue-72-preview-cutover` before merge; arbitrary branches, tags,
-pull-request refs, and `main` are rejected by both workflow and release guards.
-Production and every other remote mutation remain `refs/heads/main`-only.
+no Production mutation path. It runs only from reviewed `refs/heads/main`; topic
+branches, tags, and pull-request refs are rejected by both workflow and release
+guards. This lets the sealed Preview receipt match the exact commit later presented
+to the Production cutover. Preview and Production still require separate protected
+environments and confirmations.
 
 The same approved Preview run may bootstrap an empty legacy Preview source solely
 from `d1/migrations/0001`-`0009` plus the reviewed controlled artifact. It retains the
@@ -93,11 +94,10 @@ empty export first, rejects populated nonmatching or private state before mutati
 proves a repeated import no-op, and retains the populated rollback export. This does
 not authorize access to or copying from Production.
 
-For SERP's first run only, read-only preflight may accept the explicitly configured
-missing Preview Worker after all account and D1 identities pass. PVD never permits a
-missing Worker bootstrap. Both missing and existing paths repeat preflight and deploy
-the exact stacked commit without transient authority against the legacy/source Preview
-D1 binding. The workflow must then read back the active service, workers.dev hostname,
+SERP's one-time missing-Worker bootstrap exception is retired now that its Preview
+Worker exists. Both Sites require the exact existing Worker identity, then repeat
+preflight and deploy the exact main commit without transient authority against the
+legacy/source Preview D1 binding. The workflow must then read back the active service, workers.dev hostname,
 100-percent deployment/version, script etag, and source D1 binding. Its version UUID
 must exactly match the sole UUID emitted by the immediately preceding guarded deploy;
 otherwise a concurrent or ambiguous deployment fails closed. The workflow binds that

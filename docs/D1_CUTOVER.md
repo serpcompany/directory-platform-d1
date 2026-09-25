@@ -34,14 +34,14 @@ The protected Preview executor is
 selected protected environment has its exact resources, variables, secrets, reviewer,
 and `rehearse-<site>-preview` approval configured.
 
-The rehearsal intentionally runs before merge from exactly
-`refs/heads/codex/issue-72-preview-cutover`. The workflow checks out the dispatched
-`GITHUB_SHA`, and both identity and release guards require that exact ref, workflow
-source ref, clean checkout, and matching `HEAD`. `main`, other `codex/*` branches,
-tags, and pull-request merge refs cannot run this Preview executor. This exception is
-Preview-only: Production, publication, Submission approval, notification, and every
-other remote mutation remain strictly protected `refs/heads/main` operations with
-their independent confirmations.
+The rehearsal runs from exactly `refs/heads/main` after the reviewed implementation
+has merged. The workflow checks out the dispatched `GITHUB_SHA`, and both identity
+and release guards require that exact ref, workflow source ref, clean checkout, and
+matching `HEAD`. Topic branches, tags, and pull-request merge refs cannot run this
+Preview executor. Running Preview after merge is required because Production evidence
+must bind to the same exact commit SHA and migration checksum; a pre-merge receipt
+cannot authorize a different merge commit. Preview remains separately protected by
+its Site-specific environment and confirmation.
 
 The approved Preview run then:
 
@@ -56,13 +56,12 @@ The approved Preview run then:
 9. repeat and prove `verified-no-op` with unchanged data checksums; and
 10. rehearse the old binding rollback without deleting either database.
 
-Before its first protected rehearsal, SERP also had no Preview Worker. That run's
-read-only preflight still proved the exact account, source and replacement D1
-UUID/name pairs, Site, environment, integration ref, and checked-out SHA. The workflow
-may classify a missing Worker only for that checked-in SERP bootstrap exception; PVD
-and wrong existing Worker identities fail closed. Missing and existing Workers then
-use the same path: the run immediately repeats preflight, deploys the checked-out reviewed
-commit with the legacy/source Preview D1 binding and no transient rehearsal authority,
+Before its first protected rehearsal, SERP had no Preview Worker, and the reviewed
+bootstrap exception allowed that one run to create it after proving every other
+identity. That exception is now retired: both Sites require the exact existing Worker
+identity and fail closed when it is missing or wrong. The run immediately repeats
+preflight, deploys the checked-out reviewed commit with the legacy/source Preview D1
+binding and no transient rehearsal authority,
 captures the single version UUID emitted by that deploy, and reads back the active
 Cloudflare deployment, sole 100-percent version, script etag, source D1 binding,
 service, and exact workers.dev hostname. The active UUID must equal the captured UUID;
