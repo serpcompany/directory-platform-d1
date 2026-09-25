@@ -554,6 +554,10 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
       classificationArtifact.observed,
       'legacySource.classificationArtifact.observed'
     )
+    const observedApplicationSnapshot = object(
+      observedClassification.applicationSnapshot,
+      'legacySource.classificationArtifact.observed.applicationSnapshot'
+    )
     exactArray(
       expectedClassification.migrationNames,
       canonicalLegacyMigrationNames,
@@ -567,6 +571,10 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
     exactArray(observedClassification.siteIds, [siteId], 'observed legacy Sites')
     exactArray(observedClassification.unexpectedUserObjects, [], 'unexpected legacy objects')
     if (
+      expectedClassification.siteId !== siteId ||
+      observedClassification.hasMigrationLedger !== true ||
+      observedApplicationSnapshot.checksum !== expectedClassification.applicationSnapshotChecksum ||
+      legacySource.checksum !== observedApplicationSnapshot.checksum ||
       observedClassification.schemaFingerprint !== expectedClassification.schemaFingerprint ||
       legacySource.normalizedSchemaFingerprint !== observedClassification.schemaFingerprint ||
       canonicalJson(legacySource.migrationNames) !== canonicalJson(canonicalLegacyMigrationNames) ||

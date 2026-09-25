@@ -419,6 +419,37 @@ describe('D1 replatform cutover preparation', () => {
     ).toThrow('artifact digest mismatch')
   })
 
+  it('rejects semantically tampered classification fields even after recomputing the digest', () => {
+    const evidence = {
+      ...baseEvidence('preview'),
+      previewData: {
+        policy: 'controlled-fixtures',
+        copiedProduction: { capabilityRows: 0, notificationSecretRows: 0, rateLimitRows: 0 },
+        previewGenerated: { capabilityRows: 1, notificationSecretRows: 1, rateLimitRows: 1 }
+      }
+    }
+    const variants = [
+      (legacy: typeof evidence.legacySource) => {
+        legacy.classificationArtifact.observed.applicationSnapshot.checksum = 'b'.repeat(64)
+      },
+      (legacy: typeof evidence.legacySource) => {
+        legacy.checksum = 'b'.repeat(64)
+      },
+      (legacy: typeof evidence.legacySource) => {
+        legacy.classificationArtifact.expected.siteId = 'other.example'
+      },
+      (legacy: typeof evidence.legacySource) => {
+        legacy.classificationArtifact.observed.hasMigrationLedger = false
+      }
+    ]
+    for (const mutate of variants) {
+      const legacySource = structuredClone(evidence.legacySource)
+      mutate(legacySource)
+      legacySource.classificationDigest = previewReceiptSha256(legacySource.classificationArtifact)
+      expect(() => validateCutoverEvidence({ ...evidence, legacySource }, { commitSha })).toThrow()
+    }
+  })
+
   it('keeps the preparation workflow credential-free and non-mutating', () => {
     const raw = readFileSync('.github/workflows/prepare-d1-replatform.yml', 'utf8')
     const workflow = yaml.load(raw) as {
