@@ -3,7 +3,7 @@
   "name": "${CLOUDFLARE_WORKER_PREVIEW_NAME}",
   "main": "../../../apps/serp.software/.open-next/worker.js",
   "compatibility_date": "2026-07-13",
-  "compatibility_flags": ["nodejs_compat"],
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
   "assets": { "directory": "../../../apps/serp.software/.open-next/assets", "binding": "ASSETS" },
   "vars": {
     "AUTH_TRUST_HOST": "true",

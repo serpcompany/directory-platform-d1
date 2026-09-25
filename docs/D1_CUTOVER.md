@@ -141,6 +141,11 @@ generated IDs. Read-only source/target snapshots before, after, and after cleanu
 supply the parity, ledger, deletion-safety, and private-row counts in the sealed
 receipt; the evidence builder contains no success defaults.
 
+The replacement Preview template enables Cloudflare's
+`global_fetch_strictly_public` compatibility flag so the badge verifier exercises
+the real public `workers.dev` fixture URL. Replacement Production templates do not
+enable that Preview-only self-fetch capability.
+
 The account, source D1, replacement D1, Worker service name, and live Preview hostname
 are observed again immediately before each remote mutation group. Missing or unknown
 `D1_RELEASE_GENERATION` in the rehearsal fails closed rather than selecting legacy.

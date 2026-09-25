@@ -215,7 +215,11 @@ export function validateReplatformTemplate(
     throw new Error('Unexpected Worker entrypoint.')
   if (config.compatibility_date !== '2026-07-13')
     throw new Error('Replatform templates must preserve the released compatibility date.')
-  if (JSON.stringify(config.compatibility_flags) !== JSON.stringify(['nodejs_compat']))
+  const expectedCompatibilityFlags =
+    environment === 'preview'
+      ? ['nodejs_compat', 'global_fetch_strictly_public']
+      : ['nodejs_compat']
+  if (JSON.stringify(config.compatibility_flags) !== JSON.stringify(expectedCompatibilityFlags))
     throw new Error('Unexpected compatibility flags.')
   if (!config.assets) throw new Error('Missing assets binding.')
   exactKeys(config.assets as Record<string, unknown>, ['directory', 'binding'], 'assets')

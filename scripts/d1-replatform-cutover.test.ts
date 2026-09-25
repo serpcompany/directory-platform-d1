@@ -160,6 +160,11 @@ describe('D1 replatform cutover preparation', () => {
         const replacement = readFileSync(replacementPath, 'utf8')
         expect(() => validateReplatformTemplate(target.siteId, environment)).not.toThrow()
         expect(replacement).toContain('"compatibility_date": "2026-07-13"')
+        if (environment === 'preview') {
+          expect(replacement).toContain('"global_fetch_strictly_public"')
+        } else {
+          expect(replacement).not.toContain('"global_fetch_strictly_public"')
+        }
       }
     }
     expect(siteTargets['serp.software'].protectedEnvironment.preview).toBe('serp-software-preview')
