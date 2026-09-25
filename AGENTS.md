@@ -90,9 +90,9 @@ GitHub Issues are the source of truth for active planning and execution.
   `d1/drizzle/`. Never rewrite or scan legacy `d1/migrations/0001`-`0009` into it.
 - Add reviewed data changes as YAML manifests under `d1/publications/`.
 - Keep search, taxonomy, RSS, sitemap, and submission options derived from D1.
-- Preserve each site's separate local and production identities. Preserve PVD's
-  preview identity; SERP's missing preview environment is a known follow-up and must
-  not be invented during unrelated work.
+- Preserve each site's separate local, Preview, and Production identities. SERP's
+  protected Preview resources were provisioned and rehearsed by Issue #72; do not
+  replace or mutate either Site's Preview identity during unrelated work.
 - Route production mutations through protected GitHub Actions only.
 
 ## Forbidden patterns

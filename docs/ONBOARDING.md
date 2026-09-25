@@ -3,8 +3,8 @@
 This repository currently operates two deployable D1-backed sites:
 `serp.software` and `pornvideodownloaders.com`. Each has a separate app, Worker,
 local state, production database, production environment, and release workflow.
-PVD also has isolated preview Worker/D1/environment resources. SERP does not yet
-have a proper preview environment; that remains a separate platform follow-up.
+Both have isolated Preview Worker/D1/environment resources. SERP's protected
+source/replacement Preview resources were provisioned and rehearsed by Issue #72.
 `scripts/site-targets.ts` is the exhaustive executable-site registry.
 
 Start with [`AGENTS.md`](../AGENTS.md), then use the

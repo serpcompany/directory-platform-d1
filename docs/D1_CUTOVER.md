@@ -98,8 +98,8 @@ after that deadline is rejected even if it is HTTP 200. Deadline abort is a fina
 fail-closed timeout, not another retry. Other statuses and any 200 identity mismatch
 fail immediately without retry.
 
-SERP has no pre-existing populated legacy Preview source. Within this same approved
-run, the workflow therefore initializes the isolated source before replacement import:
+Before its first approved rehearsal, SERP had no populated legacy Preview source.
+That run therefore initialized the isolated source before replacement import:
 it re-verifies all identities, applies only immutable `d1/migrations/0001`-`0009`,
 imports the reviewed controlled public artifact, proves exact catalog/schema parity
 and zero private Submission/notification/rate-limit state, repeats the import to prove
