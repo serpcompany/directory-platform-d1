@@ -8,36 +8,43 @@ interface Step {
   if?: string
   name?: string
   run?: string
-}
-interface Job {
-  env?: Record<string, string>
-  environment?: { name?: string }
-  if?: string
-  steps?: Step[]
-}
-interface Workflow {
-  on: {
-    push?: unknown
-    workflow_dispatch: { inputs: Record<string, { options?: string[]; required?: boolean }> }
-  }
-  jobs: Record<string, Job>
-  permissions?: Record<string, string>
+  uses?: string
+  with?: Record<string, string>
 }
 
-function loadWorkflow(): { raw: string; workflow: Workflow } {
-  const raw = readFileSync('.github/workflows/build-and-deploy.yml', 'utf8')
-  return { raw, workflow: yaml.load(raw) as Workflow }
+interface Job {
+  environment: { name: string }
+  if: string
+  steps: Step[]
 }
+
+interface Workflow {
+  jobs: { preview: Job; production: Job }
+  on: {
+    workflow_dispatch: {
+      inputs: {
+        confirmation: { required: boolean }
+        environment: { options: string[] }
+        release_mode: { default: string; options: string[]; required: boolean }
+      }
+    }
+  }
+  permissions: Record<string, string>
+}
+
+const raw = readFileSync('.github/workflows/build-and-deploy.yml', 'utf8')
+const workflow = yaml.load(raw) as Workflow
 
 function githubExpression(expression: string): string {
   return `$${`{{ ${expression} }}`}`
 }
 
-describe('production Worker workflow', () => {
-  it('is manual, single-site, main-only, explicitly confirmed, and protected', () => {
-    const { workflow } = loadWorkflow()
-    expect(workflow.on.push).toBeUndefined()
-    expect(workflow.on.workflow_dispatch.inputs.site_id.options).toEqual(['serp.software'])
+describe('serp.software deployment workflow', () => {
+  it('exposes only explicit protected Preview and Production targets', () => {
+    expect(workflow.on.workflow_dispatch.inputs.environment.options).toEqual([
+      'preview',
+      'production'
+    ])
     expect(workflow.on.workflow_dispatch.inputs.confirmation.required).toBe(true)
     expect(workflow.on.workflow_dispatch.inputs.release_mode).toEqual(
       expect.objectContaining({
@@ -47,102 +54,165 @@ describe('production Worker workflow', () => {
       })
     )
     expect(workflow.permissions).toEqual({ contents: 'read' })
-    expect(workflow.jobs.deploy.environment?.name).toBe('production')
-    expect(workflow.jobs.deploy.if).toContain("github.ref == 'refs/heads/main'")
-  })
-
-  it('makes every D1 operation opt-in while leaving Worker deployment unconditional', () => {
-    const { workflow } = loadWorkflow()
-    const d1StepNames = new Set([
-      'Plan production migration without remote execution',
-      'Plan production verification without remote execution',
-      'Back up production D1',
-      'Retain production D1 backup',
-      'Apply production D1 migrations'
-    ])
-    const steps = workflow.jobs.deploy.steps ?? []
-
-    for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
-      expect(step.if).toBe("inputs.release_mode == 'database-and-worker'")
-    }
-    expect(
-      steps.find(step => step.name === 'Verify schema compatibility and deploy production Worker')
-        ?.if
-    ).toBeUndefined()
-  })
-
-  it('orders backup, migration, verification, and guarded OpenNext deployment', () => {
-    const { workflow } = loadWorkflow()
-    const runs = workflow.jobs.deploy.steps?.map(step => step.run).filter(Boolean)
-    expect(runs).toEqual([
-      'pnpm tsx scripts/worker-release.ts validate-replatform production --site serp.software',
-      'pnpm test:d1',
-      'pnpm typecheck',
-      'pnpm worker:build:serpsoftware',
-      'pnpm d1:remote:migration:plan:production',
-      'pnpm d1:remote:verify:plan:production',
-      'pnpm worker:d1:backup:production',
-      'pnpm worker:d1:migrate:production',
-      'set -euo pipefail\n' +
-        'pnpm tsx scripts/worker-release.ts check-schema production --site serp.software\n' +
-        'pnpm worker:deploy:production\n'
-    ])
-  })
-
-  it('stops the deploy command when schema compatibility fails', () => {
-    const { workflow } = loadWorkflow()
-    const step = workflow.jobs.deploy.steps?.find(
-      candidate => candidate.name === 'Verify schema compatibility and deploy production Worker'
+    expect(workflow.jobs.preview.environment.name).toBe('serp-software-preview')
+    expect(workflow.jobs.production.environment.name).toBe('production')
+    expect(workflow.jobs.preview.if).toContain("github.ref == 'refs/heads/main'")
+    expect(workflow.jobs.preview.if).toContain(
+      "inputs.confirmation == 'deploy-serp.software-preview'"
     )
-    const run = step?.run ?? ''
-    expect(step?.['continue-on-error']).toBeUndefined()
-    expect(run.startsWith('set -euo pipefail\n')).toBe(true)
-    expect(run.indexOf('check-schema production')).toBeGreaterThan(0)
-    expect(run.indexOf('worker:deploy:production')).toBeGreaterThan(
-      run.indexOf('check-schema production')
+    expect(workflow.jobs.production.if).toContain(
+      "inputs.confirmation == 'deploy-serp.software-production'"
     )
   })
 
-  it('scopes production secrets and operator confirmation only to production execution steps', () => {
-    const { workflow } = loadWorkflow()
-    expect(workflow.jobs.deploy.env).toBeUndefined()
-    const steps = workflow.jobs.deploy.steps ?? []
-    const productionStepNames = new Set([
-      'Back up production D1',
-      'Apply production D1 migrations',
-      'Verify schema compatibility and deploy production Worker'
-    ])
-    for (const step of steps.filter(step => !productionStepNames.has(step.name ?? ''))) {
-      expect(step.env?.CLOUDFLARE_API_TOKEN).toBeUndefined()
-      expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBeUndefined()
+  it.each(['preview', 'production'] as const)(
+    'makes every %s D1 operation opt-in while leaving Worker deployment unconditional',
+    environment => {
+      const steps = workflow.jobs[environment].steps
+      const d1StepNames = new Set([
+        'Plan remote migration and verification',
+        `Back up ${environment} D1`,
+        `Retain ${environment} D1 backup`,
+        environment === 'preview'
+          ? 'Apply migrations, import, and verify preview D1'
+          : 'Apply production D1 migrations'
+      ])
+      for (const step of steps.filter(step => d1StepNames.has(step.name ?? ''))) {
+        expect(step.if).toBe("inputs.release_mode == 'database-and-worker'")
+      }
+      expect(
+        steps.find(
+          step => step.name === `Verify schema compatibility and deploy ${environment} Worker`
+        )?.if
+      ).toBeUndefined()
     }
-    for (const step of steps.filter(step => productionStepNames.has(step.name ?? ''))) {
-      expect(step.env?.CLOUDFLARE_API_TOKEN).toBe(githubExpression('secrets.CLOUDFLARE_API_TOKEN'))
-      expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBe(githubExpression('inputs.confirmation'))
-      expect(step.env?.GITHUB_REF).toBe(githubExpression('github.ref'))
-      expect(step.env?.GITHUB_SHA).toBe(githubExpression('github.sha'))
-      expect(step.env?.D1_RELEASE_GENERATION).toBe('replatform')
-      expect(step.env?.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID).toBe(
-        githubExpression('secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID')
+  )
+
+  it.each(['preview', 'production'] as const)(
+    'orders %s backup, migration, schema proof, and deployment',
+    environment => {
+      const steps = workflow.jobs[environment].steps
+      const backupIndex = steps.findIndex(step => step.name === `Back up ${environment} D1`)
+      const migrationName =
+        environment === 'preview'
+          ? 'Apply migrations, import, and verify preview D1'
+          : 'Apply production D1 migrations'
+      const migrationIndex = steps.findIndex(step => step.name === migrationName)
+      const deployIndex = steps.findIndex(
+        step => step.name === `Verify schema compatibility and deploy ${environment} Worker`
       )
-      expect(step.env?.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID).toBeUndefined()
+      expect([backupIndex, migrationIndex, deployIndex]).toEqual(
+        [...[backupIndex, migrationIndex, deployIndex]].sort((left, right) => left - right)
+      )
+      const deploy = steps[deployIndex]
+      expect(deploy?.['continue-on-error']).toBeUndefined()
+      expect(deploy?.run?.startsWith('set -euo pipefail\n')).toBe(true)
+      expect(deploy?.run?.indexOf(`check-schema ${environment}`)).toBeGreaterThan(0)
+      expect(deploy?.run?.indexOf(`deploy ${environment}`)).toBeGreaterThan(
+        deploy?.run?.indexOf(`check-schema ${environment}`) ?? -1
+      )
     }
-    for (const name of [
-      'Plan production migration without remote execution',
-      'Plan production verification without remote execution'
+  )
+
+  it('uses only the active replacement Preview identity and fresh Drizzle lineage', () => {
+    const steps = workflow.jobs.preview.steps
+    const secretSteps = steps.filter(step => step.env?.CLOUDFLARE_API_TOKEN)
+    expect(secretSteps.map(step => step.name)).toEqual([
+      'Verify active Preview identities read-only',
+      'Back up preview D1',
+      'Apply migrations, import, and verify preview D1',
+      'Verify schema compatibility and deploy preview Worker'
     ])
-      expect(steps.find(step => step.name === name)?.env?.D1_RELEASE_GENERATION).toBe('replatform')
+    for (const step of secretSteps) {
+      expect(step.env?.D1_RELEASE_GENERATION).toBe('replatform')
+      expect(step.env?.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID).toBe(
+        githubExpression('secrets.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID')
+      )
+      expect(step.env?.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME).toBe(
+        githubExpression('secrets.CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME')
+      )
+      expect(step.env?.CLOUDFLARE_D1_PREVIEW_DATABASE_ID).toBeUndefined()
+      expect(step.env?.CLOUDFLARE_D1_PREVIEW_DATABASE_NAME).toBeUndefined()
+      expect(step.env?.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID).toBeUndefined()
+      expect(step.env?.CLOUDFLARE_WORKER_PRODUCTION_NAME).toBeUndefined()
+      expect(step.env?.WORKER_PRODUCTION_CONFIRM).toBe(githubExpression('inputs.confirmation'))
+    }
+    const validation = steps.find(step => step.name === 'Validate repository and Worker contracts')
+    expect(validation?.run).toContain(
+      'worker-release.ts validate-replatform preview --site serp.software'
+    )
+    expect(
+      steps.find(step => step.name === 'Plan remote migration and verification')?.env
+        ?.D1_RELEASE_GENERATION
+    ).toBe('replatform')
+    expect(steps.find(step => step.name === 'Retain preview D1 backup')?.with?.path).toBe(
+      `.wrangler/backups/serp-software/preview/${githubExpression('github.sha')}.replatform.sql`
+    )
+    expect(raw).not.toContain('CLOUDFLARE_D1_SOURCE_PREVIEW')
   })
 
   it('retains the pre-migration production backup', () => {
-    const { workflow } = loadWorkflow()
-    const backupStep = workflow.jobs.deploy.steps?.find(
+    const backupStep = workflow.jobs.production.steps.find(
       step => step.name === 'Retain production D1 backup'
-    ) as Step & { uses?: string; with?: Record<string, unknown> }
+    )
     expect(backupStep.uses).toBe('actions/upload-artifact@v7')
     expect(backupStep.with?.path).toBe(
       `.wrangler/backups/serp-software/production/${githubExpression('github.sha')}.replatform.sql`
     )
     expect(backupStep.with?.['if-no-files-found']).toBe('error')
+  })
+
+  it('observes the checked-in active identity before any remote Preview operation', () => {
+    const steps = workflow.jobs.preview.steps
+    const identityIndex = steps.findIndex(
+      step => step.name === 'Verify active Preview identities read-only'
+    )
+    const remoteOperationIndexes = [
+      'Back up preview D1',
+      'Apply migrations, import, and verify preview D1',
+      'Verify schema compatibility and deploy preview Worker'
+    ].map(name => steps.findIndex(step => step.name === name))
+    expect(identityIndex).toBeGreaterThan(-1)
+    expect(steps[identityIndex]?.if).toBeUndefined()
+    expect(steps[identityIndex]?.run).toBe(
+      'pnpm tsx scripts/d1-routine-preview-identity.ts verify --site serp.software'
+    )
+    expect(remoteOperationIndexes.every(index => index > identityIndex)).toBe(true)
+  })
+
+  it('runs bounded Preview-only route and browser smoke after deployment and retains evidence', () => {
+    const steps = workflow.jobs.preview.steps
+    const deployIndex = steps.findIndex(
+      step => step.name === 'Verify schema compatibility and deploy preview Worker'
+    )
+    const smokeIndex = steps.findIndex(
+      step => step.name === 'Run protected Preview route and browser smoke'
+    )
+    const evidenceIndex = steps.findIndex(step => step.name === 'Retain Preview smoke evidence')
+    expect(deployIndex).toBeGreaterThan(-1)
+    expect(smokeIndex).toBeGreaterThan(deployIndex)
+    expect(evidenceIndex).toBeGreaterThan(smokeIndex)
+    const smoke = steps[smokeIndex]
+    expect(smoke.env?.PLAYWRIGHT_BASE_URL).toBe(githubExpression('vars.PREVIEW_BASE_URL'))
+    expect(smoke.env?.PREVIEW_BASE_URL).toBe(githubExpression('vars.PREVIEW_BASE_URL'))
+    expect(smoke.run).toContain('d1-preview-http-gates.ts preview serp.software')
+    expect(smoke.run).toContain('tests/multisite-smoke.spec.ts --project=chromium')
+    expect(smoke.run).not.toContain('production')
+    const evidence = steps[evidenceIndex]
+    expect(evidence.if).toBe('always()')
+    expect(evidence.uses).toBe('actions/upload-artifact@v7')
+    expect(evidence.with?.path).toContain('serp-preview-smoke/')
+    expect(evidence.with?.path).toContain('apps/e2e/playwright-report/')
+  })
+
+  it('keeps Production credentials out of Preview and Preview credentials out of Production', () => {
+    const previewEnvs = workflow.jobs.preview.steps.flatMap(step => Object.keys(step.env ?? {}))
+    const productionEnvs = workflow.jobs.production.steps.flatMap(step =>
+      Object.keys(step.env ?? {})
+    )
+    expect(previewEnvs.some(name => name.includes('PRODUCTION_DATABASE'))).toBe(false)
+    expect(previewEnvs).not.toContain('CLOUDFLARE_WORKER_PRODUCTION_NAME')
+    expect(productionEnvs.some(name => name.includes('PREVIEW_DATABASE'))).toBe(false)
+    expect(productionEnvs).not.toContain('CLOUDFLARE_WORKER_PREVIEW_NAME')
   })
 })

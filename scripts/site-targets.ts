@@ -3,6 +3,12 @@ export type SiteId = (typeof siteIds)[number]
 export const replatformPreviewRef = 'refs/heads/main' as const
 
 export interface SiteTarget {
+  activePreview: {
+    accountId: string
+    databaseId: string
+    databaseName: string
+    workerName: string
+  }
   appPackageName: SiteId
   artifactBatchDirectory: string
   confirmation: {
@@ -50,6 +56,12 @@ export interface SiteTarget {
 
 export const siteTargets = {
   'pornvideodownloaders.com': {
+    activePreview: {
+      accountId: 'cec5f04e1d18bcc65f2be0aefb04f059',
+      databaseId: '16ede356-3caa-4cea-93f3-69f5b208b1d7',
+      databaseName: 'pornvideodownloaders-replatform-preview',
+      workerName: 'pornvideodownloaders-preview'
+    },
     appPackageName: 'pornvideodownloaders.com',
     artifactBatchDirectory: 'd1/artifacts/pornvideodownloaders-com-v1-import',
     confirmation: {
@@ -96,6 +108,12 @@ export const siteTargets = {
     siteId: 'pornvideodownloaders.com'
   },
   'serp.software': {
+    activePreview: {
+      accountId: 'cec5f04e1d18bcc65f2be0aefb04f059',
+      databaseId: '29c0a6ed-e824-459c-b088-6098fdbf1abf',
+      databaseName: 'serp-software-replatform-preview',
+      workerName: 'serp-software-replatform-preview'
+    },
     appPackageName: 'serp.software',
     artifactBatchDirectory: 'd1/artifacts/serp-software-v1-import',
     confirmation: {

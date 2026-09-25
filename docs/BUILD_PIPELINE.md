@@ -56,7 +56,7 @@ D1 registered for each Site after proving account, source D1, Worker, placement,
 protected environment. It is now disabled; its retained identity receipts are
 historical evidence and do not authorize another create or cutover.
 
-## Protected production release
+## Protected Preview and Production release
 
 `main` is protected. Changes arrive through pull requests whose strict required
 checks must pass on a revision current with `main`; conversations must be resolved,
@@ -64,14 +64,14 @@ and direct pushes, force pushes, and branch deletion are prohibited. The reposit
 does not require another approving reviewer because it has one Maintainer.
 
 Merging a pull request triggers a read-only full-harness validation of the integrated
-`main` revision. Production release remains manual after that merge; updating `main`
-does not deploy a Worker. Use the site-specific protected workflow from the reviewed
-`main` commit:
+`main` revision. Preview and Production releases remain manual after that merge;
+updating `main` does not deploy a Worker. Use the site-specific protected workflow
+from the reviewed `main` commit:
 
-| Site | Workflow | Protected production environment |
-| --- | --- | --- |
-| `serp.software` | `.github/workflows/build-and-deploy.yml` | `production` |
-| `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-production` |
+| Site | Workflow | Protected Preview environment | Protected Production environment |
+| --- | --- | --- | --- |
+| `serp.software` | `.github/workflows/build-and-deploy.yml` | `serp-software-preview` | `production` |
+| `pornvideodownloaders.com` | `deploy-pornvideodownloaders.yml` | `pornvideodownloaders-preview` | `pornvideodownloaders-production` |
 
 The dispatcher chooses:
 
@@ -84,13 +84,21 @@ before deployment, the guarded `check-schema` command reads applied migration na
 from the exact remote target and fails closed if every checked-in migration cannot be
 proven present. A Worker-only run performs no D1 mutation.
 
-The database-and-Worker mode retains a D1 export, applies forward Drizzle migrations,
-verifies schema compatibility, and only then deploys the OpenNext Worker. It does not
-replay the initial catalog or require the active publication to remain at bootstrap
-version 1. Initial import and exact bootstrap parity belong only to a new-site release
-or separately reviewed migration. See
+The Production database-and-Worker mode retains a D1 export, applies forward Drizzle
+migrations, verifies schema compatibility, and only then deploys the OpenNext Worker.
+It does not replay the initial catalog or require the active publication to remain at
+bootstrap version 1. The controlled Preview path matches the existing PVD routine:
+after its backup and migration it permits only an empty bootstrap or exact-bootstrap
+no-op and verifies that parity before deployment. See
 [the deploy runbook](./DEPLOY_RUNBOOK.md) for release-mode selection, smoke coverage,
 D1 analytics evidence, and rollback thresholds.
+
+The routine SERP Preview job uses only the active replacement Preview secrets and
+fresh `d1/drizzle/` history; it has no retained-source or Production identity inputs.
+Before any remote operation, it observes and matches the selected account, D1 UUID
+and name, and Worker name against the checked-in active identity. After deployment it
+rejects Production origins, runs the bounded route contract and multisite Playwright
+smoke against `PREVIEW_BASE_URL`, and retains browser evidence.
 
 No production command is authorized from a dirty local worktree.
 

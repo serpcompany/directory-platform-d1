@@ -47,6 +47,9 @@ describe('pornvideodownloaders.com deployment workflow', () => {
     const pvd = siteTargets['pornvideodownloaders.com']
     const serp = siteTargets['serp.software']
     const pvdIdentities = [
+      pvd.activePreview.databaseId,
+      pvd.activePreview.databaseName,
+      pvd.activePreview.workerName,
       pvd.appPackageName,
       pvd.artifactBatchDirectory,
       pvd.parityReportPath,
@@ -60,6 +63,9 @@ describe('pornvideodownloaders.com deployment workflow', () => {
       pvd.protectedEnvironment.production
     ]
     const serpIdentities = [
+      serp.activePreview.databaseId,
+      serp.activePreview.databaseName,
+      serp.activePreview.workerName,
       serp.appPackageName,
       serp.artifactBatchDirectory,
       serp.parityReportPath,
