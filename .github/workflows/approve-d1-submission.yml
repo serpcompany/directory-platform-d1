@@ -80,7 +80,7 @@ jobs:
         env: *production_env
         run: pnpm d1:approve:production -- "${{ inputs.submission_id }}" "${{ inputs.decision }}"
       - name: Close the admin review issue
-        uses: actions/github-script@v8
+        uses: actions/github-script@v9
         env:
           SUBMISSION_ID: ${{ inputs.submission_id }}
           SUBMISSION_SITE_ID: ${{ inputs.site_id }}
