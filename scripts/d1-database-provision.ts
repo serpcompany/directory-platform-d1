@@ -156,9 +156,9 @@ function isWranglerOAuthTokenVerifyResponse(error: unknown): error is Cloudflare
   )
 }
 
-async function verifyCredentialIdentity(
+export async function verifyCredentialIdentity(
   token: string,
-  dependencies: ReplacementProvisionDependencies
+  dependencies: Pick<ReplacementProvisionDependencies, 'fetchToken' | 'fetchUser'>
 ): Promise<'api-token' | 'wrangler-oauth'> {
   try {
     parseTokenIdentity(await dependencies.fetchToken(token))

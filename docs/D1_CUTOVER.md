@@ -81,6 +81,11 @@ After both retention deadlines:
 6. remove the retired lineage, cutover-only code, environment values, and workflows
    in a reviewed pull request.
 
-The unbound source Preview databases are separate cleanup candidates, but deleting
-them is also a distinct destructive operation. Issue #85 does not authorize any D1
-deletion.
+The unbound source Preview databases are tracked separately by
+[Issue #88](https://github.com/serpcompany/directory-platform-d1/issues/88). Their
+deletion requires the exact Site choice and confirmation in the protected,
+main-only `delete-retired-preview-d1.yml` workflow. That workflow hardcodes both
+the retired and active identities, proves the retired D1 is unbound account-wide,
+retains a SQL export before mutation, and re-proves the active replacement after
+deleting only the selected retired Preview D1. It grants no authority over either
+retained Production source.
