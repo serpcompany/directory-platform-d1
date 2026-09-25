@@ -169,9 +169,9 @@ describe('D1-only repository architecture', () => {
     expect(operations).toContain('client: SiteDatabase')
     expect(operations).toContain("from './public-url'")
     expect(operations).toContain('buildSubmissionReviewPreview')
-    expect(operations).toContain('CREATE TEMP TABLE submission_guard')
-    expect(plans).toContain('CREATE TEMP TABLE submission_guard')
-    expect(plans).toContain('CASE WHEN changes()=1 THEN 1 ELSE 0 END')
+    expect(operations).not.toMatch(/\bTEMP\b/iu)
+    expect(plans).not.toMatch(/\bTEMP\b/iu)
+    expect(plans).toContain("CASE WHEN changes()=1 THEN 1 ELSE json_extract('', '$') END")
     expect(`${operations}\n${plans}`).not.toMatch(
       /getCloudflareContext|process\.env|CLOUDFLARE_API_TOKEN|GITHUB_TOKEN|api\.cloudflare\.com/u
     )

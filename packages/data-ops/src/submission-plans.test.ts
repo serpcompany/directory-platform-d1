@@ -112,7 +112,7 @@ describe('protected submission statement plans', () => {
     const db = database('serp.software')
     db.prepare("UPDATE publication_state SET version=2,checksum='concurrent'").run()
 
-    expect(() => execute(db, approvalPlans('serp.software'))).toThrow(/CHECK constraint failed/u)
+    expect(() => execute(db, approvalPlans('serp.software'))).toThrow(/malformed JSON/u)
     expect(db.prepare('SELECT COUNT(*) AS count FROM listings').get()).toEqual({ count: 0 })
     expect(db.prepare('SELECT COUNT(*) AS count FROM publication_runs').get()).toEqual({ count: 0 })
     expect(
@@ -142,7 +142,7 @@ describe('protected submission statement plans', () => {
     })
     db.prepare("UPDATE listing_submissions SET status='approved' WHERE id=?").run(submissionId)
 
-    expect(() => execute(db, plans)).toThrow(/CHECK constraint failed/u)
+    expect(() => execute(db, plans)).toThrow(/malformed JSON/u)
     expect(db.prepare('SELECT status,reviewed_by FROM listing_submissions').get()).toEqual({
       reviewed_by: null,
       status: 'approved'
@@ -170,7 +170,9 @@ describe('protected submission statement plans', () => {
       .join('\n')
     expect(approvalSql).toContain('site_id=?')
     expect(rejectionSql).toContain('site_id=?')
-    expect(approvalSql).toContain('submission_guard')
-    expect(rejectionSql).toContain('submission_guard')
+    expect(approvalSql).not.toMatch(/\bTEMP\b/iu)
+    expect(rejectionSql).not.toMatch(/\bTEMP\b/iu)
+    expect(approvalSql).toContain("json_extract('', '$')")
+    expect(rejectionSql).toContain("json_extract('', '$')")
   })
 })

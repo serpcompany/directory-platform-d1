@@ -13,6 +13,7 @@ import {
   listingSubmissions,
   listings
 } from './schema'
+import { assertPreviousStatementChangedOne } from './submission-plans'
 
 const MAX_ATTEMPTS = 10
 const COOLDOWN_SECONDS = 30
@@ -458,12 +459,6 @@ export function createSubmissionOperations(config: {
       const error = result.ok ? null : result.code
       const attemptIncrement = result.ok || CONTENT_VERIFICATION_FAILURES.has(result.code) ? 1 : 0
       const statements = [
-        prepareRaw(client, 'DROP TABLE IF EXISTS temp.submission_guard', []),
-        prepareRaw(
-          client,
-          'CREATE TEMP TABLE submission_guard (valid INTEGER NOT NULL CHECK (valid=1))',
-          []
-        ),
         prepareRaw(
           client,
           `UPDATE listing_submissions SET status=?, verification_attempts=verification_attempts+?,
@@ -484,18 +479,13 @@ export function createSubmissionOperations(config: {
             row.last_verification_at
           ]
         ),
-        prepareRaw(
-          client,
-          'INSERT INTO submission_guard VALUES (CASE WHEN changes()=1 THEN 1 ELSE 0 END)',
-          []
-        ),
+        prepareRaw(client, assertPreviousStatementChangedOne('verification_state_changed').sql, []),
         prepareRaw(
           client,
           `INSERT INTO listing_submission_events (submission_id,event_type,detail,actor)
           VALUES (?,?,?,'badge-verifier')`,
           [id, result.ok ? 'badge_verified' : 'verification_failed', error]
-        ),
-        prepareRaw(client, 'DROP TABLE submission_guard', [])
+        )
       ]
       const results = await client.binding.batch(statements)
       if (results.some(item => !item.success)) throw new Error('D1 verification update failed.')

@@ -16,24 +16,17 @@ export interface SubmissionApprovalSnapshot {
 const CHANNEL = 'github_issue'
 
 function guardMutationPlans(plans: SubmissionStatementPlan[]): SubmissionStatementPlan[] {
-  return [
-    { sql: 'DROP TABLE IF EXISTS temp.submission_guard', params: [] },
-    {
-      sql: 'CREATE TEMP TABLE submission_guard (valid INTEGER NOT NULL CHECK (valid=1))',
-      params: []
-    },
-    ...plans,
-    { sql: 'DROP TABLE submission_guard', params: [] }
-  ]
+  return plans
 }
 
 /**
- * The guard table rejects zero-row or multi-row conditional transitions. D1
- * batches are transactional, so its CHECK failure rolls back the whole plan.
+ * SQLite evaluates only the selected CASE branch. A zero-row or multi-row
+ * conditional transition therefore reaches malformed JSON and fails the D1
+ * batch, while an exact one-row transition stays on the success branch.
  */
 export function assertPreviousStatementChangedOne(label: string): SubmissionStatementPlan {
   return {
-    sql: `INSERT INTO submission_guard VALUES (CASE WHEN changes()=1 THEN 1 ELSE 0 END) /* ${label} */`,
+    sql: `SELECT CASE WHEN changes()=1 THEN 1 ELSE json_extract('', '$') END /* ${label} */`,
     params: []
   }
 }

@@ -156,6 +156,7 @@ describe('shared submission data operations', () => {
       code: 'site_unreachable',
       ok: false
     })
+    expect(sqlite.statements.some(statement => /\bTEMP\b/iu.test(statement.sql))).toBe(false)
     expect(state.verificationAttempts).toBe(0)
     expect(state.lastVerificationError).toBe('site_unreachable')
 
