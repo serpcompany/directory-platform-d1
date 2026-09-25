@@ -24,7 +24,7 @@ on:
           - database-and-worker
 
 concurrency:
-  group: pornvideodownloaders-${{ inputs.environment }}
+  group: ${{ inputs.environment == 'production' && 'pornvideodownloaders.com-production-d1' || 'pornvideodownloaders.com-preview' }}
   cancel-in-progress: false
 
 permissions:

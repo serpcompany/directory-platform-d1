@@ -8,6 +8,7 @@
     "./catalog": "./src/catalog.ts",
     "./client": "./src/client.ts",
     "./contracts": "./src/contracts.ts",
+    "./cutover-lock": "./src/cutover-lock.ts",
     "./public-url": "./src/public-url.ts",
     "./replatform-preview-capability": "./src/replatform-preview-capability.ts",
     "./schema": "./src/schema.ts",
@@ -16,7 +17,7 @@
   },
   "scripts": {
     "benchmark": "vitest run src/benchmark.test.ts",
-    "test": "vitest run src/cache.test.ts src/catalog.test.ts src/client.test.ts src/public-url.test.ts src/replatform-preview-capability.test.ts src/submissions.test.ts src/submission-plans.test.ts src/benchmark.test.ts",
+    "test": "vitest run src/cache.test.ts src/catalog.test.ts src/client.test.ts src/cutover-lock.test.ts src/public-url.test.ts src/replatform-preview-capability.test.ts src/submissions.test.ts src/submission-plans.test.ts src/benchmark.test.ts",
     "typecheck": "tsc --noEmit --emitDeclarationOnly false"
   },
   "dependencies": {

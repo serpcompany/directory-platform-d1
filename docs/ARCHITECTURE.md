@@ -115,6 +115,16 @@ assertion deliberately raises a SQLite JSON error unless exactly one expected ro
 changed, so a stale status, category, publication version, or checksum rolls back the
 Listing, Submission, event, publication-state, and audit statements together.
 
+Production cutover freeze state is a durable, Site-scoped reserved row in
+`migration_runs` whose ID starts with `d1-cutover-lock-v1:<site>:` and whose outcome
+is `started`. Every public or protected write batch begins with an atomic assertion
+that no such row exists. Public intake and badge-verification routes also preflight
+the lock so a freeze returns the stable `503 cutover_frozen` response without
+changing rate-limit, Submission, or event rows. Publication, approval, rejection,
+notification-ledger, and generic Production migration/import paths fail closed on
+the same lock. All Production D1 workflows for a Site share one concurrency group;
+the notifier checks the lock before making any GitHub API side effect.
+
 Every executable site selection is explicit and checked against the active-site
 registry in `scripts/site-targets.ts`. Each tenant has its own app package, local
 state subdirectory, production D1 resource, Worker name, route, confirmation strings,

@@ -17,6 +17,12 @@ listing URL without `nofollow`. Successful verification changes the staging stat
 `verified`; it does not make the listing public. The form tells the submitter that the
 administrator will be notified within a few minutes.
 
+When the Site has an active Production cutover lock, public intake, its rate-limit
+update, and the final badge-verification transition return `503 cutover_frozen`.
+Their D1 batches assert the lock atomically, so a frozen request changes no
+rate-limit, Submission, or event row. The notifier checks the same lock before any
+GitHub issue lookup/create/update and before recording its D1 delivery ledger.
+
 The verifier loads the exact submitted website URL and scans the HTML returned by
 that request. The form identifies that URL and explains that a badge inserted only
 after client-side JavaScript runs cannot be detected. A successful HTML fetch with no

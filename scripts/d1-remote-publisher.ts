@@ -1,6 +1,12 @@
 import { readFileSync } from 'node:fs'
 import { relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import {
+  assertCutoverUnlockedPlan,
+  CutoverFrozenError,
+  hasActiveCutoverLock,
+  selectActiveCutoverLockPlan
+} from '@serpdirectory/data-ops/cutover-lock'
 import { buildPublicationPlan, type PlannedStatement, parseManifest } from './d1-publisher.ts'
 import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
@@ -16,6 +22,10 @@ interface D1ApiResponse {
 }
 
 type FetchImplementation = typeof fetch
+
+function asPublicationStatement(plan: { params: unknown[]; sql: string }): PlannedStatement {
+  return { bindings: plan.params, query: plan.sql }
+}
 
 function requireEnvironment(env: NodeJS.ProcessEnv, name: string): string {
   const value = env[name]
@@ -102,6 +112,15 @@ export async function publishRemoteManifest(
   if (resolvedPath !== unresolvedPath)
     throw new Error('Manifest path resolution changed unexpectedly.')
   const plan = buildPublicationPlan(manifest, source, new Date().toISOString())
+  async function throwIfLocked(): Promise<void> {
+    const selected = await queryD1(
+      [asPublicationStatement(selectActiveCutoverLockPlan(manifest.siteId))],
+      env,
+      fetchImplementation
+    )
+    if (hasActiveCutoverLock(selected[0]?.results ?? [])) throw new CutoverFrozenError()
+  }
+  await throwIfLocked()
   const prior = await queryD1(
     [
       {
@@ -127,9 +146,11 @@ export async function publishRemoteManifest(
   try {
     await queryD1(plan.statements, env, fetchImplementation)
   } catch (error) {
+    await throwIfLocked()
     const message = error instanceof Error ? error.message : String(error)
     await queryD1(
       [
+        asPublicationStatement(assertCutoverUnlockedPlan(manifest.siteId)),
         {
           query:
             "INSERT INTO publication_runs (id,site_id,manifest_id,base_version,input_checksum,outcome,error,started_at,completed_at,actor,workflow,before_checksum,after_checksum) VALUES (?,?,?,?,?,'failed',?,?,?,?,?,?,?) ON CONFLICT(site_id,manifest_id) DO UPDATE SET outcome='failed',error=excluded.error,completed_at=excluded.completed_at",

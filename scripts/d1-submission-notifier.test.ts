@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
 import yaml from 'js-yaml'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import {
   buildReviewIssue,
   buildReviewPreviewUrl,
@@ -183,6 +183,9 @@ describe('D1 submission notifier', () => {
       const url = String(input)
       requests.push({ body: String(init?.body ?? ''), url })
       if (url.includes('api.cloudflare.com') && requests.length === 1) {
+        return d1Response([{ results: [] }])
+      }
+      if (url.includes('api.cloudflare.com') && requests.length === 2) {
         return d1Response([
           { results: [submission] },
           {
@@ -197,6 +200,9 @@ describe('D1 submission notifier', () => {
           },
           { results: [] }
         ])
+      }
+      if (url.includes('api.cloudflare.com') && String(init?.body).includes('migration_runs')) {
+        return d1Response([{ results: [] }])
       }
       if (url.includes('/issues?state=all')) return Response.json([])
       if (url.endsWith('/issues')) {
@@ -217,6 +223,7 @@ describe('D1 submission notifier', () => {
       created: 1,
       notified: 1,
       recovered: 0,
+      skippedForCutover: false,
       skippedForMigration: false
     })
     const createRequest = requests.find(request => request.url.endsWith('/issues') && request.body)
@@ -235,13 +242,42 @@ describe('D1 submission notifier', () => {
     expect(d1Insert).toContain('"reviewer"')
   })
 
+  it('does not call GitHub or mutate the notification ledger while cutover is locked', async () => {
+    const requests: string[] = []
+    const fetcher = async (input: RequestInfo | URL) => {
+      const url = String(input)
+      requests.push(url)
+      if (url.includes('api.cloudflare.com')) {
+        return d1Response([{ results: [{ id: 'd1-cutover-lock-v1:serp.software:run-1' }] }])
+      }
+      throw new Error(`GitHub side effect attempted while frozen: ${url}`)
+    }
+
+    await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
+      created: 0,
+      notified: 0,
+      recovered: 0,
+      skippedForCutover: true,
+      skippedForMigration: false
+    })
+    expect(requests).toEqual([
+      'https://api.cloudflare.com/client/v4/accounts/account/d1/database/database/query'
+    ])
+  })
+
   it('recovers an already-created issue after an interrupted D1 write', async () => {
     const requests: string[] = []
     const fetcher = async (input: RequestInfo | URL, init?: RequestInit) => {
       const url = String(input)
       requests.push(url)
       if (url.includes('api.cloudflare.com') && requests.length === 1) {
+        return d1Response([{ results: [] }])
+      }
+      if (url.includes('api.cloudflare.com') && requests.length === 2) {
         return d1Response([{ results: [submission] }, { results: [] }, { results: [] }])
+      }
+      if (url.includes('api.cloudflare.com') && String(init?.body).includes('migration_runs')) {
+        return d1Response([{ results: [] }])
       }
       if (url.includes('/issues?state=all')) {
         return Response.json([
@@ -273,6 +309,7 @@ describe('D1 submission notifier', () => {
       created: 0,
       notified: 1,
       recovered: 1,
+      skippedForCutover: false,
       skippedForMigration: false
     })
     expect(requests.filter(url => url.endsWith('/issues'))).toHaveLength(0)
@@ -285,35 +322,45 @@ describe('D1 submission notifier', () => {
   })
 
   it('safely waits for the release that applies its migration', async () => {
-    const fetcher = async () =>
-      new Response(
-        JSON.stringify({
-          success: false,
-          errors: [{ message: 'no such table: listing_submission_notifications' }]
-        }),
-        { status: 400 }
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(d1Response([{ results: [] }]))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            errors: [{ message: 'no such table: listing_submission_notifications' }]
+          }),
+          { status: 400 }
+        )
       )
     await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
       created: 0,
       notified: 0,
       recovered: 0,
+      skippedForCutover: false,
       skippedForMigration: true
     })
   })
 
   it('safely waits when reviewed main precedes the preview-capability migration', async () => {
-    const fetcher = async () =>
-      new Response(
-        JSON.stringify({
-          success: false,
-          errors: [{ message: 'no such column: notification.preview_token_hash' }]
-        }),
-        { status: 400 }
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce(d1Response([{ results: [] }]))
+      .mockResolvedValueOnce(
+        new Response(
+          JSON.stringify({
+            success: false,
+            errors: [{ message: 'no such column: notification.preview_token_hash' }]
+          }),
+          { status: 400 }
+        )
       )
     await expect(notifyVerifiedSubmissions(env, fetcher as typeof fetch)).resolves.toEqual({
       created: 0,
       notified: 0,
       recovered: 0,
+      skippedForCutover: false,
       skippedForMigration: true
     })
   })

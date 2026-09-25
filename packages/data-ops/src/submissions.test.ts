@@ -3,7 +3,7 @@ import { resolve } from 'node:path'
 import type { ActiveCheckedInSiteId } from '@serpdirectory/site-contract/active-site-ids'
 import { beforeEach, describe, expect, it } from 'vitest'
 import { createSiteDatabase } from './client'
-import { createSubmissionOperations, type SubmissionInput } from './submissions'
+import { createSubmissionOperations, isSubmissionError, type SubmissionInput } from './submissions'
 import { SqliteD1 } from './test-support'
 
 const input: SubmissionInput = {
@@ -62,6 +62,17 @@ describe('shared submission data operations', () => {
       client: createSiteDatabase(sqlite.asD1Database(), siteId),
       clock: () => new Date('2026-08-01T00:00:00.000Z')
     })
+  }
+
+  function lock(siteId: ActiveCheckedInSiteId): void {
+    sqlite.database
+      .prepare(
+        `INSERT INTO migration_runs
+          (id,site_id,schema_version,manifest_identity,input_checksum,target_checksum,
+           affected_records,outcome)
+        VALUES (?,?,1,?,'before','before',0,'started')`
+      )
+      .run(`d1-cutover-lock-v1:${siteId}:run-1`, siteId, `d1-cutover-lock-v1:${siteId}:run-1`)
   }
 
   it('creates normalized submissions atomically for both explicit Sites and stores only hashes', async () => {
@@ -168,6 +179,51 @@ describe('shared submission data operations', () => {
     ).rejects.toMatchObject({ code: 'rate_limited', status: 429 })
     await expect(
       operations('pornvideodownloaders.com').consumeRateLimit('203.0.113.10')
+    ).resolves.toBeUndefined()
+  })
+
+  it('freezes every public write for only the locked Site without changing any row', async () => {
+    const saved = await operations('serp.software').createSubmission(input)
+    const eventCountBefore = sqlite.database
+      .prepare('SELECT COUNT(*) AS count FROM listing_submission_events')
+      .get()
+    lock('serp.software')
+
+    const frozen = await operations('serp.software')
+      .consumeRateLimit('203.0.113.20')
+      .catch(error => error as unknown)
+    expect(isSubmissionError(frozen)).toBe(true)
+    expect(frozen).toMatchObject({ code: 'cutover_frozen', status: 503 })
+    await expect(
+      operations('serp.software').createSubmission({
+        ...input,
+        website: 'https://another.example/'
+      })
+    ).rejects.toMatchObject({ code: 'cutover_frozen', status: 503 })
+    await expect(
+      operations('serp.software').beginVerification(saved.id, saved.token)
+    ).rejects.toMatchObject({ code: 'cutover_frozen', status: 503 })
+    await expect(
+      operations('serp.software').finishVerification(saved.id, saved.token, { ok: true })
+    ).rejects.toMatchObject({ code: 'cutover_frozen', status: 503 })
+
+    expect(
+      sqlite.database.prepare('SELECT COUNT(*) AS count FROM listing_submission_rate_limits').get()
+    ).toEqual({ count: 0 })
+    expect(
+      sqlite.database.prepare('SELECT COUNT(*) AS count FROM listing_submissions').get()
+    ).toEqual({ count: 1 })
+    expect(
+      sqlite.database.prepare('SELECT COUNT(*) AS count FROM listing_submission_events').get()
+    ).toEqual(eventCountBefore)
+    expect(
+      sqlite.database
+        .prepare('SELECT status,verification_attempts FROM listing_submissions WHERE id=?')
+        .get(saved.id)
+    ).toEqual({ status: 'pending_badge', verification_attempts: 0 })
+
+    await expect(
+      operations('pornvideodownloaders.com').consumeRateLimit('203.0.113.20')
     ).resolves.toBeUndefined()
   })
 

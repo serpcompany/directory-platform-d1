@@ -56,10 +56,11 @@ describe('remote D1 publisher', () => {
       .fn()
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
+      .mockResolvedValueOnce(response([{ success: true, results: [] }]))
     const result = await publishRemoteManifest(manifestPath, environment, fetchImplementation)
     expect(result.idempotent).toBe(false)
-    expect(fetchImplementation).toHaveBeenCalledTimes(2)
-    const publishBody = JSON.parse(fetchImplementation.mock.calls[1]?.[1]?.body as string) as {
+    expect(fetchImplementation).toHaveBeenCalledTimes(3)
+    const publishBody = JSON.parse(fetchImplementation.mock.calls[2]?.[1]?.body as string) as {
       batch: unknown[]
     }
     expect(publishBody.batch.length).toBeGreaterThan(1)
@@ -70,33 +71,38 @@ describe('remote D1 publisher', () => {
       .fn()
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
+      .mockResolvedValueOnce(response([{ success: true, results: [] }]))
     const initial = await publishRemoteManifest(manifestPath, environment, initialFetch)
-    const inputChecksum = JSON.parse(initialFetch.mock.calls[1]?.[1]?.body as string).batch[3]
+    const inputChecksum = JSON.parse(initialFetch.mock.calls[2]?.[1]?.body as string).batch[4]
       .params[4]
-    const retryFetch = vi.fn().mockResolvedValueOnce(
-      response([
-        {
-          success: true,
-          results: [
-            {
-              outcome: 'succeeded',
-              input_checksum: inputChecksum,
-              after_checksum: initial.afterChecksum
-            }
-          ]
-        }
-      ])
-    )
+    const retryFetch = vi
+      .fn()
+      .mockResolvedValueOnce(response([{ success: true, results: [] }]))
+      .mockResolvedValueOnce(
+        response([
+          {
+            success: true,
+            results: [
+              {
+                outcome: 'succeeded',
+                input_checksum: inputChecksum,
+                after_checksum: initial.afterChecksum
+              }
+            ]
+          }
+        ])
+      )
     await expect(publishRemoteManifest(manifestPath, environment, retryFetch)).resolves.toEqual({
       afterChecksum: initial.afterChecksum,
       idempotent: true
     })
-    expect(retryFetch).toHaveBeenCalledTimes(1)
+    expect(retryFetch).toHaveBeenCalledTimes(2)
   })
 
   it('records a failed outcome after a rolled-back batch', async () => {
     const fetchImplementation = vi
       .fn()
+      .mockResolvedValueOnce(response([{ success: true, results: [] }]))
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
       .mockResolvedValueOnce(
         new Response(JSON.stringify({ success: false, errors: [{ message: 'stale version' }] }), {
@@ -104,13 +110,30 @@ describe('remote D1 publisher', () => {
         })
       )
       .mockResolvedValueOnce(response([{ success: true, results: [] }]))
+      .mockResolvedValueOnce(response([{ success: true, results: [] }]))
     await expect(
       publishRemoteManifest(manifestPath, environment, fetchImplementation)
     ).rejects.toThrow('stale version')
-    expect(fetchImplementation).toHaveBeenCalledTimes(3)
-    const failureBody = JSON.parse(fetchImplementation.mock.calls[2]?.[1]?.body as string) as {
+    expect(fetchImplementation).toHaveBeenCalledTimes(5)
+    const failureBody = JSON.parse(fetchImplementation.mock.calls[4]?.[1]?.body as string) as {
       batch: Array<{ sql: string }>
     }
-    expect(failureBody.batch[0]?.sql).toContain("outcome='failed'")
+    expect(failureBody.batch[0]?.sql).toContain('cutover_unlocked')
+    expect(failureBody.batch[1]?.sql).toContain("outcome='failed'")
+  })
+
+  it('does not inspect publication history or write an audit row while cutover is locked', async () => {
+    const fetchImplementation = vi.fn().mockResolvedValueOnce(
+      response([
+        {
+          success: true,
+          results: [{ id: 'd1-cutover-lock-v1:serp.software:run-1' }]
+        }
+      ])
+    )
+    await expect(
+      publishRemoteManifest(manifestPath, environment, fetchImplementation)
+    ).rejects.toMatchObject({ code: 'cutover_frozen', status: 503 })
+    expect(fetchImplementation).toHaveBeenCalledTimes(1)
   })
 })

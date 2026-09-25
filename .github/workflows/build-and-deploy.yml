@@ -23,7 +23,7 @@ on:
           - database-and-worker
 
 concurrency:
-  group: serp-software-production-worker
+  group: ${{ inputs.site_id }}-production-d1
   cancel-in-progress: false
 
 permissions:

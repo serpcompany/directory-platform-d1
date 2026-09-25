@@ -1,6 +1,6 @@
 import { readFileSync } from 'node:fs'
 import { DatabaseSync } from 'node:sqlite'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import { approveRemoteSubmission, validateApprovalContext } from './d1-submission-approver'
 
 const env = {
@@ -35,28 +35,34 @@ describe('D1 submission approval guard', () => {
   })
 
   it('refuses an unverified submission before sending mutation statements', async () => {
-    const fetcher = async () =>
-      new Response(
+    let calls = 0
+    const fetcher = async () => {
+      calls += 1
+      return new Response(
         JSON.stringify({
           success: true,
           result: [
             {
               success: true,
-              results: [
-                {
-                  id: '11111111-1111-4111-8111-111111111111',
-                  slug: 'example.com',
-                  status: 'pending_badge',
-                  listing_id: null,
-                  version: 1,
-                  checksum: 'before'
-                }
-              ]
+              results:
+                calls === 1
+                  ? []
+                  : [
+                      {
+                        id: '11111111-1111-4111-8111-111111111111',
+                        slug: 'example.com',
+                        status: 'pending_badge',
+                        listing_id: null,
+                        version: 1,
+                        checksum: 'before'
+                      }
+                    ]
             }
           ]
         }),
         { headers: { 'Content-Type': 'application/json' } }
       )
+    }
     await expect(
       approveRemoteSubmission(
         '11111111-1111-4111-8111-111111111111',
@@ -77,25 +83,27 @@ describe('D1 submission approval guard', () => {
           success: true,
           result:
             requests.length === 1
-              ? [
-                  {
-                    success: true,
-                    results: [
-                      {
-                        id: '11111111-1111-4111-8111-111111111111',
-                        slug: 'example.com',
-                        status: 'pending_badge',
-                        listing_id: null,
-                        version: 1,
-                        checksum: 'before'
-                      }
-                    ]
-                  }
-                ]
-              : [
-                  { success: true, results: [] },
-                  { success: true, results: [] }
-                ]
+              ? [{ success: true, results: [] }]
+              : requests.length === 2
+                ? [
+                    {
+                      success: true,
+                      results: [
+                        {
+                          id: '11111111-1111-4111-8111-111111111111',
+                          slug: 'example.com',
+                          status: 'pending_badge',
+                          listing_id: null,
+                          version: 1,
+                          checksum: 'before'
+                        }
+                      ]
+                    }
+                  ]
+                : [
+                    { success: true, results: [] },
+                    { success: true, results: [] }
+                  ]
         })
       )
     }
@@ -108,8 +116,8 @@ describe('D1 submission approval guard', () => {
         fetcher as typeof fetch
       )
     ).resolves.toEqual({ idempotent: false, listingId: null })
-    expect(requests[1]).toContain("status='rejected'")
-    expect(requests[1]).not.toContain('INSERT INTO listings')
+    expect(requests[2]).toContain("status='rejected'")
+    expect(requests[2]).not.toContain('INSERT INTO listings')
   })
 
   it('atomically promotes a verified normalized submission', async () => {
@@ -127,6 +135,7 @@ describe('D1 submission approval guard', () => {
       CREATE TABLE listing_faqs (listing_id TEXT,question TEXT,answer TEXT,sort_order INTEGER);
       CREATE TABLE publication_state (site_id TEXT PRIMARY KEY,version INTEGER,manifest_id TEXT,checksum TEXT,published_at TEXT);
       CREATE TABLE publication_runs (id TEXT PRIMARY KEY,site_id TEXT,manifest_id TEXT,base_version INTEGER,published_version INTEGER,input_checksum TEXT,affected_records INTEGER,affected_routes TEXT,outcome TEXT,started_at TEXT,completed_at TEXT,actor TEXT,workflow TEXT,before_checksum TEXT,after_checksum TEXT);
+      CREATE TABLE migration_runs (id TEXT PRIMARY KEY,site_id TEXT,outcome TEXT,started_at TEXT);
       INSERT INTO categories VALUES (1,'serp.software','adult',1);
       INSERT INTO publication_state VALUES ('serp.software',1,NULL,'before','2026-01-01');
       INSERT INTO listing_submissions VALUES ('11111111-1111-4111-8111-111111111111','serp.software','example.com','Example','Description','https://example.com','Content','adult','https://example.com/logo.png',NULL,'verified',NULL,NULL,NULL,'2026-01-01');
@@ -180,5 +189,31 @@ describe('D1 submission approval guard', () => {
     })
     expect(db.prepare('SELECT COUNT(*) count FROM listing_faqs').get()).toEqual({ count: 1 })
     expect(db.prepare('SELECT version FROM publication_state').get()).toEqual({ version: 2 })
+  })
+
+  it('refuses approval before selecting or mutating a submission while cutover is locked', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          success: true,
+          result: [
+            {
+              success: true,
+              results: [{ id: 'd1-cutover-lock-v1:serp.software:run-1' }]
+            }
+          ]
+        })
+      )
+    )
+    await expect(
+      approveRemoteSubmission(
+        '11111111-1111-4111-8111-111111111111',
+        'reviewer',
+        'approve',
+        env,
+        fetcher
+      )
+    ).rejects.toMatchObject({ code: 'cutover_frozen', status: 503 })
+    expect(fetcher).toHaveBeenCalledTimes(1)
   })
 })

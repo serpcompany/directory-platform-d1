@@ -199,12 +199,15 @@ describe('Worker release guard', () => {
             }
           ])
         })
+      } else if (command === 'migrate') {
+        outputs.push({ status: 0, stdout: '[{"success":true,"results":[]}]' })
+        outputs.push({ status: 0, stdout: '' })
       } else outputs.push({ status: 0, stdout: '' })
       const process = dependencies(outputs)
       expect(() =>
         runWorkerRelease([command, 'production', '--site', 'serp.software'], productionEnv, process)
       ).not.toThrow()
-      const invocation = process.run.mock.calls[2]
+      const invocation = process.run.mock.calls[command === 'migrate' ? 3 : 2]
       expect(invocation?.[0]).toBe('pnpm')
       expect(invocation?.[1]).toContain(
         resolve('.wrangler/generated/serp-software.production.jsonc')
@@ -291,6 +294,7 @@ describe('Worker release guard', () => {
     const process = dependencies([
       { status: 0, stdout: '' },
       { status: 0, stdout: sha },
+      { status: 0, stdout: '[{"success":true,"results":[]}]' },
       {
         status: 0,
         stdout: '[{"success":true,"results":[{"checksum":null,"site_exists":0}]}]'
@@ -299,7 +303,7 @@ describe('Worker release guard', () => {
     expect(() =>
       runWorkerRelease(['import', 'production', '--site', 'serp.software'], productionEnv, process)
     ).not.toThrow()
-    const remoteCalls = process.run.mock.calls.slice(3)
+    const remoteCalls = process.run.mock.calls.slice(4)
     expect(remoteCalls.length).toBeGreaterThan(1)
     expect(remoteCalls.every(call => call[1].includes('--remote'))).toBe(true)
     expect(remoteCalls.some(call => call[1].includes('--file'))).toBe(true)
@@ -309,6 +313,7 @@ describe('Worker release guard', () => {
     const process = dependencies([
       { status: 0, stdout: '' },
       { status: 0, stdout: sha },
+      { status: 0, stdout: '[{"success":true,"results":[]}]' },
       {
         status: 0,
         stdout: '[{"success":true,"results":[{"checksum":null,"site_exists":1}]}]'
@@ -318,6 +323,26 @@ describe('Worker release guard', () => {
       runWorkerRelease(['import', 'production', '--site', 'serp.software'], productionEnv, process)
     ).toThrow('restore the pre-import backup')
     expect(process.run.mock.calls.some(call => call[1].includes('--file'))).toBe(false)
+  })
+
+  it('refuses generic Production migration and import while the cutover lock is active', () => {
+    for (const command of ['migrate', 'import'] as const) {
+      const process = dependencies([
+        { status: 0, stdout: '' },
+        { status: 0, stdout: sha },
+        {
+          status: 0,
+          stdout: '[{"success":true,"results":[{"id":"d1-cutover-lock-v1:serp.software:run-1"}]}]'
+        }
+      ])
+      expect(() =>
+        runWorkerRelease([command, 'production', '--site', 'serp.software'], productionEnv, process)
+      ).toThrow(/cutover is frozen/u)
+      expect(process.run).toHaveBeenCalledTimes(3)
+      expect(process.run.mock.calls[2]?.[1].join(' ')).toContain('migration_runs')
+      expect(process.run.mock.calls.some(call => call[1].includes('--file'))).toBe(false)
+      expect(process.run.mock.calls.some(call => call[1].includes('apply'))).toBe(false)
+    }
   })
 
   it('binds preview release authority and commands to pornvideodownloaders.com', () => {
