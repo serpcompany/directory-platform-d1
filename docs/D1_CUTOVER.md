@@ -133,12 +133,13 @@ represented as copied Production state.
 
 The Submission gate uses the real replacement Preview D1 and HTTP routes. Its badge
 page exists only when `D1_RUNTIME_ENV=preview`, the request carries the protected
-`REPLATFORM_PREVIEW_CAPABILITY`, and the verifier User-Agent matches. It exposes no
-database or review operation. The journey creates isolated rows, verifies the badge,
-hydrates the private preview, exercises the shared approval and rejection plans, and
-removes only its recorded generated IDs. Read-only source/target snapshots before,
-after, and after cleanup supply the parity, ledger, deletion-safety, and private-row
-counts in the sealed receipt; the evidence builder contains no success defaults.
+`REPLATFORM_PREVIEW_CAPABILITY`, and that short-lived HMAC capability matches the
+current run and Preview hostname. It exposes no database or review operation. The
+journey creates isolated rows, verifies the badge, hydrates the private preview,
+exercises the shared approval and rejection plans, and removes only its recorded
+generated IDs. Read-only source/target snapshots before, after, and after cleanup
+supply the parity, ledger, deletion-safety, and private-row counts in the sealed
+receipt; the evidence builder contains no success defaults.
 
 The account, source D1, replacement D1, Worker service name, and live Preview hostname
 are observed again immediately before each remote mutation group. Missing or unknown
@@ -190,8 +191,8 @@ The final cleanup first performs a fresh full identity verification. If that fai
 it performs zero Cloudflare/D1 cleanup mutations, retains the journal plus a
 `MANUAL_RECOVERY_REQUIRED` artifact, and fails explicitly. On a verified target it
 uses one still-unexpired token to prove both temporary endpoints return 200 before
-authority removal; the same token and badge-verifier User-Agent must return 404 after
-secret/marker deletion. This distinguishes real revocation from an invalid probe.
+authority removal; the same token must return 404 after secret/marker deletion. This
+distinguishes real revocation from an invalid probe.
 
 ## Production cutover
 

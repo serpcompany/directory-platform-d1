@@ -969,7 +969,7 @@ describe('D1 replatform cutover preparation', () => {
       expect(source).toContain('REPLATFORM_PREVIEW_SIGNING_SECRET')
       expect(source).toContain('REPLATFORM_PREVIEW_RUN_ID')
       expect(source).toContain("searchParams.get('token')")
-      expect(source).toContain('BADGE_VERIFIER_USER_AGENT')
+      expect(source).not.toContain('BADGE_VERIFIER_USER_AGENT')
       expect(source).not.toMatch(/(?:INSERT|UPDATE|DELETE|DB\.)/u)
     }
   })

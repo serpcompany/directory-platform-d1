@@ -1,6 +1,5 @@
 import { getCloudflareContext } from '@opennextjs/cloudflare'
 import { verifyReplatformPreviewCapability } from '@serpdirectory/data-ops/replatform-preview-capability'
-import { BADGE_VERIFIER_USER_AGENT } from '@serpdirectory/web-core/forms/submission-contract'
 import { submissionBadgeTargets } from '@/lib/submissions/presentation'
 
 export async function GET(request: Request): Promise<Response> {
@@ -19,11 +18,7 @@ export async function GET(request: Request): Promise<Response> {
     slug,
     token
   })
-  if (
-    workerEnv.D1_RUNTIME_ENV !== 'preview' ||
-    !authorized ||
-    request.headers.get('user-agent') !== BADGE_VERIFIER_USER_AGENT
-  )
+  if (workerEnv.D1_RUNTIME_ENV !== 'preview' || !authorized)
     return new Response('Not found', { status: 404 })
   if (!slug || !/^[a-z0-9.-]+$/u.test(slug)) return new Response('Not found', { status: 404 })
   const targets = submissionBadgeTargets(slug)
