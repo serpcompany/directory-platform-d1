@@ -115,6 +115,12 @@ version after the reviewed source-bound deployment, the same script etag and sou
 binding, and all six expected secret names. Seal both version/deployment identities;
 any concurrent deployment or code/binding drift stops the run.
 
+After replacement and restoration deploys, allow only bounded edge-propagation retries
+for attestation: reuse one short-lived run/hostname token for no more than 30 seconds,
+and retry only network errors, 404, or 5xx with backoff. Never retry a 200 response whose
+identity differs, or another definitive HTTP status. Full attestation identity equality
+remains mandatory before continuing.
+
 ## Verified public submissions
 
 Public submissions are staged in normalized D1 tables and require a successful badge

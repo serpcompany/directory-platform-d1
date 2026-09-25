@@ -88,6 +88,13 @@ service, and hostname, and expose all six secret binding names. Concurrent dashb
 deploys, code drift, incomplete/ambiguous bulk output, or multiple new deployments fail
 before database mutation. Both deployment proofs are sealed into the Preview receipt.
 
+Worker propagation can briefly leave the attestation route unavailable immediately
+after the replacement or restoration deploy. The attestation gate creates one
+run/hostname-bound token and retries only network failures, HTTP 404, and HTTP 5xx for
+at most 30 seconds with bounded backoff. A successful response must still match every
+Site, environment, service, hostname, commit, run, and binding-nonce field exactly.
+Other statuses and any 200 identity mismatch fail immediately without retry.
+
 SERP has no pre-existing populated legacy Preview source. Within this same approved
 run, the workflow therefore initializes the isolated source before replacement import:
 it re-verifies all identities, applies only immutable `d1/migrations/0001`-`0009`,

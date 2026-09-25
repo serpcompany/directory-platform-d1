@@ -634,7 +634,12 @@ export async function observePreviewSecretDeployment(
 export async function attestPreviewWorker(
   siteId: SiteId,
   env: NodeJS.ProcessEnv,
-  fetcher: typeof fetch = fetch
+  fetcher: typeof fetch = fetch,
+  retry: {
+    maxWaitMs?: number
+    now?: () => number
+    sleep?: (milliseconds: number) => Promise<void>
+  } = {}
 ): Promise<Record<string, unknown>> {
   const target = resolveSiteTarget(siteId)
   const baseUrl = new URL(text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL'))
@@ -647,9 +652,6 @@ export async function attestPreviewWorker(
   })
   const url = new URL('/api/replatform/attestation', baseUrl)
   url.searchParams.set('token', token)
-  const response = await fetcher(url, { headers: { Accept: 'application/json' } })
-  if (!response.ok) throw new Error('Deployed Preview Worker attestation failed.')
-  const observed = object(await response.json(), 'Preview Worker attestation')
   const expected = {
     bindingNonce: text(env.REPLATFORM_PREVIEW_BINDING_NONCE, 'REPLATFORM_PREVIEW_BINDING_NONCE'),
     commit: text(env.GITHUB_SHA, 'GITHUB_SHA'),
@@ -659,9 +661,46 @@ export async function attestPreviewWorker(
     service: text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME'),
     siteId: target.siteId
   }
-  for (const [key, value] of Object.entries(expected))
-    if (observed[key] !== value) throw new Error(`Preview Worker attestation ${key} mismatch.`)
-  return { expected, observed }
+  const now = retry.now ?? Date.now
+  const sleep =
+    retry.sleep ??
+    ((milliseconds: number) => new Promise<void>(resolve => setTimeout(resolve, milliseconds)))
+  const maxWaitMs = Math.min(retry.maxWaitMs ?? 30_000, 30_000)
+  if (!Number.isFinite(maxWaitMs) || maxWaitMs < 0)
+    throw new Error('Preview attestation retry window is invalid.')
+  const startedAt = now()
+  let retryCount = 0
+  while (true) {
+    let response: Response
+    try {
+      response = await fetcher(url, { headers: { Accept: 'application/json' } })
+    } catch (error) {
+      const elapsed = now() - startedAt
+      if (elapsed >= maxWaitMs)
+        throw new Error('Preview Worker attestation did not propagate within the retry window.', {
+          cause: error
+        })
+      const delay = Math.min(250 * 2 ** Math.min(retryCount, 4), maxWaitMs - elapsed)
+      retryCount += 1
+      await sleep(delay)
+      continue
+    }
+    if (response.ok) {
+      const observed = object(await response.json(), 'Preview Worker attestation')
+      for (const [key, value] of Object.entries(expected))
+        if (observed[key] !== value) throw new Error(`Preview Worker attestation ${key} mismatch.`)
+      return { expected, observed }
+    }
+    const transient = response.status === 404 || response.status >= 500
+    if (!transient)
+      throw new Error(`Deployed Preview Worker attestation failed with status ${response.status}.`)
+    const elapsed = now() - startedAt
+    if (elapsed >= maxWaitMs)
+      throw new Error('Preview Worker attestation did not propagate within the retry window.')
+    const delay = Math.min(250 * 2 ** Math.min(retryCount, 4), maxWaitMs - elapsed)
+    retryCount += 1
+    await sleep(delay)
+  }
 }
 
 export function assertRemoteIdentity(

@@ -540,6 +540,61 @@ describe('D1 replatform cutover preparation', () => {
         Response.json({ ...observed, commit: 'd'.repeat(40) })
       )
     ).rejects.toThrow('commit mismatch')
+
+    let delayedNow = 0
+    const delayedUrls: string[] = []
+    const delayedStatuses = [404, 503, 200]
+    const delayedFetcher = async (input: RequestInfo | URL) => {
+      delayedUrls.push(String(input))
+      const status = delayedStatuses.shift()
+      return status === 200 ? Response.json(observed) : new Response(null, { status })
+    }
+    await expect(
+      attestPreviewWorker('serp.software', env, delayedFetcher, {
+        maxWaitMs: 2_000,
+        now: () => delayedNow,
+        sleep: async milliseconds => {
+          delayedNow += milliseconds
+        }
+      })
+    ).resolves.toEqual({ expected: observed, observed })
+    expect(delayedUrls).toHaveLength(3)
+    expect(new Set(delayedUrls.map(value => new URL(value).searchParams.get('token'))).size).toBe(1)
+
+    let timeoutNow = 0
+    let timeoutCalls = 0
+    await expect(
+      attestPreviewWorker(
+        'serp.software',
+        env,
+        async () => {
+          timeoutCalls += 1
+          return new Response(null, { status: 404 })
+        },
+        {
+          maxWaitMs: 500,
+          now: () => timeoutNow,
+          sleep: async milliseconds => {
+            timeoutNow += milliseconds
+          }
+        }
+      )
+    ).rejects.toThrow('did not propagate')
+    expect(timeoutCalls).toBeGreaterThan(1)
+
+    let mismatchCalls = 0
+    await expect(
+      attestPreviewWorker(
+        'serp.software',
+        env,
+        async () => {
+          mismatchCalls += 1
+          return Response.json({ ...observed, service: 'wrong-worker' })
+        },
+        { maxWaitMs: 2_000, sleep: async () => undefined }
+      )
+    ).rejects.toThrow('service mismatch')
+    expect(mismatchCalls).toBe(1)
   })
 
   it('accepts controlled Preview evidence and rejects private state', () => {
