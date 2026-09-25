@@ -81,7 +81,15 @@ jobs:
           worker_state="$(node -e 'const fs=require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).workerState)' "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight.json")"
           test "$worker_state" = 'missing-allowed' -o "$worker_state" = 'existing-exact'
           pnpm tsx scripts/d1-replatform-cutover.ts preflight-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight-before-source-deploy.json"
-          pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}" 2>&1 | tee "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deploy.log"
+          REPLATFORM_SOURCE_DEPLOY_VERSION_ID="$(node -e '
+            const fs = require("node:fs");
+            const source = fs.readFileSync(process.argv[1], "utf8").replace(/\u001b\[[0-9;]*m/g, "");
+            const ids = [...source.matchAll(/Current Version ID:\s*([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})/g)].map(match => match[1]);
+            if (ids.length !== 1) throw new Error("Source-bound deploy did not emit exactly one Worker Version ID.");
+            process.stdout.write(ids[0]);
+          ' "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deploy.log")"
+          export REPLATFORM_SOURCE_DEPLOY_VERSION_ID
           pnpm tsx scripts/d1-replatform-cutover.ts observe-preview-deployment --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json"
           cp "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
 

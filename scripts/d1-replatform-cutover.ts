@@ -445,6 +445,10 @@ export async function observePreviewDeployment(
   const accountId = text(env.CLOUDFLARE_ACCOUNT_ID, 'CLOUDFLARE_ACCOUNT_ID')
   const workerName = text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME')
   const token = text(env.CLOUDFLARE_API_TOKEN, 'CLOUDFLARE_API_TOKEN')
+  const capturedVersionId = text(
+    env.REPLATFORM_SOURCE_DEPLOY_VERSION_ID,
+    'REPLATFORM_SOURCE_DEPLOY_VERSION_ID'
+  )
   const deploymentResult = cloudflareResult(
     await dependencies.fetchDeployments(accountId, workerName, token),
     'Cloudflare Worker deployments'
@@ -460,6 +464,10 @@ export async function observePreviewDeployment(
   if (deployedVersion.percentage !== 100)
     throw new Error('Active Worker deployment must send 100 percent of traffic to one version.')
   const versionId = text(deployedVersion.version_id, 'active Worker version ID')
+  if (versionId !== capturedVersionId)
+    throw new Error(
+      'Active Worker version does not match the version emitted by the immediately preceding deploy.'
+    )
   const version = cloudflareResult(
     await dependencies.fetchWorkerVersion(accountId, workerName, versionId, token),
     'Cloudflare Worker version'
@@ -488,6 +496,8 @@ export async function observePreviewDeployment(
     ...identity,
     activeDeployment: {
       commitSha: text(env.GITHUB_SHA, 'GITHUB_SHA'),
+      captureSource: 'wrangler-deploy-output',
+      capturedVersionId,
       deploymentId: text(deployment.id, 'active Worker deployment ID'),
       generation: 'legacy',
       hostname: text(expected.workerHostname, 'expected Worker hostname'),
@@ -651,6 +661,8 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
   if (
     initialWorkerDeployment.siteId !== siteId ||
     initialWorkerDeployment.generation !== 'legacy' ||
+    initialWorkerDeployment.captureSource !== 'wrangler-deploy-output' ||
+    initialWorkerDeployment.capturedVersionId !== initialWorkerDeployment.versionId ||
     initialWorkerDeployment.commitSha !== commitSha ||
     initialWorkerDeployment.serviceName !== expectedIdentity.workerName ||
     initialWorkerDeployment.hostname !== expectedIdentity.workerHostname ||

@@ -76,6 +76,8 @@ if (
   !initialWorkerDeployment ||
   initialWorkerDeployment.siteId !== siteId ||
   initialWorkerDeployment.generation !== 'legacy' ||
+  initialWorkerDeployment.captureSource !== 'wrangler-deploy-output' ||
+  initialWorkerDeployment.capturedVersionId !== initialWorkerDeployment.versionId ||
   initialWorkerDeployment.commitSha !== process.env.GITHUB_SHA ||
   initialWorkerDeployment.serviceName !== process.env.CLOUDFLARE_WORKER_PREVIEW_NAME ||
   initialWorkerDeployment.sourceDatabaseId !== process.env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID ||

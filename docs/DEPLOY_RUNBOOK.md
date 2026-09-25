@@ -96,9 +96,11 @@ missing Preview Worker after all account and D1 identities pass. PVD never permi
 missing Worker bootstrap. Both missing and existing paths repeat preflight and deploy
 the exact stacked commit without transient authority against the legacy/source Preview
 D1 binding. The workflow must then read back the active service, workers.dev hostname,
-100-percent deployment/version, script etag, and source D1 binding and bind that proof
-to the sealed receipt before installing any rehearsal secret. The later replacement
-deployment is separate.
+100-percent deployment/version, script etag, and source D1 binding. Its version UUID
+must exactly match the sole UUID emitted by the immediately preceding guarded deploy;
+otherwise a concurrent or ambiguous deployment fails closed. The workflow binds that
+proof to the sealed receipt before installing any rehearsal secret. The later
+replacement deployment is separate.
 
 ## Verified public submissions
 

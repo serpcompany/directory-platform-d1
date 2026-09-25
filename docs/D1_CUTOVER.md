@@ -63,12 +63,14 @@ classify a missing Worker only for the checked-in SERP bootstrap exception; PVD 
 wrong existing Worker identities fail closed. Missing and existing Workers then use
 the same path: the run immediately repeats preflight, deploys the checked-out reviewed
 commit with the legacy/source Preview D1 binding and no transient rehearsal authority,
-and reads back the active Cloudflare deployment, sole 100-percent version, script
-etag, source D1 binding, service, and exact workers.dev hostname. This observation is
-bound to the sealed receipt. Only then may the run install transient secrets or mutate
-either Preview database. The later replacement-bound deployment remains a separate
-gate. A failure before transient authority installation requires no remote cleanup and
-records that fact without claiming manual database recovery.
+captures the single version UUID emitted by that deploy, and reads back the active
+Cloudflare deployment, sole 100-percent version, script etag, source D1 binding,
+service, and exact workers.dev hostname. The active UUID must equal the captured UUID;
+an unchanged, concurrent dashboard, gradual, or ambiguous deployment fails. This
+observation is bound to the sealed receipt. Only then may the run install secrets or
+mutate either Preview database. The later replacement-bound deployment remains a
+separate gate. A failure before transient authority installation requires no remote
+cleanup and records that fact without claiming manual database recovery.
 
 SERP has no pre-existing populated legacy Preview source. Within this same approved
 run, the workflow therefore initializes the isolated source before replacement import:

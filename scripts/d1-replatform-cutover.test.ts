@@ -69,6 +69,8 @@ function baseEvidence(environment: 'preview' | 'production') {
     commitSha,
     migrationChecksum: checksum,
     initialWorkerDeployment: {
+      captureSource: 'wrangler-deploy-output',
+      capturedVersionId: 'version-id',
       commitSha,
       deploymentId: 'deployment-id',
       generation: 'legacy',
@@ -243,7 +245,8 @@ describe('D1 replatform cutover preparation', () => {
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_ID: 'target-uuid',
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'target-name',
       CLOUDFLARE_WORKER_PREVIEW_NAME: 'worker-name',
-      PREVIEW_BASE_URL: 'https://worker-name.test-subdomain.workers.dev/'
+      PREVIEW_BASE_URL: 'https://worker-name.test-subdomain.workers.dev/',
+      REPLATFORM_SOURCE_DEPLOY_VERSION_ID: 'version-id'
     }
     const dependencies = {
       fetchAccount: async () => ({ success: true, result: { id: 'account-id' } }),
@@ -298,6 +301,22 @@ describe('D1 replatform cutover preparation', () => {
         })
       })
     )
+    await expect(
+      observePreviewDeployment('serp.software', env, {
+        ...dependencies,
+        fetchDeployments: async () => ({
+          success: true,
+          result: {
+            deployments: [
+              {
+                id: 'concurrent-dashboard-deployment',
+                versions: [{ percentage: 100, version_id: 'dashboard-version-id' }]
+              }
+            ]
+          }
+        })
+      })
+    ).rejects.toThrow('immediately preceding deploy')
     await expect(
       observePreviewDeployment('serp.software', env, {
         ...dependencies,
@@ -647,6 +666,9 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('preflight-preview-identity')
     expect(raw).toContain('observe-preview-deployment')
     expect(raw).toContain('preview-source-worker-deployment.json')
+    expect(raw).toContain('preview-source-worker-deploy.log')
+    expect(raw).toContain('REPLATFORM_SOURCE_DEPLOY_VERSION_ID')
+    expect(raw).toContain('Current Version ID:')
     expect(raw).toContain("worker_state\" = 'missing-allowed'")
     expect(raw).toContain('NO_REMOTE_CLEANUP_REQUIRED.txt')
     expect(raw).toContain('transient-authority-install-attempted')
