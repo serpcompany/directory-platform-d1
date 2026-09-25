@@ -16,6 +16,7 @@ interface DependabotUpdate {
   'package-ecosystem': string
   directory: string
   groups?: Record<string, unknown>
+  'open-pull-requests-limit'?: number
   schedule?: { interval?: string }
 }
 
@@ -64,8 +65,14 @@ describe('security automation', () => {
     for (const update of dependabot.updates) {
       expect(update.directory).toBe('/')
       expect(update.schedule?.interval).toBe('weekly')
-      expect(Object.keys(update.groups ?? {})).not.toHaveLength(0)
     }
+
+    const npm = dependabot.updates[0]
+    expect(npm?.['open-pull-requests-limit']).toBe(5)
+    expect(npm?.groups).toBeUndefined()
+
+    const actions = dependabot.updates[1]
+    expect(Object.keys(actions?.groups ?? {})).not.toHaveLength(0)
   })
 
   it('keeps the production baseline reviewed, time-bounded, and explained', () => {

@@ -139,7 +139,7 @@ describe('production Worker workflow', () => {
     const backupStep = workflow.jobs.deploy.steps?.find(
       step => step.name === 'Retain production D1 backup'
     ) as Step & { uses?: string; with?: Record<string, unknown> }
-    expect(backupStep.uses).toBe('actions/upload-artifact@v6')
+    expect(backupStep.uses).toBe('actions/upload-artifact@v7')
     expect(backupStep.with?.path).toBe(
       `.wrangler/backups/serp-software/production/${githubExpression('github.sha')}.replatform.sql`
     )

@@ -66,7 +66,7 @@ describe('pr-review workflow', () => {
     const workflow = loadWorkflow()
     const validateJob = workflow.jobs.validate
     const stepRuns = validateJob.steps?.map(step => step.run).filter(Boolean)
-    const checkoutStep = validateJob.steps?.find(step => step.uses === 'actions/checkout@v6')
+    const checkoutStep = validateJob.steps?.find(step => step.uses === 'actions/checkout@v7')
 
     expect(validateJob['runs-on']).toBe('ubuntu-latest')
     expect(checkoutStep?.with?.['fetch-depth']).toBe(0)
