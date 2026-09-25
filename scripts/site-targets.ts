@@ -41,6 +41,8 @@ export interface SiteTarget {
     previewDatabaseName: string
     previewProvisioningConfirmation?: string
     previewConfigPath: string
+    productionDatabaseName: string
+    productionProvisioningConfirmation: string
     productionConfigPath: string
   }
   siteId: SiteId
@@ -86,6 +88,9 @@ export const siteTargets = {
       previewDatabaseName: 'pornvideodownloaders-replatform-preview',
       previewProvisioningConfirmation: 'provision-pornvideodownloaders.com-replacement-preview',
       previewConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-preview.jsonc',
+      productionDatabaseName: 'pornvideodownloaders-replatform-production',
+      productionProvisioningConfirmation:
+        'provision-pornvideodownloaders.com-replacement-production',
       productionConfigPath: 'configs/wrangler/pornvideodownloaders.com/replatform-production.jsonc'
     },
     siteId: 'pornvideodownloaders.com'
@@ -128,6 +133,8 @@ export const siteTargets = {
       allowMissingPreviewWorkerBootstrap: false,
       previewDatabaseName: 'serp-software-replatform-preview',
       previewConfigPath: 'configs/wrangler/serp.software/replatform-preview.jsonc',
+      productionDatabaseName: 'serp-software-replatform-production',
+      productionProvisioningConfirmation: 'provision-serp.software-replacement-production',
       productionConfigPath: 'configs/wrangler/serp.software/replatform-production.jsonc'
     },
     siteId: 'serp.software'

@@ -47,6 +47,13 @@ Replacement templates are separate `replatform-*.jsonc` files and point only at
 `d1/drizzle/`. They do not replace released templates before protected cutover. See
 [the replacement cutover contract](./D1_CUTOVER.md).
 
+The one-time protected Production provisioner may create only the exact empty
+replacement D1 registered for one selected Site after proving its existing account,
+source D1, Worker, placement, and protected environment. It does not migrate data,
+deploy or rebind a Worker, change routes, or authorize cutover; a Maintainer reviews
+its retained identity receipt and configures the resulting protected UUID/name pair
+separately.
+
 ## Protected production release
 
 `main` is protected. Changes arrive through pull requests whose strict required
