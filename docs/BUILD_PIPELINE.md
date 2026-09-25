@@ -36,8 +36,9 @@ pnpm worker:build
 
 The OpenNext build emits one `.open-next/worker.js` and asset set under each app.
 Both sites have separate local and production Wrangler identities and bindings.
-Both also have separate Preview configuration and provisioned Preview resources;
-SERP's protected source/replacement Preview path was rehearsed by Issue #72.
+Both also have separate Preview configuration and active replacement Preview
+resources. The temporary Issue #72 source Preview databases were deleted with
+retained exports and receipts.
 Configuration validation rejects cross-environment and cross-site references. Release tooling materializes
 ignored environment-specific configuration
 under `.wrangler/generated/` and rebases Worker, asset, schema, and migration paths

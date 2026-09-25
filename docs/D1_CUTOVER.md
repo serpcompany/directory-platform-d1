@@ -81,11 +81,19 @@ After both retention deadlines:
 6. remove the retired lineage, cutover-only code, environment values, and workflows
    in a reviewed pull request.
 
-The unbound source Preview databases are tracked separately by
-[Issue #88](https://github.com/serpcompany/directory-platform-d1/issues/88). Their
-deletion requires the exact Site choice and confirmation in the protected,
-main-only `delete-retired-preview-d1.yml` workflow. That workflow hardcodes both
-the retired and active identities, proves the retired D1 is unbound account-wide,
-retains a SQL export before mutation, and re-proves the active replacement after
-deleting only the selected retired Preview D1. It grants no authority over either
-retained Production source.
+The two unbound source Preview databases were deleted through the protected,
+main-only `delete-retired-preview-d1.yml` workflow after explicit authorization:
+
+- `serp-software-replatform-source-preview`
+  (`5e96a9f0-e11a-4c60-8dd3-02299c032466`):
+  [run 36124973769](https://github.com/serpcompany/directory-platform-d1/actions/runs/36124973769),
+  export and receipts retained through `2026-12-24T10:37:28Z`;
+- `pornvideo-downloaders-preview` (`f92694b0-af7d-4c13-91f2-ee0393af9bdd`):
+  [run 36125338098](https://github.com/serpcompany/directory-platform-d1/actions/runs/36125338098),
+  export and receipts retained through `2026-12-24T10:41:30Z`.
+
+Both final receipts record `action=deleted`; account inventory and public HTTP checks
+re-proved the active replacement Preview databases and Worker bindings afterward.
+The temporary OAuth and retired Preview identity secrets were removed, and the
+deletion workflow was disabled. This grants no authority over either retained
+Production source, which remains governed by Issue #88 and the deadlines above.
