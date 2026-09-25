@@ -67,7 +67,7 @@ jobs:
           CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
         run: pnpm tsx scripts/worker-release.ts backup production --site "${{ inputs.site_id }}"
       - name: Retain pre-approval backup
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-d1-pre-submission-approval-${{ github.sha }}
           path: .wrangler/backups/${{ inputs.site_id == 'pornvideodownloaders.com' && 'pornvideodownloaders-com' || 'serp-software' }}/production/${{ github.sha }}.replatform.sql

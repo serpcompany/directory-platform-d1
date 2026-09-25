@@ -50,5 +50,5 @@ jobs:
           pnpm tsx scripts/d1-replatform-production.ts assert-locked --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID" --cutover-id "$cutover_id"
           pnpm tsx scripts/d1-replatform-production.ts finalize --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID" --cutover-id "$cutover_id"
           pnpm tsx scripts/d1-replatform-production.ts assert-locked --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --cutover-id "$cutover_id"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with: { name: '${{ inputs.site_id }}-production-cutover-finalization-${{ github.sha }}', path: '${{ runner.temp }}/d1-production-finalize/', if-no-files-found: error, retention-days: 90 }

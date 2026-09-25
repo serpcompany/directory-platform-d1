@@ -48,7 +48,7 @@ jobs:
         run: pnpm tsx scripts/d1-replatform-cutover.ts plan "${{ inputs.environment }}" --site "${{ inputs.site_id }}" > cutover-plan.json
 
       - name: Retain exact-commit plan
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: d1-replatform-plan-${{ inputs.site_id }}-${{ inputs.environment }}-${{ github.sha }}
           path: cutover-plan.json

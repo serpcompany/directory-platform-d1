@@ -57,7 +57,7 @@ jobs:
             --output "$RUNNER_TEMP/retired-preview-d1/preflight.json"
 
       - name: Retain pre-delete SQL export and identity receipt
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-retired-preview-d1-pre-delete-${{ github.sha }}
           path: |
@@ -76,7 +76,7 @@ jobs:
 
       - name: Retain final deletion receipt
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-retired-preview-d1-final-${{ github.sha }}
           path: ${{ runner.temp }}/retired-preview-d1/final.json

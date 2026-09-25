@@ -87,7 +87,7 @@ jobs:
           test -s "$EVIDENCE_DIR/source-backup.sql"
           test -s "$EVIDENCE_DIR/target-backup.sql"
       - name: Upload pre-mutation recovery backups
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-production-cutover-backups-${{ github.sha }}
           path: ${{ runner.temp }}/d1-production-cutover/*-backup.sql
@@ -112,7 +112,7 @@ jobs:
       - name: Seal and retain incomplete-run recovery authority before traffic switch
         run: |
           pnpm tsx scripts/d1-replatform-production.ts assemble-recovery --site "${{ inputs.site_id }}" --cutover-id "$(cat "$EVIDENCE_DIR/cutover-id.txt")" --preflight "$EVIDENCE_DIR/preflight.json" --source-observation "$EVIDENCE_DIR/source-deployment.json" --output "$EVIDENCE_DIR/recovery-receipt.json"
-      - uses: actions/upload-artifact@v6
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-production-cutover-recovery-${{ github.sha }}
           path: ${{ runner.temp }}/d1-production-cutover/recovery-receipt.json
@@ -167,7 +167,7 @@ jobs:
           pnpm tsx scripts/d1-replatform-production.ts seal --site "${{ inputs.site_id }}" --evidence "$EVIDENCE_DIR/evidence.json" --output "$EVIDENCE_DIR/receipt.json"
       - name: Retain exact cutover evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-production-cutover-evidence-${{ github.sha }}
           path: ${{ runner.temp }}/d1-production-cutover/
@@ -184,7 +184,7 @@ jobs:
           fi
       - name: Retain final recovery status
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-production-cutover-final-status-${{ github.sha }}
           path: |
