@@ -2,7 +2,11 @@ import { createHash } from 'node:crypto'
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { parse } from 'yaml'
-import { freshMigrationChecksum, previewReceiptSha256 } from './d1-replatform-cutover'
+import {
+  assertRemoteIdentity,
+  freshMigrationChecksum,
+  previewReceiptSha256
+} from './d1-replatform-cutover'
 import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 import { resolveSiteTarget } from './site-targets'
 
@@ -20,6 +24,12 @@ function argumentsMap(args: string[]): Map<string, string> {
 function required(values: Map<string, string>, flag: string): string {
   const value = values.get(flag)
   if (!value) throw new Error(`Missing ${flag}.`)
+  return value
+}
+
+function requiredEnv(name: string): string {
+  const value = process.env[name]
+  if (!value) throw new Error(`Missing ${name}.`)
   return value
 }
 
@@ -42,6 +52,7 @@ const values = argumentsMap(process.argv.slice(2))
 const siteId = resolveSiteTarget(required(values, '--site')).siteId
 const target = resolveSiteTarget(siteId)
 const identity = readJson(required(values, '--identity'))
+const initialWorkerObservation = readJson(required(values, '--initial-worker-deployment'))
 const workerAttestation = readJson(required(values, '--worker-attestation'))
 const sourceClassification = readJson(required(values, '--source-classification'))
 const sourceFinalClassification = readJson(required(values, '--source-final-classification'))
@@ -59,6 +70,25 @@ const submission = readJson(required(values, '--submission-journeys'))
 const submissionCleanup = readJson(required(values, '--submission-cleanup'))
 const rollbackSource = readJson(required(values, '--rollback-source'))
 const rollbackTarget = readJson(required(values, '--rollback-target'))
+assertRemoteIdentity(siteId, 'preview', initialWorkerObservation)
+const initialWorkerDeployment = initialWorkerObservation.activeDeployment as Record<string, unknown>
+if (
+  !initialWorkerDeployment ||
+  initialWorkerDeployment.siteId !== siteId ||
+  initialWorkerDeployment.generation !== 'legacy' ||
+  initialWorkerDeployment.commitSha !== process.env.GITHUB_SHA ||
+  initialWorkerDeployment.serviceName !== process.env.CLOUDFLARE_WORKER_PREVIEW_NAME ||
+  initialWorkerDeployment.sourceDatabaseId !== process.env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID ||
+  initialWorkerDeployment.hostname !== new URL(requiredEnv('PREVIEW_BASE_URL')).hostname ||
+  initialWorkerDeployment.trafficPercentage !== 100 ||
+  typeof initialWorkerDeployment.deploymentId !== 'string' ||
+  !initialWorkerDeployment.deploymentId ||
+  typeof initialWorkerDeployment.versionId !== 'string' ||
+  !initialWorkerDeployment.versionId ||
+  typeof initialWorkerDeployment.scriptEtag !== 'string' ||
+  !initialWorkerDeployment.scriptEtag
+)
+  throw new Error('Initial source-bound Worker deployment evidence is incomplete or mismatched.')
 const sourcePrivateCounts = sourceControlled.sourcePrivateCounts as Record<string, unknown>
 if (
   sourceClassification.classification !== 'blank' &&
@@ -182,6 +212,7 @@ const evidence = {
   environment: 'preview',
   commitSha: process.env.GITHUB_SHA,
   migrationChecksum: freshMigrationChecksum(),
+  initialWorkerDeployment,
   identity: { ...identity, attestation: workerAttestation },
   legacySource: {
     initialClassification: sourceClassification.classification,

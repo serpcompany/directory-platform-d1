@@ -6,6 +6,7 @@ import {
   attestPreviewWorker,
   buildCutoverPlan,
   freshMigrationChecksum,
+  observePreviewDeployment,
   previewReceiptSha256,
   validateCutoverEvidence,
   validateReplatformTemplate,
@@ -29,7 +30,8 @@ function baseEvidence(environment: 'preview' | 'production') {
     sourceDatabaseName: 'source-name',
     targetDatabaseId: 'target-uuid',
     targetDatabaseName: 'target-name',
-    workerName: 'worker-name'
+    workerName: 'worker-name',
+    workerHostname: `${environment}.example.test`
   }
   const exactAttestation = {
     bindingNonce: 'binding-nonce',
@@ -66,6 +68,18 @@ function baseEvidence(environment: 'preview' | 'production') {
     environment,
     commitSha,
     migrationChecksum: checksum,
+    initialWorkerDeployment: {
+      commitSha,
+      deploymentId: 'deployment-id',
+      generation: 'legacy',
+      hostname: `${environment}.example.test`,
+      scriptEtag: 'script-etag',
+      serviceName: 'worker-name',
+      siteId,
+      sourceDatabaseId: 'source-uuid',
+      trafficPercentage: 100,
+      versionId: 'version-id'
+    },
     legacySource: {
       initialClassification: 'blank',
       checksum: 'e'.repeat(64),
@@ -233,10 +247,31 @@ describe('D1 replatform cutover preparation', () => {
     }
     const dependencies = {
       fetchAccount: async () => ({ success: true, result: { id: 'account-id' } }),
+      fetchDeployments: async () => ({
+        success: true,
+        result: {
+          deployments: [
+            {
+              id: 'deployment-id',
+              versions: [{ percentage: 100, version_id: 'version-id' }]
+            }
+          ]
+        }
+      }),
       fetchWorker: async () => ({ success: true, result: { name: 'worker-name' } }),
       fetchWorkersSubdomain: async () => ({
         success: true,
         result: { subdomain: 'test-subdomain' }
+      }),
+      fetchWorkerVersion: async () => ({
+        success: true,
+        result: {
+          id: 'version-id',
+          resources: {
+            bindings: [{ database_id: 'source-uuid', name: 'DB', type: 'd1' }],
+            script: { etag: 'script-etag', last_deployed_from: 'wrangler' }
+          }
+        }
       }),
       readD1Info: (name: string) =>
         name === 'source-name' ? { name, uuid: 'source-uuid' } : { name, uuid: 'target-uuid' },
@@ -245,6 +280,39 @@ describe('D1 replatform cutover preparation', () => {
     await expect(verifyPreviewRemoteIdentity('serp.software', env, dependencies)).resolves.toEqual(
       expect.objectContaining({ expected: expect.objectContaining({ accountId: 'account-id' }) })
     )
+    await expect(
+      verifyPreviewRemoteIdentity(
+        'serp.software',
+        { ...env, PREVIEW_BASE_URL: 'https://wrong-host.example/' },
+        dependencies
+      )
+    ).rejects.toThrow('workers.dev hostname')
+    await expect(observePreviewDeployment('serp.software', env, dependencies)).resolves.toEqual(
+      expect.objectContaining({
+        activeDeployment: expect.objectContaining({
+          commitSha,
+          generation: 'legacy',
+          scriptEtag: 'script-etag',
+          sourceDatabaseId: 'source-uuid',
+          versionId: 'version-id'
+        })
+      })
+    )
+    await expect(
+      observePreviewDeployment('serp.software', env, {
+        ...dependencies,
+        fetchWorkerVersion: async () => ({
+          success: true,
+          result: {
+            id: 'version-id',
+            resources: {
+              bindings: [{ database_id: 'target-uuid', name: 'DB', type: 'd1' }],
+              script: { etag: 'script-etag' }
+            }
+          }
+        })
+      })
+    ).rejects.toThrow('legacy Preview source D1')
     await expect(
       verifyPreviewRemoteIdentity(
         'serp.software',
@@ -339,6 +407,18 @@ describe('D1 replatform cutover preparation', () => {
       }
     }
     expect(() => validateCutoverEvidence(evidence, { commitSha })).not.toThrow()
+    expect(() =>
+      validateCutoverEvidence(
+        {
+          ...evidence,
+          initialWorkerDeployment: {
+            ...evidence.initialWorkerDeployment,
+            sourceDatabaseId: 'target-uuid'
+          }
+        },
+        { commitSha }
+      )
+    ).toThrow('source Preview identity')
     expect(() =>
       validateCutoverEvidence(
         {
@@ -516,7 +596,7 @@ describe('D1 replatform cutover preparation', () => {
     const names = job.steps.map(step => step.name)
     const ordered = [
       'Read-only preflight account, D1, and optional Worker identity',
-      'Bootstrap explicitly missing SERP Preview Worker once',
+      'Deploy and observe exact credential-free source-bound Worker',
       'Retain pre-bootstrap source Preview backup',
       'Re-observe identities before controlled legacy source initialization',
       'Initialize or verify controlled legacy Preview source',
@@ -565,6 +645,8 @@ describe('D1 replatform cutover preparation', () => {
     expect(firstCleanupMutation).toBeGreaterThan(identityFailureExit)
     expect(raw).toContain('Retain cleanup and manual-recovery evidence')
     expect(raw).toContain('preflight-preview-identity')
+    expect(raw).toContain('observe-preview-deployment')
+    expect(raw).toContain('preview-source-worker-deployment.json')
     expect(raw).toContain("worker_state\" = 'missing-allowed'")
     expect(raw).toContain('NO_REMOTE_CLEANUP_REQUIRED.txt')
     expect(raw).toContain('transient-authority-install-attempted')

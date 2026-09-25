@@ -73,18 +73,17 @@ jobs:
       - name: Read-only preflight account, D1, and optional Worker identity
         run: pnpm tsx scripts/d1-replatform-cutover.ts preflight-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight.json"
 
-      - name: Bootstrap explicitly missing SERP Preview Worker once
+      - name: Deploy and observe exact credential-free source-bound Worker
+        env:
+          D1_RELEASE_GENERATION: legacy
         run: |
           set -euo pipefail
           worker_state="$(node -e 'const fs=require("node:fs"); console.log(JSON.parse(fs.readFileSync(process.argv[1],"utf8")).workerState)' "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight.json")"
-          if [ "$worker_state" = 'missing-allowed' ]
-          then
-            pnpm tsx scripts/d1-replatform-cutover.ts preflight-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight-before-bootstrap.json"
-            pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
-          else
-            test "$worker_state" = 'existing-exact'
-          fi
-          pnpm tsx scripts/d1-replatform-cutover.ts verify-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
+          test "$worker_state" = 'missing-allowed' -o "$worker_state" = 'existing-exact'
+          pnpm tsx scripts/d1-replatform-cutover.ts preflight-preview-identity --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-worker-preflight-before-source-deploy.json"
+          pnpm tsx scripts/worker-release.ts deploy preview --site "${{ inputs.site_id }}"
+          pnpm tsx scripts/d1-replatform-cutover.ts observe-preview-deployment --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json"
+          cp "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
 
       - name: Install transient Preview rehearsal secrets
         run: |
@@ -252,7 +251,7 @@ jobs:
           pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
 
       - name: Build and validate sealed exact-commit Preview receipt
-        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-classification "$REPLATFORM_EVIDENCE_DIR/source-classification.json" --source-final-classification "$REPLATFORM_EVIDENCE_DIR/source-final-classification.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
+        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --initial-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-classification "$REPLATFORM_EVIDENCE_DIR/source-classification.json" --source-final-classification "$REPLATFORM_EVIDENCE_DIR/source-final-classification.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
 
       - name: Seal trusted Preview evidence
         run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json" > "$REPLATFORM_EVIDENCE_DIR/preview-receipt.json"

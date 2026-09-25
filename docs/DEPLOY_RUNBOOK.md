@@ -92,10 +92,13 @@ proves a repeated import no-op, and retains the populated rollback export. This 
 not authorize access to or copying from Production.
 
 For SERP's first run only, read-only preflight may accept the explicitly configured
-missing Preview Worker after all account and D1 identities pass. The workflow repeats
-preflight, deploys the exact stacked commit without transient authority, verifies the
-new Worker service and workers.dev hostname, then requires the ordinary full identity
-gate. PVD never permits a missing Worker bootstrap.
+missing Preview Worker after all account and D1 identities pass. PVD never permits a
+missing Worker bootstrap. Both missing and existing paths repeat preflight and deploy
+the exact stacked commit without transient authority against the legacy/source Preview
+D1 binding. The workflow must then read back the active service, workers.dev hostname,
+100-percent deployment/version, script etag, and source D1 binding and bind that proof
+to the sealed receipt before installing any rehearsal secret. The later replacement
+deployment is separate.
 
 ## Verified public submissions
 

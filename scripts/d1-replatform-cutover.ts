@@ -33,8 +33,15 @@ export interface EvidenceTrust {
 
 interface IdentityDependencies {
   fetchAccount(accountId: string, token: string): Promise<unknown>
+  fetchDeployments(accountId: string, workerName: string, token: string): Promise<unknown>
   fetchWorker(accountId: string, workerName: string, token: string): Promise<unknown>
   fetchWorkersSubdomain(accountId: string, token: string): Promise<unknown>
+  fetchWorkerVersion(
+    accountId: string,
+    workerName: string,
+    versionId: string,
+    token: string
+  ): Promise<unknown>
   readD1Info(databaseName: string): unknown
   readGit(command: 'head' | 'status'): string
 }
@@ -45,6 +52,14 @@ const defaultIdentityDependencies: IdentityDependencies = {
       headers: { Authorization: `Bearer ${token}` }
     })
     if (!response.ok) throw new Error('Cloudflare account identity request failed.')
+    return response.json()
+  },
+  async fetchDeployments(accountId, workerName, token) {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${encodeURIComponent(workerName)}/deployments`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw new Error('Cloudflare Worker deployments request failed.')
     return response.json()
   },
   async fetchWorker(accountId, workerName, token) {
@@ -62,6 +77,14 @@ const defaultIdentityDependencies: IdentityDependencies = {
       { headers: { Authorization: `Bearer ${token}` } }
     )
     if (!response.ok) throw new Error('Cloudflare workers.dev identity request failed.')
+    return response.json()
+  },
+  async fetchWorkerVersion(accountId, workerName, versionId, token) {
+    const response = await fetch(
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/workers/scripts/${encodeURIComponent(workerName)}/versions/${encodeURIComponent(versionId)}`,
+      { headers: { Authorization: `Bearer ${token}` } }
+    )
+    if (!response.ok) throw new Error('Cloudflare Worker version request failed.')
     return response.json()
   },
   readD1Info(databaseName) {
@@ -103,7 +126,8 @@ const identityFields = [
   'sourceDatabaseName',
   'targetDatabaseId',
   'targetDatabaseName',
-  'workerName'
+  'workerName',
+  'workerHostname'
 ] as const
 
 function object(value: unknown, label: string): Record<string, unknown> {
@@ -352,7 +376,9 @@ export async function verifyPreviewRemoteIdentity(
       targetDatabaseName: targetInfo.name,
       workerName: null
     }
-    for (const key of identityFields.filter(key => key !== 'workerName'))
+    for (const key of identityFields.filter(
+      key => key !== 'workerName' && key !== 'workerHostname'
+    ))
       if (observed[key] !== expected[key])
         throw new Error(`Observed ${key} does not match the protected expected identity.`)
     if (
@@ -389,18 +415,16 @@ export async function verifyPreviewRemoteIdentity(
     targetDatabaseName: targetInfo.name,
     workerName: worker.name ?? worker.id
   }
-  if (target.replatform.allowMissingPreviewWorkerBootstrap) {
-    const subdomain = cloudflareResult(
-      await dependencies.fetchWorkersSubdomain(accountId, token),
-      'Cloudflare workers.dev identity'
-    )
-    const observedHostname = `${expectedWorkerName}.${text(subdomain.subdomain, 'workers.dev subdomain')}.workers.dev`
-    const expectedHostname = new URL(text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL')).hostname
-    if (observedHostname !== expectedHostname)
-      throw new Error('Observed workers.dev hostname does not match configured Preview URL.')
-    Object.assign(exactIdentity, { workerHostname: expectedHostname })
-    Object.assign(observed, { workerHostname: observedHostname })
-  }
+  const subdomain = cloudflareResult(
+    await dependencies.fetchWorkersSubdomain(accountId, token),
+    'Cloudflare workers.dev identity'
+  )
+  const observedHostname = `${expectedWorkerName}.${text(subdomain.subdomain, 'workers.dev subdomain')}.workers.dev`
+  const expectedHostname = new URL(text(env.PREVIEW_BASE_URL, 'PREVIEW_BASE_URL')).hostname
+  if (observedHostname !== expectedHostname)
+    throw new Error('Observed workers.dev hostname does not match configured Preview URL.')
+  Object.assign(exactIdentity, { workerHostname: expectedHostname })
+  Object.assign(observed, { workerHostname: observedHostname })
   const identity = {
     expected: exactIdentity,
     observed,
@@ -410,6 +434,71 @@ export async function verifyPreviewRemoteIdentity(
   }
   assertRemoteIdentity(siteId, 'preview', identity)
   return identity
+}
+
+export async function observePreviewDeployment(
+  siteId: SiteId,
+  env: NodeJS.ProcessEnv,
+  dependencies: IdentityDependencies = defaultIdentityDependencies
+): Promise<Record<string, unknown>> {
+  const identity = await verifyPreviewRemoteIdentity(siteId, env, dependencies)
+  const accountId = text(env.CLOUDFLARE_ACCOUNT_ID, 'CLOUDFLARE_ACCOUNT_ID')
+  const workerName = text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME')
+  const token = text(env.CLOUDFLARE_API_TOKEN, 'CLOUDFLARE_API_TOKEN')
+  const deploymentResult = cloudflareResult(
+    await dependencies.fetchDeployments(accountId, workerName, token),
+    'Cloudflare Worker deployments'
+  )
+  const deployments = deploymentResult.deployments
+  if (!Array.isArray(deployments) || deployments.length === 0)
+    throw new Error('Cloudflare returned no active Worker deployment.')
+  const deployment = object(deployments[0], 'active Worker deployment')
+  const versions = deployment.versions
+  if (!Array.isArray(versions) || versions.length !== 1)
+    throw new Error('Active Worker deployment must serve exactly one version.')
+  const deployedVersion = object(versions[0], 'active Worker deployment version')
+  if (deployedVersion.percentage !== 100)
+    throw new Error('Active Worker deployment must send 100 percent of traffic to one version.')
+  const versionId = text(deployedVersion.version_id, 'active Worker version ID')
+  const version = cloudflareResult(
+    await dependencies.fetchWorkerVersion(accountId, workerName, versionId, token),
+    'Cloudflare Worker version'
+  )
+  if (text(version.id, 'observed Worker version ID') !== versionId)
+    throw new Error('Observed Worker version does not match the active deployment.')
+  const resources = object(version.resources, 'Worker version resources')
+  const script = object(resources.script, 'Worker version script')
+  const scriptEtag = text(script.etag, 'Worker version script etag')
+  if (!Array.isArray(resources.bindings)) throw new Error('Worker version bindings are missing.')
+  const d1Bindings = resources.bindings.filter(binding => {
+    const candidate = object(binding, 'Worker version binding')
+    return candidate.type === 'd1' && candidate.name === 'DB'
+  })
+  if (d1Bindings.length !== 1)
+    throw new Error('Worker version must have exactly one DB D1 binding.')
+  const d1Binding = object(d1Bindings[0], 'Worker version DB binding')
+  const sourceDatabaseId = text(
+    env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID,
+    'CLOUDFLARE_D1_PREVIEW_DATABASE_ID'
+  )
+  if ((d1Binding.database_id ?? d1Binding.id) !== sourceDatabaseId)
+    throw new Error('Active Worker version is not bound to the legacy Preview source D1.')
+  const expected = object(identity.expected, 'identity.expected')
+  return {
+    ...identity,
+    activeDeployment: {
+      commitSha: text(env.GITHUB_SHA, 'GITHUB_SHA'),
+      deploymentId: text(deployment.id, 'active Worker deployment ID'),
+      generation: 'legacy',
+      hostname: text(expected.workerHostname, 'expected Worker hostname'),
+      scriptEtag,
+      serviceName: workerName,
+      siteId,
+      sourceDatabaseId,
+      trafficPercentage: 100,
+      versionId
+    }
+  }
 }
 
 export async function attestPreviewWorker(
@@ -557,6 +646,20 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
     throw new Error('Evidence migration checksum does not match this checkout.')
   assertRemoteIdentity(siteId, environment, root.identity)
   const identity = object(root.identity, 'identity')
+  const expectedIdentity = object(identity.expected, 'identity.expected')
+  const initialWorkerDeployment = object(root.initialWorkerDeployment, 'initialWorkerDeployment')
+  if (
+    initialWorkerDeployment.siteId !== siteId ||
+    initialWorkerDeployment.generation !== 'legacy' ||
+    initialWorkerDeployment.commitSha !== commitSha ||
+    initialWorkerDeployment.serviceName !== expectedIdentity.workerName ||
+    initialWorkerDeployment.hostname !== expectedIdentity.workerHostname ||
+    initialWorkerDeployment.sourceDatabaseId !== expectedIdentity.sourceDatabaseId ||
+    initialWorkerDeployment.trafficPercentage !== 100
+  )
+    throw new Error('Initial Worker deployment is not bound to the source Preview identity.')
+  for (const field of ['deploymentId', 'versionId', 'scriptEtag'] as const)
+    text(initialWorkerDeployment[field], `initialWorkerDeployment.${field}`)
   const attestation = object(identity.attestation, 'identity.attestation')
   const expectedAttestation = object(attestation.expected, 'identity.attestation.expected')
   const observedAttestation = object(attestation.observed, 'identity.attestation.observed')
@@ -734,6 +837,12 @@ async function runCli(): Promise<void> {
         )
       )
     )
+  } else if (command === 'observe-preview-deployment' && value === '--site') {
+    console.log(
+      JSON.stringify(
+        await observePreviewDeployment(resolveSiteTarget(siteFlag).siteId, process.env)
+      )
+    )
   } else if (command === 'attest-preview' && value === '--site') {
     console.log(
       JSON.stringify(await attestPreviewWorker(resolveSiteTarget(siteFlag).siteId, process.env))
@@ -761,7 +870,7 @@ async function runCli(): Promise<void> {
     )
   } else {
     throw new Error(
-      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <preflight-preview-identity|verify-preview-identity|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
+      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <preflight-preview-identity|verify-preview-identity|observe-preview-deployment|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
     )
   }
 }
