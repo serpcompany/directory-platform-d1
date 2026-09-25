@@ -7,7 +7,9 @@ import {
   buildCutoverPlan,
   freshMigrationChecksum,
   observePreviewDeployment,
+  observePreviewSecretDeployment,
   previewReceiptSha256,
+  previewRehearsalSecretNames,
   validateCutoverEvidence,
   validateReplatformTemplate,
   verifyPreviewRemoteIdentity
@@ -81,6 +83,22 @@ function baseEvidence(environment: 'preview' | 'production') {
       sourceDatabaseId: 'source-uuid',
       trafficPercentage: 100,
       versionId: 'version-id'
+    },
+    secretWorkerDeployment: {
+      commitSha,
+      deploymentId: 'secret-deployment-id',
+      generation: 'legacy',
+      hostname: `${environment}.example.test`,
+      previousDeploymentId: 'deployment-id',
+      previousVersionId: 'version-id',
+      scriptEtag: 'script-etag',
+      secretNames: [...previewRehearsalSecretNames],
+      serviceName: 'worker-name',
+      siteId,
+      sourceDatabaseId: 'source-uuid',
+      trafficPercentage: 100,
+      transitionSource: 'wrangler-secret-bulk',
+      versionId: 'secret-version-id'
     },
     legacySource: {
       initialClassification: 'blank',
@@ -246,7 +264,10 @@ describe('D1 replatform cutover preparation', () => {
       CLOUDFLARE_D1_REPLACEMENT_PREVIEW_DATABASE_NAME: 'target-name',
       CLOUDFLARE_WORKER_PREVIEW_NAME: 'worker-name',
       PREVIEW_BASE_URL: 'https://worker-name.test-subdomain.workers.dev/',
-      REPLATFORM_SOURCE_DEPLOY_VERSION_ID: 'version-id'
+      REPLATFORM_SOURCE_DEPLOY_VERSION_ID: 'version-id',
+      REPLATFORM_PRE_SECRET_DEPLOYMENT_ID: 'deployment-id',
+      REPLATFORM_PRE_SECRET_VERSION_ID: 'version-id',
+      REPLATFORM_PRE_SECRET_SCRIPT_ETAG: 'script-etag'
     }
     const dependencies = {
       fetchAccount: async () => ({ success: true, result: { id: 'account-id' } }),
@@ -301,6 +322,91 @@ describe('D1 replatform cutover preparation', () => {
         })
       })
     )
+    const secretDependencies = {
+      ...dependencies,
+      fetchDeployments: async () => ({
+        success: true,
+        result: {
+          deployments: [
+            {
+              id: 'secret-deployment-id',
+              versions: [{ percentage: 100, version_id: 'secret-version-id' }]
+            },
+            {
+              id: 'deployment-id',
+              versions: [{ percentage: 100, version_id: 'version-id' }]
+            }
+          ]
+        }
+      }),
+      fetchWorkerVersion: async () => ({
+        success: true,
+        result: {
+          id: 'secret-version-id',
+          resources: {
+            bindings: [
+              { database_id: 'source-uuid', name: 'DB', type: 'd1' },
+              ...previewRehearsalSecretNames.map(name => ({ name, type: 'secret_text' }))
+            ],
+            script: { etag: 'script-etag', last_deployed_from: 'wrangler' }
+          }
+        }
+      })
+    }
+    await expect(
+      observePreviewSecretDeployment('serp.software', env, secretDependencies)
+    ).resolves.toEqual(
+      expect.objectContaining({
+        activeDeployment: expect.objectContaining({
+          previousVersionId: 'version-id',
+          scriptEtag: 'script-etag',
+          transitionSource: 'wrangler-secret-bulk',
+          versionId: 'secret-version-id'
+        })
+      })
+    )
+    await expect(
+      observePreviewSecretDeployment('serp.software', env, {
+        ...secretDependencies,
+        fetchDeployments: async () => ({
+          success: true,
+          result: {
+            deployments: [
+              {
+                id: 'concurrent-dashboard-deployment',
+                versions: [{ percentage: 100, version_id: 'dashboard-version-id' }]
+              },
+              {
+                id: 'secret-deployment-id',
+                versions: [{ percentage: 100, version_id: 'secret-version-id' }]
+              },
+              {
+                id: 'deployment-id',
+                versions: [{ percentage: 100, version_id: 'version-id' }]
+              }
+            ]
+          }
+        })
+      })
+    ).rejects.toThrow('exactly one deployment')
+    await expect(
+      observePreviewSecretDeployment('serp.software', env, {
+        ...secretDependencies,
+        fetchWorkerVersion: async () => ({
+          success: true,
+          result: {
+            id: 'secret-version-id',
+            resources: {
+              bindings: [
+                { database_id: 'source-uuid', name: 'DB', type: 'd1' },
+                ...previewRehearsalSecretNames.map(name => ({ name, type: 'secret_text' }))
+              ],
+              script: { etag: 'changed-script-etag' }
+            }
+          }
+        })
+      })
+    ).rejects.toThrow('changed the reviewed Worker script content')
     await expect(
       observePreviewDeployment('serp.software', env, {
         ...dependencies,
@@ -438,6 +544,18 @@ describe('D1 replatform cutover preparation', () => {
         { commitSha }
       )
     ).toThrow('source Preview identity')
+    expect(() =>
+      validateCutoverEvidence(
+        {
+          ...evidence,
+          secretWorkerDeployment: {
+            ...evidence.secretWorkerDeployment,
+            scriptEtag: 'different-script-etag'
+          }
+        },
+        { commitSha }
+      )
+    ).toThrow('reviewed Worker code')
     expect(() =>
       validateCutoverEvidence(
         {
@@ -669,6 +787,11 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('preview-source-worker-deploy.log')
     expect(raw).toContain('REPLATFORM_SOURCE_DEPLOY_VERSION_ID')
     expect(raw).toContain('Current Version ID:')
+    expect(raw).toContain('wrangler secret bulk')
+    expect(raw).not.toContain('wrangler secret put')
+    expect(raw).toContain('observe-preview-secret-deployment')
+    expect(raw).toContain('preview-secret-worker-deployment.json')
+    expect(raw).toContain('6 secrets successfully created')
     expect(raw).toContain("worker_state\" = 'missing-allowed'")
     expect(raw).toContain('NO_REMOTE_CLEANUP_REQUIRED.txt')
     expect(raw).toContain('transient-authority-install-attempted')

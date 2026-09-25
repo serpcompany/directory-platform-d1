@@ -5,7 +5,8 @@ import { parse } from 'yaml'
 import {
   assertRemoteIdentity,
   freshMigrationChecksum,
-  previewReceiptSha256
+  previewReceiptSha256,
+  previewRehearsalSecretNames
 } from './d1-replatform-cutover'
 import { canonicalLegacyMigrationNames } from './d1-replatform-inventory'
 import { resolveSiteTarget } from './site-targets'
@@ -53,6 +54,7 @@ const siteId = resolveSiteTarget(required(values, '--site')).siteId
 const target = resolveSiteTarget(siteId)
 const identity = readJson(required(values, '--identity'))
 const initialWorkerObservation = readJson(required(values, '--initial-worker-deployment'))
+const secretWorkerObservation = readJson(required(values, '--secret-worker-deployment'))
 const workerAttestation = readJson(required(values, '--worker-attestation'))
 const sourceClassification = readJson(required(values, '--source-classification'))
 const sourceFinalClassification = readJson(required(values, '--source-final-classification'))
@@ -91,6 +93,26 @@ if (
   !initialWorkerDeployment.scriptEtag
 )
   throw new Error('Initial source-bound Worker deployment evidence is incomplete or mismatched.')
+assertRemoteIdentity(siteId, 'preview', secretWorkerObservation)
+const secretWorkerDeployment = secretWorkerObservation.activeDeployment as Record<string, unknown>
+if (
+  !secretWorkerDeployment ||
+  secretWorkerDeployment.siteId !== siteId ||
+  secretWorkerDeployment.generation !== 'legacy' ||
+  secretWorkerDeployment.transitionSource !== 'wrangler-secret-bulk' ||
+  secretWorkerDeployment.previousDeploymentId !== initialWorkerDeployment.deploymentId ||
+  secretWorkerDeployment.previousVersionId !== initialWorkerDeployment.versionId ||
+  secretWorkerDeployment.deploymentId === initialWorkerDeployment.deploymentId ||
+  secretWorkerDeployment.versionId === initialWorkerDeployment.versionId ||
+  secretWorkerDeployment.scriptEtag !== initialWorkerDeployment.scriptEtag ||
+  secretWorkerDeployment.commitSha !== process.env.GITHUB_SHA ||
+  secretWorkerDeployment.serviceName !== process.env.CLOUDFLARE_WORKER_PREVIEW_NAME ||
+  secretWorkerDeployment.sourceDatabaseId !== process.env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID ||
+  secretWorkerDeployment.hostname !== new URL(requiredEnv('PREVIEW_BASE_URL')).hostname ||
+  secretWorkerDeployment.trafficPercentage !== 100 ||
+  JSON.stringify(secretWorkerDeployment.secretNames) !== JSON.stringify(previewRehearsalSecretNames)
+)
+  throw new Error('Secret-bearing Worker deployment evidence is incomplete or mismatched.')
 const sourcePrivateCounts = sourceControlled.sourcePrivateCounts as Record<string, unknown>
 if (
   sourceClassification.classification !== 'blank' &&
@@ -215,6 +237,7 @@ const evidence = {
   commitSha: process.env.GITHUB_SHA,
   migrationChecksum: freshMigrationChecksum(),
   initialWorkerDeployment,
+  secretWorkerDeployment,
   identity: { ...identity, attestation: workerAttestation },
   legacySource: {
     initialClassification: sourceClassification.classification,

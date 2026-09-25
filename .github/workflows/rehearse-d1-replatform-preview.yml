@@ -102,28 +102,43 @@ jobs:
           echo "::add-mask::$signing_secret"
           echo "::add-mask::$binding_nonce"
           echo "::add-mask::$intake_secret"
+          export signing_secret binding_nonce intake_secret
           {
             echo "REPLATFORM_PREVIEW_SIGNING_SECRET=$signing_secret"
             echo "REPLATFORM_PREVIEW_BINDING_NONCE=$binding_nonce"
             echo "REPLATFORM_PREVIEW_INTAKE_SECRET=$intake_secret"
           } >> "$GITHUB_ENV"
+          pre_secret="$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json"
+          REPLATFORM_PRE_SECRET_DEPLOYMENT_ID="$(node -e 'const value=require(process.argv[1]); process.stdout.write(value.activeDeployment.deploymentId)' "$pre_secret")"
+          REPLATFORM_PRE_SECRET_VERSION_ID="$(node -e 'const value=require(process.argv[1]); process.stdout.write(value.activeDeployment.versionId)' "$pre_secret")"
+          REPLATFORM_PRE_SECRET_SCRIPT_ETAG="$(node -e 'const value=require(process.argv[1]); process.stdout.write(value.activeDeployment.scriptEtag)' "$pre_secret")"
+          export REPLATFORM_PRE_SECRET_DEPLOYMENT_ID REPLATFORM_PRE_SECRET_VERSION_ID REPLATFORM_PRE_SECRET_SCRIPT_ETAG
+          secret_file="$RUNNER_TEMP/replatform-preview-secrets.json"
+          install -m 600 /dev/null "$secret_file"
+          trap 'rm -f "$secret_file"' EXIT
+          node -e '
+            const fs = require("node:fs");
+            fs.writeFileSync(process.argv[1], JSON.stringify({
+              REPLATFORM_PREVIEW_SIGNING_SECRET: process.env.signing_secret,
+              REPLATFORM_PREVIEW_BINDING_NONCE: process.env.binding_nonce,
+              REPLATFORM_PREVIEW_INTAKE_SECRET: process.env.intake_secret,
+              REPLATFORM_PREVIEW_RUN_ID: process.env.REPLATFORM_PREVIEW_RUN_ID,
+              REPLATFORM_PREVIEW_COMMIT_SHA: process.env.GITHUB_SHA,
+              REPLATFORM_PREVIEW_WORKER_NAME: process.env.CLOUDFLARE_WORKER_PREVIEW_NAME
+            }));
+          ' "$secret_file"
           touch "$REPLATFORM_EVIDENCE_DIR/transient-authority-install-attempted"
-          for entry in \
-            "REPLATFORM_PREVIEW_SIGNING_SECRET=$signing_secret" \
-            "REPLATFORM_PREVIEW_BINDING_NONCE=$binding_nonce" \
-            "REPLATFORM_PREVIEW_INTAKE_SECRET=$intake_secret" \
-            "REPLATFORM_PREVIEW_RUN_ID=$REPLATFORM_PREVIEW_RUN_ID" \
-            "REPLATFORM_PREVIEW_COMMIT_SHA=$GITHUB_SHA" \
-            "REPLATFORM_PREVIEW_WORKER_NAME=$CLOUDFLARE_WORKER_PREVIEW_NAME"
-          do
-            key="${entry%%=*}"
-            value="${entry#*=}"
-            secret_file="$RUNNER_TEMP/$key"
-            install -m 600 /dev/null "$secret_file"
-            printf '%s' "$value" > "$secret_file"
-            pnpm exec wrangler secret put "$key" --name "$CLOUDFLARE_WORKER_PREVIEW_NAME" < "$secret_file"
-            rm -f "$secret_file"
-          done
+          pnpm exec wrangler secret bulk "$secret_file" --name "$CLOUDFLARE_WORKER_PREVIEW_NAME" 2>&1 | tee "$REPLATFORM_EVIDENCE_DIR/preview-secret-bulk.log"
+          rm -f "$secret_file"
+          trap - EXIT
+          node -e '
+            const fs = require("node:fs");
+            const source = fs.readFileSync(process.argv[1], "utf8").replace(/\u001b\[[0-9;]*m/g, "");
+            const required = ["REPLATFORM_PREVIEW_SIGNING_SECRET", "REPLATFORM_PREVIEW_BINDING_NONCE", "REPLATFORM_PREVIEW_INTAKE_SECRET", "REPLATFORM_PREVIEW_RUN_ID", "REPLATFORM_PREVIEW_COMMIT_SHA", "REPLATFORM_PREVIEW_WORKER_NAME"];
+            for (const name of required) if ((source.match(new RegExp(`Successfully created secret for key: ${name}`, "g")) ?? []).length !== 1) throw new Error(`Bulk secret output is incomplete or ambiguous for ${name}.`);
+            if (!source.includes("6 secrets successfully created")) throw new Error("Bulk secret summary is incomplete.");
+          ' "$REPLATFORM_EVIDENCE_DIR/preview-secret-bulk.log"
+          pnpm tsx scripts/d1-replatform-cutover.ts observe-preview-secret-deployment --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-secret-worker-deployment.json"
           pnpm exec wrangler secret list --name "$CLOUDFLARE_WORKER_PREVIEW_NAME" --format json > "$RUNNER_TEMP/replatform-secret-names.json"
           node -e '
             const fs = require("node:fs");
@@ -259,7 +274,7 @@ jobs:
           pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PREVIEW_BASE_URL" "$REPLATFORM_EVIDENCE_DIR/rollback-target.json"
 
       - name: Build and validate sealed exact-commit Preview receipt
-        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --initial-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-classification "$REPLATFORM_EVIDENCE_DIR/source-classification.json" --source-final-classification "$REPLATFORM_EVIDENCE_DIR/source-final-classification.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
+        run: pnpm tsx scripts/d1-preview-evidence.ts --site "${{ inputs.site_id }}" --identity "$REPLATFORM_EVIDENCE_DIR/preview-identity.json" --initial-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" --secret-worker-deployment "$REPLATFORM_EVIDENCE_DIR/preview-secret-worker-deployment.json" --worker-attestation "$REPLATFORM_EVIDENCE_DIR/preview-worker-attestation.json" --source-classification "$REPLATFORM_EVIDENCE_DIR/source-classification.json" --source-final-classification "$REPLATFORM_EVIDENCE_DIR/source-final-classification.json" --source-controlled "$REPLATFORM_EVIDENCE_DIR/source-controlled.json" --source-repeat-import "$REPLATFORM_EVIDENCE_DIR/source-repeat-import.txt" --preflight "$REPLATFORM_EVIDENCE_DIR/preview-preflight.json" --first-import "$REPLATFORM_EVIDENCE_DIR/preview-first-import.txt" --first-parity "$REPLATFORM_EVIDENCE_DIR/preview-first-parity.json" --measurement "$REPLATFORM_EVIDENCE_DIR/preview-parity-measurement.json" --repeat-parity "$REPLATFORM_EVIDENCE_DIR/preview-repeat-parity.json" --repeat-measurement "$REPLATFORM_EVIDENCE_DIR/preview-repeat-measurement.json" --post-journey-measurement "$REPLATFORM_EVIDENCE_DIR/preview-post-journey-measurement.json" --catalog-journeys "$REPLATFORM_EVIDENCE_DIR/catalog-journeys.json" --submission-journeys "$REPLATFORM_EVIDENCE_DIR/submission-journeys.json" --submission-cleanup "$REPLATFORM_EVIDENCE_DIR/submission-cleanup-result.json" --rollback-source "$REPLATFORM_EVIDENCE_DIR/rollback-source.json" --rollback-target "$REPLATFORM_EVIDENCE_DIR/rollback-target.json" --output "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json"
 
       - name: Seal trusted Preview evidence
         run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json" > "$REPLATFORM_EVIDENCE_DIR/preview-receipt.json"

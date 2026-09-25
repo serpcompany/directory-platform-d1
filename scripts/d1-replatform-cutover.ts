@@ -120,6 +120,14 @@ const requiredSubmissionJourneys = [
   'rejection'
 ] as const
 const frozenMutationKinds = ['submission', 'publication', 'approval', 'notification'] as const
+export const previewRehearsalSecretNames = [
+  'REPLATFORM_PREVIEW_SIGNING_SECRET',
+  'REPLATFORM_PREVIEW_BINDING_NONCE',
+  'REPLATFORM_PREVIEW_INTAKE_SECRET',
+  'REPLATFORM_PREVIEW_RUN_ID',
+  'REPLATFORM_PREVIEW_COMMIT_SHA',
+  'REPLATFORM_PREVIEW_WORKER_NAME'
+] as const
 const identityFields = [
   'accountId',
   'sourceDatabaseId',
@@ -511,6 +519,103 @@ export async function observePreviewDeployment(
   }
 }
 
+export async function observePreviewSecretDeployment(
+  siteId: SiteId,
+  env: NodeJS.ProcessEnv,
+  dependencies: IdentityDependencies = defaultIdentityDependencies
+): Promise<Record<string, unknown>> {
+  const identity = await verifyPreviewRemoteIdentity(siteId, env, dependencies)
+  const accountId = text(env.CLOUDFLARE_ACCOUNT_ID, 'CLOUDFLARE_ACCOUNT_ID')
+  const workerName = text(env.CLOUDFLARE_WORKER_PREVIEW_NAME, 'CLOUDFLARE_WORKER_PREVIEW_NAME')
+  const token = text(env.CLOUDFLARE_API_TOKEN, 'CLOUDFLARE_API_TOKEN')
+  const previousDeploymentId = text(
+    env.REPLATFORM_PRE_SECRET_DEPLOYMENT_ID,
+    'REPLATFORM_PRE_SECRET_DEPLOYMENT_ID'
+  )
+  const previousVersionId = text(
+    env.REPLATFORM_PRE_SECRET_VERSION_ID,
+    'REPLATFORM_PRE_SECRET_VERSION_ID'
+  )
+  const previousScriptEtag = text(
+    env.REPLATFORM_PRE_SECRET_SCRIPT_ETAG,
+    'REPLATFORM_PRE_SECRET_SCRIPT_ETAG'
+  )
+  const deploymentResult = cloudflareResult(
+    await dependencies.fetchDeployments(accountId, workerName, token),
+    'Cloudflare Worker deployments'
+  )
+  const deployments = deploymentResult.deployments
+  if (!Array.isArray(deployments)) throw new Error('Worker deployments must be an array.')
+  const previousIndex = deployments.findIndex(candidate => {
+    const deployment = object(candidate, 'Worker deployment')
+    return deployment.id === previousDeploymentId
+  })
+  if (previousIndex !== 1)
+    throw new Error(
+      'Secret bulk must create exactly one deployment after the reviewed source-bound deployment.'
+    )
+  const deployment = object(deployments[0], 'active secret-bearing Worker deployment')
+  const deploymentId = text(deployment.id, 'active secret-bearing deployment ID')
+  if (deploymentId === previousDeploymentId)
+    throw new Error('Secret bulk did not create a new active deployment.')
+  if (!Array.isArray(deployment.versions) || deployment.versions.length !== 1)
+    throw new Error('Secret-bearing deployment must serve exactly one version.')
+  const active = object(deployment.versions[0], 'active secret-bearing Worker version')
+  if (active.percentage !== 100)
+    throw new Error('Secret-bearing Worker version must receive 100 percent of traffic.')
+  const versionId = text(active.version_id, 'secret-bearing Worker version ID')
+  if (versionId === previousVersionId)
+    throw new Error('Secret bulk did not create a new Worker version.')
+  const version = cloudflareResult(
+    await dependencies.fetchWorkerVersion(accountId, workerName, versionId, token),
+    'Cloudflare secret-bearing Worker version'
+  )
+  if (text(version.id, 'observed secret-bearing Worker version ID') !== versionId)
+    throw new Error('Observed secret-bearing version does not match the active deployment.')
+  const resources = object(version.resources, 'secret-bearing Worker resources')
+  const script = object(resources.script, 'secret-bearing Worker script')
+  const scriptEtag = text(script.etag, 'secret-bearing Worker script etag')
+  if (scriptEtag !== previousScriptEtag)
+    throw new Error('Secret bulk changed the reviewed Worker script content.')
+  if (!Array.isArray(resources.bindings))
+    throw new Error('Secret-bearing Worker bindings are missing.')
+  const bindings = resources.bindings.map(binding => object(binding, 'Worker version binding'))
+  const d1Bindings = bindings.filter(binding => binding.type === 'd1' && binding.name === 'DB')
+  if (d1Bindings.length !== 1)
+    throw new Error('Secret-bearing version must have exactly one DB D1 binding.')
+  const sourceDatabaseId = text(
+    env.CLOUDFLARE_D1_PREVIEW_DATABASE_ID,
+    'CLOUDFLARE_D1_PREVIEW_DATABASE_ID'
+  )
+  if ((d1Bindings[0].database_id ?? d1Bindings[0].id) !== sourceDatabaseId)
+    throw new Error('Secret-bearing Worker is not bound to the legacy Preview source D1.')
+  const secretNames = bindings
+    .filter(binding => binding.type === 'secret_text')
+    .map(binding => text(binding.name, 'Worker secret binding name'))
+  for (const name of previewRehearsalSecretNames)
+    if (!secretNames.includes(name)) throw new Error(`Secret-bearing Worker is missing ${name}.`)
+  const expected = object(identity.expected, 'identity.expected')
+  return {
+    ...identity,
+    activeDeployment: {
+      commitSha: text(env.GITHUB_SHA, 'GITHUB_SHA'),
+      deploymentId,
+      generation: 'legacy',
+      hostname: text(expected.workerHostname, 'expected Worker hostname'),
+      previousDeploymentId,
+      previousVersionId,
+      scriptEtag,
+      secretNames: [...previewRehearsalSecretNames],
+      serviceName: workerName,
+      siteId,
+      sourceDatabaseId,
+      trafficPercentage: 100,
+      transitionSource: 'wrangler-secret-bulk',
+      versionId
+    }
+  }
+}
+
 export async function attestPreviewWorker(
   siteId: SiteId,
   env: NodeJS.ProcessEnv,
@@ -672,6 +777,30 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
     throw new Error('Initial Worker deployment is not bound to the source Preview identity.')
   for (const field of ['deploymentId', 'versionId', 'scriptEtag'] as const)
     text(initialWorkerDeployment[field], `initialWorkerDeployment.${field}`)
+  const secretWorkerDeployment = object(root.secretWorkerDeployment, 'secretWorkerDeployment')
+  if (
+    secretWorkerDeployment.siteId !== siteId ||
+    secretWorkerDeployment.generation !== 'legacy' ||
+    secretWorkerDeployment.transitionSource !== 'wrangler-secret-bulk' ||
+    secretWorkerDeployment.previousDeploymentId !== initialWorkerDeployment.deploymentId ||
+    secretWorkerDeployment.previousVersionId !== initialWorkerDeployment.versionId ||
+    secretWorkerDeployment.deploymentId === initialWorkerDeployment.deploymentId ||
+    secretWorkerDeployment.versionId === initialWorkerDeployment.versionId ||
+    secretWorkerDeployment.scriptEtag !== initialWorkerDeployment.scriptEtag ||
+    secretWorkerDeployment.commitSha !== commitSha ||
+    secretWorkerDeployment.serviceName !== expectedIdentity.workerName ||
+    secretWorkerDeployment.hostname !== expectedIdentity.workerHostname ||
+    secretWorkerDeployment.sourceDatabaseId !== expectedIdentity.sourceDatabaseId ||
+    secretWorkerDeployment.trafficPercentage !== 100
+  )
+    throw new Error('Secret-bearing Worker deployment is not bound to reviewed Worker code.')
+  exactArray(
+    secretWorkerDeployment.secretNames,
+    previewRehearsalSecretNames,
+    'secretWorkerDeployment.secretNames'
+  )
+  for (const field of ['deploymentId', 'versionId', 'scriptEtag'] as const)
+    text(secretWorkerDeployment[field], `secretWorkerDeployment.${field}`)
   const attestation = object(identity.attestation, 'identity.attestation')
   const expectedAttestation = object(attestation.expected, 'identity.attestation.expected')
   const observedAttestation = object(attestation.observed, 'identity.attestation.observed')
@@ -855,6 +984,12 @@ async function runCli(): Promise<void> {
         await observePreviewDeployment(resolveSiteTarget(siteFlag).siteId, process.env)
       )
     )
+  } else if (command === 'observe-preview-secret-deployment' && value === '--site') {
+    console.log(
+      JSON.stringify(
+        await observePreviewSecretDeployment(resolveSiteTarget(siteFlag).siteId, process.env)
+      )
+    )
   } else if (command === 'attest-preview' && value === '--site') {
     console.log(
       JSON.stringify(await attestPreviewWorker(resolveSiteTarget(siteFlag).siteId, process.env))
@@ -882,7 +1017,7 @@ async function runCli(): Promise<void> {
     )
   } else {
     throw new Error(
-      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <preflight-preview-identity|verify-preview-identity|observe-preview-deployment|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
+      'Usage: d1-replatform-cutover.ts plan <preview|production> --site <site> | <preflight-preview-identity|verify-preview-identity|observe-preview-deployment|observe-preview-secret-deployment|attest-preview> --site <site> | <seal-preview|validate-evidence> --file <json>'
     )
   }
 }

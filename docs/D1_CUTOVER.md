@@ -72,6 +72,15 @@ mutate either Preview database. The later replacement-bound deployment remains a
 separate gate. A failure before transient authority installation requires no remote
 cleanup and records that fact without claiming manual database recovery.
 
+All six transient rehearsal secrets are written to one mode-`0600` runner-temporary
+JSON file, installed by one `wrangler secret bulk` operation, and removed immediately.
+The workflow requires exactly one new deployment between the reviewed source-bound
+deployment and the active secret-bearing deployment. That new deployment must be one
+version at 100 percent, retain the exact reviewed script etag, source D1 binding,
+service, and hostname, and expose all six secret binding names. Concurrent dashboard
+deploys, code drift, incomplete/ambiguous bulk output, or multiple new deployments fail
+before database mutation. Both deployment proofs are sealed into the Preview receipt.
+
 SERP has no pre-existing populated legacy Preview source. Within this same approved
 run, the workflow therefore initializes the isolated source before replacement import:
 it re-verifies all identities, applies only immutable `d1/migrations/0001`-`0009`,

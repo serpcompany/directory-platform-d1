@@ -102,6 +102,13 @@ otherwise a concurrent or ambiguous deployment fails closed. The workflow binds 
 proof to the sealed receipt before installing any rehearsal secret. The later
 replacement deployment is separate.
 
+Install transient rehearsal authority with one mode-`0600`, runner-temporary
+`wrangler secret bulk` file, never sequential `secret put` calls. Remove the file
+immediately. Read deployments again and require exactly one new active 100-percent
+version after the reviewed source-bound deployment, the same script etag and source D1
+binding, and all six expected secret names. Seal both version/deployment identities;
+any concurrent deployment or code/binding drift stops the run.
+
 ## Verified public submissions
 
 Public submissions are staged in normalized D1 tables and require a successful badge
