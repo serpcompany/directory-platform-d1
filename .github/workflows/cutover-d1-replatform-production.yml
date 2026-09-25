@@ -31,7 +31,7 @@ jobs:
     runs-on: ubuntu-latest
     environment:
       name: ${{ inputs.site_id == 'serp.software' && 'production' || 'pornvideodownloaders-production' }}
-    env: &cutover_env
+    env:
       CI: 'true'
       GITHUB_TOKEN: ${{ github.token }}
       WORKER_PRODUCTION_CONFIRM: ${{ inputs.confirmation }}
@@ -48,17 +48,20 @@ jobs:
       CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID }}
       CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_NAME }}
       CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
-      EVIDENCE_DIR: ${{ runner.temp }}/d1-production-cutover
     steps:
       - name: Checkout exact reviewed main commit
         uses: actions/checkout@v6
       - name: Install dependencies
         uses: ./.github/actions/install
       - name: Initialize runner-only evidence
+        env:
+          CUTOVER_ID: ${{ inputs.cutover_id }}
         run: |
+          printf '%s\n' "EVIDENCE_DIR=$RUNNER_TEMP/d1-production-cutover" >> "$GITHUB_ENV"
+          EVIDENCE_DIR="$RUNNER_TEMP/d1-production-cutover"
           mkdir -p "$EVIDENCE_DIR"
           chmod 700 "$EVIDENCE_DIR"
-          printf '%s' "${{ inputs.cutover_id }}" > "$EVIDENCE_DIR/cutover-id.txt"
+          printf '%s' "$CUTOVER_ID" > "$EVIDENCE_DIR/cutover-id.txt"
       - name: Validate exact-main Preview trust and Production identity
         run: pnpm tsx scripts/d1-replatform-production.ts preflight --site "${{ inputs.site_id }}" --output "$EVIDENCE_DIR/preflight.json"
       - name: Validate contracts and build exact-main lock-aware Worker
@@ -71,8 +74,10 @@ jobs:
         env:
           D1_RELEASE_GENERATION: legacy
         run: |
-          pnpm tsx scripts/worker-release.ts deploy production --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --output "$EVIDENCE_DIR/source-deployment.json"
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts deploy production --site "${{ inputs.site_id }}" 2>&1 | tee "$EVIDENCE_DIR/source-deploy.log"
+          source_version="$(node -e 'const fs=require("node:fs"); const s=fs.readFileSync(process.argv[1],"utf8").replace(/\u001b\[[0-9;]*m/g,""); const ids=[...s.matchAll(/Current Version ID:\s*([0-9a-f-]{36})/g)].map(m=>m[1]); if(ids.length!==1) throw new Error("Deploy did not emit exactly one version ID"); process.stdout.write(ids[0])' "$EVIDENCE_DIR/source-deploy.log")"
+          pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --version-id "$source_version" --output "$EVIDENCE_DIR/source-deployment.json"
       - name: Retain immutable source and empty-target backups
         run: |
           D1_RELEASE_GENERATION=legacy pnpm tsx scripts/worker-release.ts backup production --site "${{ inputs.site_id }}"
@@ -108,8 +113,10 @@ jobs:
         env:
           D1_RELEASE_GENERATION: replatform
         run: |
-          pnpm tsx scripts/worker-release.ts deploy production --site "${{ inputs.site_id }}"
-          pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID" --output "$EVIDENCE_DIR/target-deployment.json"
+          set -euo pipefail
+          pnpm tsx scripts/worker-release.ts deploy production --site "${{ inputs.site_id }}" 2>&1 | tee "$EVIDENCE_DIR/target-deploy.log"
+          target_version="$(node -e 'const fs=require("node:fs"); const s=fs.readFileSync(process.argv[1],"utf8").replace(/\u001b\[[0-9;]*m/g,""); const ids=[...s.matchAll(/Current Version ID:\s*([0-9a-f-]{36})/g)].map(m=>m[1]); if(ids.length!==1) throw new Error("Deploy did not emit exactly one version ID"); process.stdout.write(ids[0])' "$EVIDENCE_DIR/target-deploy.log")"
+          pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID" --version-id "$target_version" --output "$EVIDENCE_DIR/target-deployment.json"
       - name: Run Production-safe catalog and frozen-write gates
         run: |
           pnpm tsx scripts/d1-preview-http-gates.ts "${{ inputs.site_id }}" "$PRODUCTION_BASE_URL" "$EVIDENCE_DIR/catalog-gates.json"
@@ -120,13 +127,12 @@ jobs:
         env:
           E2E_SITE_ID: ${{ inputs.site_id }}
           E2E_SITE_NAME: ${{ inputs.site_id == 'serp.software' && 'SERP Software' || 'Porn Video Downloaders' }}
-          E2E_LISTING_COUNT: ${{ inputs.site_id == 'serp.software' && '339' || '286' }}
-          E2E_LISTING_NAME: ${{ inputs.site_id == 'serp.software' && '123Movies Video Downloader' || '321tube Video Downloader' }}
-          E2E_LISTING_SLUG: ${{ inputs.site_id == 'serp.software' && '123movies-downloader' || '321tube-downloader' }}
-          E2E_CATEGORY_SLUG: video-downloaders
           PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_BASE_URL }}
           PLAYWRIGHT_EXTERNAL_SERVER: '1'
         run: |
+          pnpm tsx scripts/d1-replatform-production.ts browser-fixture --site "${{ inputs.site_id }}" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --output "$EVIDENCE_DIR/browser-fixture.json"
+          # shellcheck disable=SC2016
+          node -e 'const fs=require("node:fs"); const v=require(process.argv[1]); fs.appendFileSync(process.env.GITHUB_ENV, `E2E_LISTING_COUNT=${v.listingCount}\nE2E_LISTING_NAME=${v.listingName}\nE2E_LISTING_SLUG=${v.listingSlug}\nE2E_CATEGORY_SLUG=${v.categorySlug}\n`)' "$EVIDENCE_DIR/browser-fixture.json"
           pnpm --filter e2e exec playwright install --with-deps chromium
           pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
       - name: Rehearse immutable source-version rollback

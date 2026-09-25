@@ -24,11 +24,12 @@ jobs:
       CLOUDFLARE_WORKER_PRODUCTION_NAME: ${{ secrets.CLOUDFLARE_WORKER_PRODUCTION_NAME }}
       CLOUDFLARE_D1_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_PRODUCTION_DATABASE_ID }}
       CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID: ${{ secrets.CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID }}
-      EVIDENCE_DIR: ${{ runner.temp }}/d1-production-rollback
     steps:
       - uses: actions/checkout@v6
       - uses: ./.github/actions/install
-      - run: mkdir -p "$EVIDENCE_DIR"
+      - run: |
+          printf '%s\n' "EVIDENCE_DIR=$RUNNER_TEMP/d1-production-rollback" >> "$GITHUB_ENV"
+          mkdir -p "$RUNNER_TEMP/d1-production-rollback"
       - name: Download exact immutable cutover receipt
         uses: actions/download-artifact@v8
         with:

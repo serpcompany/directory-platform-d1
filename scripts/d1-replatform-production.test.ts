@@ -1,8 +1,14 @@
 import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import yaml from 'js-yaml'
-import { describe, expect, it } from 'vitest'
-import { sealProductionEvidence, validateProductionReceipt } from './d1-replatform-production'
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import {
+  acquireCutoverLock,
+  activeDeployment,
+  finalizeActiveLock,
+  sealProductionEvidence,
+  validateProductionReceipt
+} from './d1-replatform-production'
 
 const digest = 'a'.repeat(64)
 const identity = {
@@ -127,6 +133,11 @@ describe('Production cutover workflow contracts', () => {
     }
     expect(source).toContain('if: always()')
     expect(source).not.toContain("outcome='succeeded'")
+    expect(source.match(/Current Version ID:/gu)).toHaveLength(2)
+    expect(source).toContain('browser-fixture --site')
+    expect(source).not.toContain('E2E_LISTING_COUNT: ${{')
+    expect(source).not.toContain('EVIDENCE_DIR: ${{ runner.temp }}')
+    expect(source).not.toContain('printf \'%s\' "${{ inputs.cutover_id }}"')
   })
 
   it('rolls back by recorded immutable version only and finalizes only the active target lock', () => {
@@ -137,5 +148,91 @@ describe('Production cutover workflow contracts', () => {
     expect(finalize).toContain('--database-id "$CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID"')
     expect(finalize).toContain('--database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --cutover-id')
     expect(finalize).not.toContain('versions deploy')
+  })
+})
+
+describe('Production provider boundaries', () => {
+  const original = { ...process.env }
+  afterEach(() => {
+    process.env = { ...original }
+    vi.unstubAllGlobals()
+  })
+
+  it('acquires and finalizes a lock through atomic REST batches with exact assertions', async () => {
+    process.env.CLOUDFLARE_ACCOUNT_ID = 'account'
+    process.env.CLOUDFLARE_API_TOKEN = 'token'
+    const bodies: unknown[] = []
+    const responses = [
+      [{ success: true, results: [] }],
+      [{ success: true, results: [{ id: 'd1-cutover-lock-v1:serp.software:cutover' }] }],
+      [
+        { success: true, results: [] },
+        { success: true, results: [{ value: 1 }] }
+      ],
+      [{ success: true, results: [{ outcome: 'succeeded', completed_at: 'later' }] }]
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init?: RequestInit) => {
+        bodies.push(JSON.parse(String(init?.body)))
+        return new Response(JSON.stringify({ success: true, result: responses.shift() }), {
+          status: 200,
+          headers: { 'content-type': 'application/json' }
+        })
+      })
+    )
+    await expect(
+      acquireCutoverLock('database', 'serp.software', 'cutover', 'now')
+    ).resolves.toContain('cutover')
+    await expect(
+      finalizeActiveLock('database', 'serp.software', 'cutover', 'later')
+    ).resolves.toBeUndefined()
+    expect(bodies[0]).toEqual(expect.objectContaining({ batch: expect.any(Array) }))
+    expect((bodies[0] as { batch: unknown[] }).batch).toHaveLength(1)
+    expect((bodies[2] as { batch: unknown[] }).batch).toHaveLength(2)
+  })
+
+  it('observes the exact emitted sole version, script, route, and D1 binding', async () => {
+    Object.assign(process.env, {
+      CLOUDFLARE_ACCOUNT_ID: 'account',
+      CLOUDFLARE_API_TOKEN: 'token',
+      CLOUDFLARE_WORKER_PRODUCTION_NAME: 'worker',
+      GITHUB_SHA: 'b'.repeat(40)
+    })
+    const results = [
+      { name: 'worker' },
+      [{ id: 'zone', name: 'serp.software', status: 'active' }],
+      [{ id: 'route', pattern: 'serp.software/*', script: 'worker' }],
+      {
+        deployments: [{ id: 'deployment', versions: [{ percentage: 100, version_id: 'version' }] }]
+      },
+      {
+        id: 'version',
+        resources: {
+          script: { etag: 'etag' },
+          bindings: [{ type: 'd1', name: 'DB', database_id: 'database' }]
+        }
+      }
+    ]
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(
+        async () =>
+          new Response(JSON.stringify({ success: true, result: results.shift() }), {
+            status: 200,
+            headers: { 'content-type': 'application/json' }
+          })
+      )
+    )
+    await expect(activeDeployment('serp.software', 'database', 'version')).resolves.toEqual(
+      expect.objectContaining({
+        capturedVersionId: 'version',
+        commitSha: 'b'.repeat(40),
+        databaseId: 'database',
+        routeId: 'route',
+        scriptEtag: 'etag',
+        versionId: 'version'
+      })
+    )
   })
 })

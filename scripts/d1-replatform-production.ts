@@ -3,6 +3,7 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { CUTOVER_LOCK_ID_PREFIX } from '../packages/data-ops/src/cutover-lock'
+import { applicationColumnInventory } from './d1-replatform-inventory'
 import {
   cloudflareProductionIdentityDependencies,
   downloadTrustedPreviewReceipt,
@@ -257,6 +258,60 @@ export function validateProductionReceipt(
   return sealed
 }
 
+function canonicalText(
+  row: FrozenSourceSnapshot['snapshot']['tables']['listings']['rows'][number],
+  columns: readonly string[],
+  name: string
+): string | null {
+  const value = row[columns.indexOf(name)]
+  if (value?.type === 'null') return null
+  if (value?.type !== 'text' && value?.type !== 'integer')
+    throw new Error(`Browser fixture ${name} has an invalid canonical type.`)
+  if (/[\r\n]/u.test(value.value)) throw new Error(`Browser fixture ${name} contains a newline.`)
+  return value.value
+}
+
+export function browserFixtureFromSnapshot(source: FrozenSourceSnapshot): {
+  categorySlug: string
+  listingCount: number
+  listingName: string
+  listingSlug: string
+} {
+  const listingColumns = applicationColumnInventory.listings
+  const eligible = source.snapshot.tables.listings.rows.filter(row => {
+    const publishedAt = canonicalText(row, listingColumns, 'published_at')
+    return (
+      canonicalText(row, listingColumns, 'site_id') === source.siteId &&
+      canonicalText(row, listingColumns, 'status') === 'approved' &&
+      canonicalText(row, listingColumns, 'is_active') === '1' &&
+      publishedAt !== null &&
+      publishedAt <= source.capturedAt
+    )
+  })
+  const listing = eligible[0]
+  if (!listing) throw new Error('Frozen snapshot has no eligible browser fixture listing.')
+  const listingId = canonicalText(listing, listingColumns, 'id')
+  const membershipColumns = applicationColumnInventory.listing_categories
+  const membership = source.snapshot.tables.listing_categories.rows.find(
+    row => canonicalText(row, membershipColumns, 'listing_id') === listingId
+  )
+  if (!membership) throw new Error('Browser fixture listing has no category membership.')
+  const categoryId = canonicalText(membership, membershipColumns, 'category_id')
+  const categoryColumns = applicationColumnInventory.categories
+  const category = source.snapshot.tables.categories.rows.find(
+    row =>
+      canonicalText(row, categoryColumns, 'id') === categoryId &&
+      canonicalText(row, categoryColumns, 'is_active') === '1'
+  )
+  if (!category) throw new Error('Browser fixture category is absent or inactive.')
+  return {
+    categorySlug: text(canonicalText(category, categoryColumns, 'slug'), 'category slug'),
+    listingCount: eligible.length,
+    listingName: text(canonicalText(listing, listingColumns, 'name'), 'listing name'),
+    listingSlug: text(canonicalText(listing, listingColumns, 'slug'), 'listing slug')
+  }
+}
+
 export async function acquireCutoverLock(
   databaseId: string,
   siteValue: string,
@@ -328,7 +383,7 @@ export async function assertLocked(
   if (rows.length !== 1) throw new Error('Database does not retain the exact active cutover lock.')
 }
 
-async function activeDeployment(
+export async function activeDeployment(
   siteId: SiteId,
   expectedDatabaseId: string,
   expectedVersionId?: string
@@ -388,6 +443,8 @@ async function activeDeployment(
   )
   const resources = object(version.resources, 'version resources')
   if (!Array.isArray(resources.bindings)) throw new Error('Version bindings are missing.')
+  const script = object(resources.script, 'version script')
+  const scriptEtag = text(script.etag, 'version script etag')
   const db = resources.bindings
     .map(value => object(value, 'binding'))
     .filter(value => value.type === 'd1' && value.name === 'DB')
@@ -395,9 +452,12 @@ async function activeDeployment(
     throw new Error('Active version has the wrong or ambiguous DB binding.')
   return {
     databaseId: expectedDatabaseId,
+    capturedVersionId: expectedVersionId ?? null,
+    commitSha: required('GITHUB_SHA'),
     deploymentId: deployment.id,
     routeId: matchingRoutes[0]?.id,
     routePattern: `${siteId}/*`,
+    scriptEtag,
     versionId,
     workerName: worker,
     zoneId: zone.id
@@ -509,6 +569,11 @@ async function main(argv: string[]): Promise<void> {
     )
   } else if (command === 'seal') {
     output(arg('--output'), sealProductionEvidence(readJson(arg('--evidence'))))
+  } else if (command === 'browser-fixture') {
+    output(
+      arg('--output'),
+      browserFixtureFromSnapshot(readJson(arg('--snapshot')) as FrozenSourceSnapshot)
+    )
   } else if (command === 'assemble') {
     const preflightResult = object(readJson(arg('--preflight')), 'preflight result')
     const identity = object(

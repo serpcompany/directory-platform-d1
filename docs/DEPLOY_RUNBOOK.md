@@ -111,8 +111,8 @@ version is solely active and both locks remain. It unfreezes only the active tar
 the inactive source stays locked. Database deletion and SQL restore are never part of
 these workflows.
 
-The separately protected `rehearse-d1-replatform-preview.yml` workflow is the only
-prepared fresh-history remote executor. It requires `rehearse-<site>-preview`, proves
+The separately protected `rehearse-d1-replatform-preview.yml` workflow is the
+fresh-history Preview executor. It requires `rehearse-<site>-preview`, proves
 the observed account and D1 identities, binds evidence to checked-out `GITHUB_SHA`,
 and rehearses the old binding before restoring the replacement binding. It contains
 no Production mutation path. It runs only from reviewed `refs/heads/main`; topic
@@ -121,13 +121,13 @@ guards. This lets the sealed Preview receipt match the exact commit later presen
 to the Production cutover. Preview and Production still require separate protected
 environments and confirmations.
 
-Production cutover Stage 3 contains no workflow or mutation executor. Its reusable
-read-only preflight accepts only the named successful exact-`main` Preview artifact,
+The Production executor consumes Stage 3's reusable read-only preflight. It accepts
+only the named successful exact-`main` Preview artifact,
 revalidates the complete sealed receipt against a protected digest, and observes the
 Production account, source/replacement D1 identities, Worker, active apex zone/route,
 sole 100-percent active version, and current source D1 binding. A passing preflight is
-evidence for a later separately approved executor; it is not permission to lock,
-backup, migrate, import, deploy, rebind, or otherwise mutate Production.
+evidence inside the separately approved cutover workflow; it does not independently
+grant permission to mutate Production.
 
 The same approved Preview run may bootstrap an empty legacy Preview source solely
 from `d1/migrations/0001`-`0009` plus the reviewed controlled artifact. It retains the
