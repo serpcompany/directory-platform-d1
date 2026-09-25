@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { DatabaseSync, type SQLInputValue } from 'node:sqlite'
 import { afterAll, describe, expect, it } from 'vitest'
-import { freshDatabaseIds } from './d1-drizzle-local'
+import { legacyRecoveryLocalDatabaseIds } from './d1-drizzle-local'
 import { migrateLocalD1 } from './d1-replatform'
 import {
   applicationColumnInventory,
@@ -267,9 +267,9 @@ function migrate(siteId: SiteId, sourcePath: string, targetPath: string) {
     {
       now: () => '2026-09-23T00:00:00.000Z',
       siteId,
-      sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+      sourceDatabaseId: legacyRecoveryLocalDatabaseIds[siteId],
       sourcePath,
-      targetDatabaseId: freshDatabaseIds[siteId],
+      targetDatabaseId: resolveSiteTarget(siteId).local.databaseId,
       targetPath
     },
     { targetStateRoot: resolve(targetPath, '..') }
@@ -342,14 +342,14 @@ describe('local D1-to-D1 replatform migration', () => {
         siteId,
         sourceDatabaseId: 'wrong-source',
         sourcePath: wrongIdentity.sourcePath,
-        targetDatabaseId: freshDatabaseIds[siteId],
+        targetDatabaseId: resolveSiteTarget(siteId).local.databaseId,
         targetPath: wrongIdentity.targetPath
       })
     ).toThrow(/Source database identity/u)
     expect(() =>
       migrateLocalD1({
         siteId,
-        sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+        sourceDatabaseId: legacyRecoveryLocalDatabaseIds[siteId],
         sourcePath: wrongIdentity.sourcePath,
         targetDatabaseId: 'wrong-target',
         targetPath: wrongIdentity.targetPath
@@ -361,9 +361,9 @@ describe('local D1-to-D1 replatform migration', () => {
       migrateLocalD1(
         {
           siteId,
-          sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+          sourceDatabaseId: legacyRecoveryLocalDatabaseIds[siteId],
           sourcePath: wrongSite.sourcePath,
-          targetDatabaseId: freshDatabaseIds[siteId],
+          targetDatabaseId: resolveSiteTarget(siteId).local.databaseId,
           targetPath: wrongSite.targetPath
         },
         { targetStateRoot: wrongSite.targetStateRoot }
@@ -374,9 +374,9 @@ describe('local D1-to-D1 replatform migration', () => {
       migrateLocalD1(
         {
           siteId,
-          sourceDatabaseId: resolveSiteTarget(siteId).local.databaseId,
+          sourceDatabaseId: legacyRecoveryLocalDatabaseIds[siteId],
           sourcePath: wrongIdentity.sourcePath,
-          targetDatabaseId: freshDatabaseIds[siteId],
+          targetDatabaseId: resolveSiteTarget(siteId).local.databaseId,
           targetPath: wrongIdentity.targetPath
         },
         { targetStateRoot: join(wrongIdentity.directory, 'different-state-root') }

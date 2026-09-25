@@ -1,14 +1,15 @@
 import { execFileSync } from 'node:child_process'
-import { mkdirSync, readdirSync, writeFileSync } from 'node:fs'
-import { dirname, relative, resolve, sep } from 'node:path'
+import { readdirSync } from 'node:fs'
+import { resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { canonicalLocalMigrationsDirectory, validateCanonicalLocalConfig } from './d1-local-config'
 import { configuredFreshD1StateRoot } from './d1-local-state'
 import { applicationTableNames } from './d1-replatform-inventory'
 import { resolveSiteTarget, type SiteTarget } from './site-targets'
 
 export { applicationTableNames } from './d1-replatform-inventory'
 
-export const freshMigrationsDirectory = resolve('d1/drizzle')
+export const freshMigrationsDirectory = canonicalLocalMigrationsDirectory
 
 export const d1TriggerNames = [
   'listing_categories_prevent_primary_demote',
@@ -53,67 +54,31 @@ export const requiredIndexNames = [
   'publication_runs_site_time_idx'
 ] as const
 
+export const legacyRecoveryLocalDatabaseIds = {
+  'pornvideodownloaders.com': '00000000-0000-0000-0000-000000000003',
+  'serp.software': '00000000-0000-0000-0000-000000000002'
+} as const
+
 interface SchemaObject {
   name: string
   sql: string | null
   type: 'index' | 'table' | 'trigger'
 }
 
-export const freshDatabaseIds = {
-  'pornvideodownloaders.com': '00000000-0000-0000-0000-000000000168',
-  'serp.software': '00000000-0000-0000-0000-000000000068'
-} as const
-
-function pathRelativeToConfig(configPath: string, targetPath: string): string {
-  return relative(dirname(configPath), targetPath).replaceAll(sep, '/')
-}
-
 function statePath(target: SiteTarget): string {
   return configuredFreshD1StateRoot(target.siteId)
 }
 
-export function materializeFreshLocalConfig(target: SiteTarget): {
+export function canonicalLocalConfig(target: SiteTarget): {
   configPath: string
   databaseName: string
 } {
-  const configPath = resolve(
-    '.wrangler/generated',
-    `${target.siteId.replaceAll('.', '-')}.drizzle-local.jsonc`
-  )
-  const databaseName = `${target.local.databaseName}-drizzle`
-  const appOutput = resolve('apps', target.appPackageName, '.open-next')
-  const config = {
-    $schema: pathRelativeToConfig(configPath, resolve('node_modules/wrangler/config-schema.json')),
-    assets: {
-      binding: 'ASSETS',
-      directory: pathRelativeToConfig(configPath, resolve(appOutput, 'assets'))
-    },
-    compatibility_date: '2026-07-13',
-    compatibility_flags: ['nodejs_compat'],
-    d1_databases: [
-      {
-        binding: 'DB',
-        database_id: freshDatabaseIds[target.siteId],
-        database_name: databaseName,
-        migrations_dir: pathRelativeToConfig(configPath, freshMigrationsDirectory)
-      }
-    ],
-    main: pathRelativeToConfig(configPath, resolve(appOutput, 'worker.js')),
-    name: `${target.local.workerName}-drizzle`,
-    vars: {
-      AUTH_TRUST_HOST: 'true',
-      D1_RUNTIME_ENV: 'local',
-      NEXT_PUBLIC_SITE_ID: target.siteId,
-      SITE_ID: target.siteId
-    }
-  }
-  mkdirSync(dirname(configPath), { recursive: true })
-  writeFileSync(configPath, `${JSON.stringify(config, null, 2)}\n`)
-  return { configPath, databaseName }
+  validateCanonicalLocalConfig(target)
+  return { configPath: target.local.configPath, databaseName: target.local.databaseName }
 }
 
 function wrangler(target: SiteTarget, args: string[], capture = false): string {
-  const { configPath, databaseName } = materializeFreshLocalConfig(target)
+  const { configPath, databaseName } = canonicalLocalConfig(target)
   return (
     execFileSync(
       'pnpm',
@@ -203,7 +168,7 @@ function verify(target: SiteTarget): void {
   )
   console.log(
     JSON.stringify({
-      database: `${target.local.databaseName}-drizzle`,
+      database: target.local.databaseName,
       migrations: freshMigrationNames(),
       siteId: target.siteId,
       status: 'verified',

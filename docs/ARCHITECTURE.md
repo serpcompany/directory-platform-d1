@@ -59,8 +59,9 @@ require a clean `main` checkout inside an approved GitHub Actions workflow.
   selects a site from global authority. Its environment-neutral public-URL policy is
   shared by intake and each Site's badge verifier.
 - `d1/drizzle/` owns the fresh Drizzle-generated schema history applied by Wrangler to
-  the active Preview and Production databases. `d1/migrations/0001`-`0009` remains
-  immutable legacy history solely for retained source-database recovery evidence.
+  canonical local development and the active Preview and Production databases.
+  `d1/migrations/0001`-`0009` remains immutable legacy history solely for retained
+  source-database recovery evidence.
 - `d1/publications/` owns reviewed ongoing catalog mutations.
 - `d1/artifacts/` preserves the immutable initial bootstrap and parity evidence.
 - `scripts/worker-release.ts`, `scripts/d1-submission-approver.ts`,
@@ -142,6 +143,13 @@ Shared publication and submission tools bind their SQL to the selected site and
 reject mismatches. Adding a third site still requires the full tenancy and isolation
 work in [the migration SOP](./MIGRATION_SOP.md), not merely another `sites/`
 directory.
+
+Canonical local Wrangler templates use fresh synthetic identities and
+`d1/drizzle/`. Local migration, bootstrap, verification, OpenNext preview, agent
+runtime, and Playwright commands converge on one Site- and worktree-isolated state
+root. Legacy local state is intentionally abandoned rather than upgraded. This does
+not remove the separate retained remote source identities or their cutover/recovery
+code before the recorded 2026-12-24 retention deadline.
 
 The shared client is constructed only from an injected `D1Database` and an explicit
 supported Site ID. Applications must not define a schema or construct an app-local

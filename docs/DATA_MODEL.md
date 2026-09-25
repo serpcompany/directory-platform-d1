@@ -5,9 +5,9 @@ The application-owned schema is modeled once in `packages/data-ops/src/schema.ts
 and Wrangler applies that SQL while recording its canonical `d1_migrations` ledger.
 The released `d1/migrations/0001`-`0009` files remain byte-for-byte immutable legacy
 history for the locked, inactive source databases and are never scanned or combined
-with the active fresh history. Routine shared-environment releases use `d1/drizzle/`
-against the replacement identities. `drizzle-kit push` is not an approved
-shared-environment migration path.
+with the active fresh history. Canonical local development and routine
+shared-environment releases use `d1/drizzle/` against fresh identities.
+`drizzle-kit push` is not an approved shared-environment migration path.
 
 The local replacement transfer preserves every application-owned source column and
 excludes only SQLite, Wrangler, and Cloudflare-owned metadata. It compares canonical

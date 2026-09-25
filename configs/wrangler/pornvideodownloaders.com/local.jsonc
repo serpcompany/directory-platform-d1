@@ -18,8 +18,8 @@
     {
       "binding": "DB",
       "database_name": "pornvideodownloaders-local",
-      "database_id": "00000000-0000-0000-0000-000000000003",
-      "migrations_dir": "../../../d1/migrations"
+      "database_id": "00000000-0000-0000-0000-000000000168",
+      "migrations_dir": "../../../d1/drizzle"
     }
   ]
 }

@@ -58,7 +58,7 @@ function doctor(root: string, target: SiteTarget): void {
   if (manifest) violations.push(...runtimeViolations(root, manifest))
   if (!existsSync(resolve(root, target.local.configPath)))
     violations.push(`${target.local.configPath} is missing.`)
-  if (!existsSync(resolve(root, 'd1/migrations'))) violations.push('d1/migrations is missing.')
+  if (!existsSync(resolve(root, 'd1/drizzle'))) violations.push('d1/drizzle is missing.')
   if (violations.length > 0) {
     throw new Error(`${violations.join('\n')}\nSee docs/HARNESS.md#runtime-legibility.`)
   }

@@ -274,20 +274,26 @@ describe('local D1 cutover contracts', () => {
     ) as {
       name: string
       vars: { D1_RUNTIME_ENV: string }
-      d1_databases: Array<{ database_id: string; database_name: string }>
+      d1_databases: Array<{
+        database_id: string
+        database_name: string
+        migrations_dir: string
+      }>
     }
     expect(config.name).toBe('serp-software-local')
     expect(config.vars.D1_RUNTIME_ENV).toBe('local')
     expect(config.d1_databases[0]).toEqual(
       expect.objectContaining({
-        database_id: '00000000-0000-0000-0000-000000000002',
-        database_name: 'serp-software-local'
+        database_id: '00000000-0000-0000-0000-000000000068',
+        database_name: 'serp-software-local',
+        migrations_dir: '../../../d1/drizzle'
       })
     )
     const guard = readFileSync(resolve('scripts/d1-local-guard.ts'), 'utf8')
     const publisher = readFileSync(resolve('scripts/d1-publisher.ts'), 'utf8')
     expect(guard).toContain("'--local'")
-    expect(guard).toContain('return resolve(DEFAULT_STATE_PATH, siteDirectory)')
+    expect(guard).toContain('configuredFreshD1StateRoot(target.siteId)')
+    expect(guard).toContain('validateCanonicalLocalConfig(target)')
     expect(guard).toContain('resolveSiteTarget(siteValue)')
     expect(publisher).toContain('CLI publication is disabled')
     expect(publisher).toContain('D1Database.batch')

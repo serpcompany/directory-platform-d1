@@ -18,8 +18,8 @@
     {
       "binding": "DB",
       "database_name": "serp-software-local",
-      "database_id": "00000000-0000-0000-0000-000000000002",
-      "migrations_dir": "../../../d1/migrations"
+      "database_id": "00000000-0000-0000-0000-000000000068",
+      "migrations_dir": "../../../d1/drizzle"
     }
   ]
 }
