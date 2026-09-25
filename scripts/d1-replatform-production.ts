@@ -148,7 +148,13 @@ export interface ProductionCutoverReceipt {
     sourceBackupSha256: string
     status: 'locked-target-active'
     targetBackupSha256: string
-    transfer: { mode: string; receiptId: string; snapshotChecksum: string; totalRows: number }
+    transfer: {
+      materializeMode: string
+      receiptId: string
+      snapshotChecksum: string
+      totalRows: number
+      verificationMode: 'verified-no-op'
+    }
     version: 1
   }
   sha256: string
@@ -219,10 +225,15 @@ export function sealProductionEvidence(raw: unknown): ProductionCutoverReceipt {
   if (!Number.isSafeInteger(preview.artifactId) || !Number.isSafeInteger(preview.runId))
     throw new Error('Preview IDs are invalid.')
   const transfer = object(evidence.transfer, 'transfer')
-  exactKeys(transfer, ['mode', 'receiptId', 'snapshotChecksum', 'totalRows'], 'transfer')
+  exactKeys(
+    transfer,
+    ['materializeMode', 'receiptId', 'snapshotChecksum', 'totalRows', 'verificationMode'],
+    'transfer'
+  )
   if (
     transfer.snapshotChecksum !== evidence.frozenSnapshotChecksum ||
-    !['imported', 'resumed', 'verified-no-op'].includes(String(transfer.mode))
+    !['imported', 'resumed', 'verified-no-op'].includes(String(transfer.materializeMode)) ||
+    transfer.verificationMode !== 'verified-no-op'
   )
     throw new Error('Transfer evidence does not match the frozen snapshot.')
   const rollback = object(evidence.rollback, 'rollback')
@@ -255,6 +266,99 @@ export function validateProductionReceipt(
     sealed.sha256 !== digest(expectedDigest, 'expected digest')
   )
     throw new Error('Production receipt digest does not match sealed protected evidence.')
+  return sealed
+}
+
+function assertReceiptEnvironment(receipt: ProductionCutoverReceipt): void {
+  const identity = receipt.evidence.identity
+  const pairs = [
+    [identity.accountId, required('CLOUDFLARE_ACCOUNT_ID')],
+    [identity.workerName, required('CLOUDFLARE_WORKER_PRODUCTION_NAME')],
+    [identity.sourceDatabaseId, required('CLOUDFLARE_D1_PRODUCTION_DATABASE_ID')],
+    [identity.replacementDatabaseId, required('CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID')]
+  ]
+  if (pairs.some(([recorded, configured]) => recorded !== configured))
+    throw new Error('Production receipt identity differs from current protected resources.')
+  if (
+    process.env.CUTOVER_COMMIT_SHA &&
+    receipt.evidence.commitSha !== process.env.CUTOVER_COMMIT_SHA
+  )
+    throw new Error('Production receipt commit differs from the requested cutover commit.')
+}
+
+export async function inspectVersionBinding(
+  versionId: string,
+  expectedDatabaseId: string
+): Promise<{ databaseId: string; scriptEtag: string; versionId: string; workerName: string }> {
+  const account = required('CLOUDFLARE_ACCOUNT_ID')
+  const worker = required('CLOUDFLARE_WORKER_PRODUCTION_NAME')
+  const response = await fetch(
+    `https://api.cloudflare.com/client/v4/accounts/${account}/workers/scripts/${encodeURIComponent(worker)}/versions/${encodeURIComponent(versionId)}`,
+    {
+      headers: { Authorization: `Bearer ${required('CLOUDFLARE_API_TOKEN')}` },
+      signal: AbortSignal.timeout(15_000)
+    }
+  )
+  const envelope = object(await response.json(), 'Worker version response')
+  if (!response.ok || envelope.success !== true)
+    throw new Error('Worker version inspection failed.')
+  const version = object(envelope.result, 'Worker version')
+  if (version.id !== versionId) throw new Error('Worker version identity differs.')
+  const resources = object(version.resources, 'Worker version resources')
+  const script = object(resources.script, 'Worker version script')
+  if (!Array.isArray(resources.bindings)) throw new Error('Worker version bindings are missing.')
+  const bindings = resources.bindings
+    .map(value => object(value, 'binding'))
+    .filter(value => value.type === 'd1' && value.name === 'DB')
+  if (bindings.length !== 1 || (bindings[0]?.database_id ?? bindings[0]?.id) !== expectedDatabaseId)
+    throw new Error('Recorded Worker version is not bound to the protected database.')
+  return {
+    databaseId: expectedDatabaseId,
+    scriptEtag: text(script.etag, 'script etag'),
+    versionId,
+    workerName: worker
+  }
+}
+
+export function sealRecoveryEvidence(raw: unknown): { evidence: Json; sha256: string } {
+  const evidence = object(raw, 'Recovery evidence')
+  exactKeys(
+    evidence,
+    [
+      'accountId',
+      'commitSha',
+      'cutoverId',
+      'siteId',
+      'sourceDatabaseId',
+      'sourceVersionId',
+      'targetDatabaseId',
+      'version',
+      'workerName'
+    ],
+    'Recovery evidence'
+  )
+  parseSiteId(text(evidence.siteId, 'siteId'))
+  if (evidence.version !== 1 || !text(evidence.cutoverId, 'cutoverId'))
+    throw new Error('Recovery evidence is malformed.')
+  return { evidence, sha256: sha256(canonical(evidence)) }
+}
+
+export function validateRecoveryReceipt(raw: unknown): { evidence: Json; sha256: string } {
+  const receipt = object(raw, 'Recovery receipt')
+  exactKeys(receipt, ['evidence', 'sha256'], 'Recovery receipt')
+  const sealed = sealRecoveryEvidence(receipt.evidence)
+  if (sealed.sha256 !== digest(receipt.sha256, 'recovery receipt digest'))
+    throw new Error('Recovery receipt digest mismatch.')
+  const e = sealed.evidence
+  if (
+    e.accountId !== required('CLOUDFLARE_ACCOUNT_ID') ||
+    e.workerName !== required('CLOUDFLARE_WORKER_PRODUCTION_NAME') ||
+    e.sourceDatabaseId !== required('CLOUDFLARE_D1_PRODUCTION_DATABASE_ID') ||
+    e.targetDatabaseId !== required('CLOUDFLARE_D1_REPLACEMENT_PRODUCTION_DATABASE_ID')
+  )
+    throw new Error('Recovery receipt identity differs from current protected resources.')
+  if (process.env.CUTOVER_COMMIT_SHA && e.commitSha !== process.env.CUTOVER_COMMIT_SHA)
+    throw new Error('Recovery receipt commit mismatch.')
   return sealed
 }
 
@@ -583,6 +687,7 @@ async function main(argv: string[]): Promise<void> {
     const preview = object(preflightResult.preview, 'preflight preview')
     const snapshot = readJson(arg('--snapshot')) as FrozenSourceSnapshot
     const transfer = object(readJson(arg('--transfer')), 'transfer')
+    const verification = object(readJson(arg('--verification')), 'verification')
     const sourceObservation = object(readJson(arg('--source-observation')), 'source observation')
     const targetObservation = object(readJson(arg('--target-observation')), 'target observation')
     const rollbackSource = object(readJson(arg('--rollback-source')), 'rollback source')
@@ -624,10 +729,11 @@ async function main(argv: string[]): Promise<void> {
       status: 'locked-target-active',
       targetBackupSha256: sha256(readFileSync(resolve(arg('--target-backup')))),
       transfer: {
-        mode: transfer.mode,
+        materializeMode: transfer.mode,
         receiptId: transfer.receiptId,
         snapshotChecksum: transfer.snapshotChecksum,
-        totalRows: transfer.totalRows
+        totalRows: transfer.totalRows,
+        verificationMode: verification.mode
       },
       version: evidenceVersion
     }
@@ -638,7 +744,32 @@ async function main(argv: string[]): Promise<void> {
       required('TRUSTED_PRODUCTION_RECEIPT_SHA256')
     )
     if (receipt.evidence.siteId !== siteId) throw new Error('Production receipt Site mismatch.')
+    assertReceiptEnvironment(receipt)
     output(arg('--output'), receipt)
+  } else if (command === 'assemble-recovery') {
+    const preflightResult = object(readJson(arg('--preflight')), 'preflight result')
+    const identity = object(preflightResult.identity, 'preflight identity')
+    const source = object(readJson(arg('--source-observation')), 'source observation')
+    output(
+      arg('--output'),
+      sealRecoveryEvidence({
+        accountId: identity.accountId,
+        commitSha: required('GITHUB_SHA'),
+        cutoverId: arg('--cutover-id'),
+        siteId,
+        sourceDatabaseId: identity.sourceDatabaseId,
+        sourceVersionId: source.versionId,
+        targetDatabaseId: identity.replacementDatabaseId,
+        version: 1,
+        workerName: identity.workerName
+      })
+    )
+  } else if (command === 'validate-recovery') {
+    const receipt = validateRecoveryReceipt(readJson(arg('--receipt')))
+    if (receipt.evidence.siteId !== siteId) throw new Error('Recovery receipt Site mismatch.')
+    output(arg('--output'), receipt)
+  } else if (command === 'inspect-version') {
+    output(arg('--output'), await inspectVersionBinding(arg('--version-id'), arg('--database-id')))
   } else throw new Error('Unsupported Production cutover command.')
 }
 

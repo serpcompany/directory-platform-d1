@@ -50,10 +50,11 @@ function evidence() {
     status: 'locked-target-active',
     targetBackupSha256: digest,
     transfer: {
-      mode: 'imported',
+      materializeMode: 'imported',
       receiptId: 'receipt',
       snapshotChecksum: digest,
-      totalRows: 17
+      totalRows: 17,
+      verificationMode: 'verified-no-op'
     },
     version: 1
   }

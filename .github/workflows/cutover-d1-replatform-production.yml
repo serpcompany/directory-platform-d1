@@ -109,6 +109,15 @@ jobs:
           pnpm tsx scripts/worker-release.ts cutover-migrate production --site "${{ inputs.site_id }}"
           pnpm tsx scripts/d1-replatform-production.ts materialize --site "${{ inputs.site_id }}" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --output "$EVIDENCE_DIR/transfer.json"
           pnpm tsx scripts/d1-replatform-production.ts verify-transfer --site "${{ inputs.site_id }}" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --output "$EVIDENCE_DIR/transfer-verified.json"
+      - name: Seal and retain incomplete-run recovery authority before traffic switch
+        run: |
+          pnpm tsx scripts/d1-replatform-production.ts assemble-recovery --site "${{ inputs.site_id }}" --cutover-id "$(cat "$EVIDENCE_DIR/cutover-id.txt")" --preflight "$EVIDENCE_DIR/preflight.json" --source-observation "$EVIDENCE_DIR/source-deployment.json" --output "$EVIDENCE_DIR/recovery-receipt.json"
+      - uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.site_id }}-production-cutover-recovery-${{ github.sha }}
+          path: ${{ runner.temp }}/d1-production-cutover/recovery-receipt.json
+          if-no-files-found: error
+          retention-days: 90
       - name: Deploy same commit target-bound and attest sole active version
         env:
           D1_RELEASE_GENERATION: replatform
@@ -123,6 +132,11 @@ jobs:
           status="$(curl --silent --show-error --output "$EVIDENCE_DIR/target-frozen-write.json" --write-out '%{http_code}' --max-time 20 -X POST -H 'content-type: application/json' --data '{}' "${PRODUCTION_BASE_URL%/}/api/submissions")"
           test "$status" = 503
           grep -F 'cutover_frozen' "$EVIDENCE_DIR/target-frozen-write.json"
+      - name: Derive browser fixtures from the exact frozen snapshot
+        run: |
+          pnpm tsx scripts/d1-replatform-production.ts browser-fixture --site "${{ inputs.site_id }}" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --output "$EVIDENCE_DIR/browser-fixture.json"
+          # shellcheck disable=SC2016
+          node -e 'const fs=require("node:fs"); const v=require(process.argv[1]); fs.appendFileSync(process.env.GITHUB_ENV, `E2E_LISTING_COUNT=${v.listingCount}\nE2E_LISTING_NAME=${v.listingName}\nE2E_LISTING_SLUG=${v.listingSlug}\nE2E_CATEGORY_SLUG=${v.categorySlug}\n`)' "$EVIDENCE_DIR/browser-fixture.json"
       - name: Run Production-safe browser gates
         env:
           E2E_SITE_ID: ${{ inputs.site_id }}
@@ -130,9 +144,6 @@ jobs:
           PLAYWRIGHT_BASE_URL: ${{ vars.PRODUCTION_BASE_URL }}
           PLAYWRIGHT_EXTERNAL_SERVER: '1'
         run: |
-          pnpm tsx scripts/d1-replatform-production.ts browser-fixture --site "${{ inputs.site_id }}" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --output "$EVIDENCE_DIR/browser-fixture.json"
-          # shellcheck disable=SC2016
-          node -e 'const fs=require("node:fs"); const v=require(process.argv[1]); fs.appendFileSync(process.env.GITHUB_ENV, `E2E_LISTING_COUNT=${v.listingCount}\nE2E_LISTING_NAME=${v.listingName}\nE2E_LISTING_SLUG=${v.listingSlug}\nE2E_CATEGORY_SLUG=${v.categorySlug}\n`)' "$EVIDENCE_DIR/browser-fixture.json"
           pnpm --filter e2e exec playwright install --with-deps chromium
           pnpm --filter e2e exec playwright test tests/multisite-smoke.spec.ts --project=chromium
       - name: Rehearse immutable source-version rollback
@@ -152,9 +163,17 @@ jobs:
       - name: Seal exact measured cutover receipt
         run: |
           cutover_id="$(cat "$EVIDENCE_DIR/cutover-id.txt")"
-          pnpm tsx scripts/d1-replatform-production.ts assemble --site "${{ inputs.site_id }}" --cutover-id "$cutover_id" --preflight "$EVIDENCE_DIR/preflight.json" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --transfer "$EVIDENCE_DIR/transfer-verified.json" --source-observation "$EVIDENCE_DIR/source-deployment.json" --target-observation "$EVIDENCE_DIR/target-deployment.json" --rollback-source "$EVIDENCE_DIR/rollback-source.json" --rollback-target "$EVIDENCE_DIR/rollback-target.json" --source-backup "$EVIDENCE_DIR/source-backup.sql" --target-backup "$EVIDENCE_DIR/target-backup.sql" --output "$EVIDENCE_DIR/evidence.json"
+          pnpm tsx scripts/d1-replatform-production.ts assemble --site "${{ inputs.site_id }}" --cutover-id "$cutover_id" --preflight "$EVIDENCE_DIR/preflight.json" --snapshot "$EVIDENCE_DIR/frozen-snapshot.json" --transfer "$EVIDENCE_DIR/transfer.json" --verification "$EVIDENCE_DIR/transfer-verified.json" --source-observation "$EVIDENCE_DIR/source-deployment.json" --target-observation "$EVIDENCE_DIR/target-deployment.json" --rollback-source "$EVIDENCE_DIR/rollback-source.json" --rollback-target "$EVIDENCE_DIR/rollback-target.json" --source-backup "$EVIDENCE_DIR/source-backup.sql" --target-backup "$EVIDENCE_DIR/target-backup.sql" --output "$EVIDENCE_DIR/evidence.json"
           pnpm tsx scripts/d1-replatform-production.ts seal --site "${{ inputs.site_id }}" --evidence "$EVIDENCE_DIR/evidence.json" --output "$EVIDENCE_DIR/receipt.json"
-      - name: Fail closed by restoring the recorded source version
+      - name: Retain exact cutover evidence
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: ${{ inputs.site_id }}-production-cutover-evidence-${{ github.sha }}
+          path: ${{ runner.temp }}/d1-production-cutover/
+          if-no-files-found: error
+          retention-days: 90
+      - name: Fail closed after any unsuccessful cutover step
         if: failure()
         run: |
           if [ -f "$EVIDENCE_DIR/source-deployment.json" ]
@@ -163,11 +182,13 @@ jobs:
             pnpm exec wrangler versions deploy "${source_version}@100" --name "$CLOUDFLARE_WORKER_PRODUCTION_NAME" --message "fail-closed D1 source restoration"
             pnpm tsx scripts/d1-replatform-production.ts observe --site "${{ inputs.site_id }}" --database-id "$CLOUDFLARE_D1_PRODUCTION_DATABASE_ID" --version-id "$source_version" --output "$EVIDENCE_DIR/failure-source-restoration.json"
           fi
-      - name: Retain exact cutover evidence
+      - name: Retain final recovery status
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: ${{ inputs.site_id }}-production-cutover-evidence-${{ github.sha }}
-          path: ${{ runner.temp }}/d1-production-cutover/
+          name: ${{ inputs.site_id }}-production-cutover-final-status-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/d1-production-cutover/recovery-receipt.json
+            ${{ runner.temp }}/d1-production-cutover/failure-source-restoration.json
           if-no-files-found: error
           retention-days: 90
