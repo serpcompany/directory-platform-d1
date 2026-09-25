@@ -3,6 +3,7 @@ import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs'
 import { isAbsolute, relative, resolve, sep } from 'node:path'
 import { DatabaseSync, type SQLOutputValue } from 'node:sqlite'
 import { fileURLToPath } from 'node:url'
+import { canonicalRowFromSqlite, canonicalRowPayload } from './d1-application-snapshot'
 import { freshDatabaseIds, freshMigrationNames } from './d1-drizzle-local'
 import { configuredFreshD1StateRoot } from './d1-local-state'
 import {
@@ -73,14 +74,8 @@ function compareText(left: string, right: string): number {
   return 0
 }
 
-function canonicalValue(value: SQLOutputValue): unknown {
-  if (value instanceof Uint8Array) return { bytes: Buffer.from(value).toString('base64') }
-  if (typeof value === 'bigint') return { bigint: value.toString() }
-  return value
-}
-
 function canonicalRow(row: Row, columns: readonly string[]): string {
-  return JSON.stringify(columns.map(column => canonicalValue(row[column] ?? null)))
+  return canonicalRowPayload(canonicalRowFromSqlite(row, columns))
 }
 
 function tableRows(

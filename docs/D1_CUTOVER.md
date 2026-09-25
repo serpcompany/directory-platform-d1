@@ -287,6 +287,16 @@ all fail closed while it is active. Production D1 workflows for a Site share the
 same `<site>-production-d1` concurrency group. This enforcement does not itself
 create a lock or authorize a Production cutover.
 
+Stage 2 prepares the deterministic snapshot boundary independently of a Production
+executor. The shared canonical engine covers all 17 application tables, preserves
+private and audit rows plus full signed 64-bit integers, and uses bounded reads and
+writes. Capture requires the exact active Stage 1 lock and two identical full source
+proofs. A fresh target may resume only through a deterministic marker for the same
+Site, cutover identity, source identity, schema, ledger, and snapshot checksum;
+`INSERT OR IGNORE` never authorizes divergent partial data. The target replatform
+receipt is created only after exact per-table/whole-snapshot and foreign-key parity.
+No Production workflow or remote resource selection is introduced by Stage 2.
+
 The old D1 remains intact and read-only for at least 30 days. Record its backup
 artifact, retention expiry, protected rollback operation, and responsible Maintainer.
 Rollback changes only the Worker binding; it never deletes either database. Unless a

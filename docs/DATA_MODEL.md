@@ -13,6 +13,12 @@ per-table and whole-snapshot checksums, retains the target's fresh migration led
 and records one deterministic receipt in `migration_runs`. See
 [D1 replacement-database transfer](./D1_REPLATFORM.md).
 
+The same typed canonical encoding underpins prepared remote snapshot transfer. Values
+retain their SQLite storage class, and integers cross JSON boundaries as decimal text.
+A deterministic staging marker permits bounded retry only for the same Site, cutover,
+source identity, schema, ledger, and snapshot; the final receipt replaces it only
+after foreign-key and exact 17-table parity.
+
 `migration_runs` also owns the reserved cutover lock namespace
 `d1-cutover-lock-v1:<site>:`. A row in that namespace with `outcome='started'` freezes
 all writes for only that Site. Successful/failed historical lock rows do not freeze
