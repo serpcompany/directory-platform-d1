@@ -72,6 +72,13 @@ mutate either Preview database. The later replacement-bound deployment remains a
 separate gate. A failure before transient authority installation requires no remote
 cleanup and records that fact without claiming manual database recovery.
 
+The reviewed source-bound version must also prove that all six rehearsal secret names
+are absent from its observed bindings. Cloudflare may preserve omitted secrets across a
+normal code deploy, so matching script content alone is insufficient. Any preserved
+rehearsal secret stops before bulk secret or database mutation, retains explicit manual
+recovery evidence, and is never auto-accepted as a credential-free baseline. The
+sealed receipt records `credentialFree: true` and the complete absent-name set.
+
 All six transient rehearsal secrets are written to one mode-`0600` runner-temporary
 JSON file, installed by one `wrangler secret bulk` operation, and removed immediately.
 The workflow requires exactly one new deployment between the reviewed source-bound

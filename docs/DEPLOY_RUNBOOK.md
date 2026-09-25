@@ -102,6 +102,12 @@ otherwise a concurrent or ambiguous deployment fails closed. The workflow binds 
 proof to the sealed receipt before installing any rehearsal secret. The later
 replacement deployment is separate.
 
+Before secret installation, inspect the reviewed version bindings and require all six
+rehearsal secret names to be absent. A Worker code deploy can preserve omitted secrets;
+an etag match therefore does not prove a credential-free version. Preserved rehearsal
+authority requires explicit manual recovery, with no automatic cleanup or database
+mutation from that failed run. Seal the positive credential-free and absent-name proof.
+
 Install transient rehearsal authority with one mode-`0600`, runner-temporary
 `wrangler secret bulk` file, never sequential `secret put` calls. Remove the file
 immediately. Read deployments again and require exactly one new active 100-percent

@@ -486,9 +486,9 @@ export async function observePreviewDeployment(
   const script = object(resources.script, 'Worker version script')
   const scriptEtag = text(script.etag, 'Worker version script etag')
   if (!Array.isArray(resources.bindings)) throw new Error('Worker version bindings are missing.')
-  const d1Bindings = resources.bindings.filter(binding => {
-    const candidate = object(binding, 'Worker version binding')
-    return candidate.type === 'd1' && candidate.name === 'DB'
+  const bindings = resources.bindings.map(binding => object(binding, 'Worker version binding'))
+  const d1Bindings = bindings.filter(binding => {
+    return binding.type === 'd1' && binding.name === 'DB'
   })
   if (d1Bindings.length !== 1)
     throw new Error('Worker version must have exactly one DB D1 binding.')
@@ -499,6 +499,19 @@ export async function observePreviewDeployment(
   )
   if ((d1Binding.database_id ?? d1Binding.id) !== sourceDatabaseId)
     throw new Error('Active Worker version is not bound to the legacy Preview source D1.')
+  const preservedRehearsalSecrets = bindings
+    .filter(
+      binding =>
+        binding.type === 'secret_text' &&
+        previewRehearsalSecretNames.includes(
+          binding.name as (typeof previewRehearsalSecretNames)[number]
+        )
+    )
+    .map(binding => text(binding.name, 'preserved rehearsal secret name'))
+  if (preservedRehearsalSecrets.length > 0)
+    throw new Error(
+      `Reviewed source-bound Worker preserved rehearsal secrets: ${preservedRehearsalSecrets.join(', ')}. Manual recovery is required.`
+    )
   const expected = object(identity.expected, 'identity.expected')
   return {
     ...identity,
@@ -506,6 +519,8 @@ export async function observePreviewDeployment(
       commitSha: text(env.GITHUB_SHA, 'GITHUB_SHA'),
       captureSource: 'wrangler-deploy-output',
       capturedVersionId,
+      credentialFree: true,
+      absentSecretNames: [...previewRehearsalSecretNames],
       deploymentId: text(deployment.id, 'active Worker deployment ID'),
       generation: 'legacy',
       hostname: text(expected.workerHostname, 'expected Worker hostname'),
@@ -766,6 +781,7 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
   if (
     initialWorkerDeployment.siteId !== siteId ||
     initialWorkerDeployment.generation !== 'legacy' ||
+    initialWorkerDeployment.credentialFree !== true ||
     initialWorkerDeployment.captureSource !== 'wrangler-deploy-output' ||
     initialWorkerDeployment.capturedVersionId !== initialWorkerDeployment.versionId ||
     initialWorkerDeployment.commitSha !== commitSha ||
@@ -775,6 +791,11 @@ export function validateCutoverEvidence(input: unknown, trust: EvidenceTrust): v
     initialWorkerDeployment.trafficPercentage !== 100
   )
     throw new Error('Initial Worker deployment is not bound to the source Preview identity.')
+  exactArray(
+    initialWorkerDeployment.absentSecretNames,
+    previewRehearsalSecretNames,
+    'initialWorkerDeployment.absentSecretNames'
+  )
   for (const field of ['deploymentId', 'versionId', 'scriptEtag'] as const)
     text(initialWorkerDeployment[field], `initialWorkerDeployment.${field}`)
   const secretWorkerDeployment = object(root.secretWorkerDeployment, 'secretWorkerDeployment')

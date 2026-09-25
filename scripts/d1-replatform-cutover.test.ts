@@ -71,9 +71,11 @@ function baseEvidence(environment: 'preview' | 'production') {
     commitSha,
     migrationChecksum: checksum,
     initialWorkerDeployment: {
+      absentSecretNames: [...previewRehearsalSecretNames],
       captureSource: 'wrangler-deploy-output',
       capturedVersionId: 'version-id',
       commitSha,
+      credentialFree: true,
       deploymentId: 'deployment-id',
       generation: 'legacy',
       hostname: `${environment}.example.test`,
@@ -322,6 +324,24 @@ describe('D1 replatform cutover preparation', () => {
         })
       })
     )
+    await expect(
+      observePreviewDeployment('serp.software', env, {
+        ...dependencies,
+        fetchWorkerVersion: async () => ({
+          success: true,
+          result: {
+            id: 'version-id',
+            resources: {
+              bindings: [
+                { database_id: 'source-uuid', name: 'DB', type: 'd1' },
+                { name: 'REPLATFORM_PREVIEW_SIGNING_SECRET', type: 'secret_text' }
+              ],
+              script: { etag: 'script-etag' }
+            }
+          }
+        })
+      })
+    ).rejects.toThrow('Manual recovery is required')
     const secretDependencies = {
       ...dependencies,
       fetchDeployments: async () => ({
@@ -532,6 +552,18 @@ describe('D1 replatform cutover preparation', () => {
       }
     }
     expect(() => validateCutoverEvidence(evidence, { commitSha })).not.toThrow()
+    expect(() =>
+      validateCutoverEvidence(
+        {
+          ...evidence,
+          initialWorkerDeployment: {
+            ...evidence.initialWorkerDeployment,
+            credentialFree: false
+          }
+        },
+        { commitSha }
+      )
+    ).toThrow('source Preview identity')
     expect(() =>
       validateCutoverEvidence(
         {
@@ -792,6 +824,8 @@ describe('D1 replatform cutover preparation', () => {
     expect(raw).toContain('observe-preview-secret-deployment')
     expect(raw).toContain('preview-secret-worker-deployment.json')
     expect(raw).toContain('6 secrets successfully created')
+    expect(raw).toContain('PREEXISTING_AUTHORITY_RECOVERY_REQUIRED')
+    expect(raw).toContain('Reviewed source-bound Worker was not credential-free')
     expect(raw).toContain("worker_state\" = 'missing-allowed'")
     expect(raw).toContain('NO_REMOTE_CLEANUP_REQUIRED.txt')
     expect(raw).toContain('transient-authority-install-attempted')

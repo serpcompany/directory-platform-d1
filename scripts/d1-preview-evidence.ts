@@ -78,6 +78,9 @@ if (
   !initialWorkerDeployment ||
   initialWorkerDeployment.siteId !== siteId ||
   initialWorkerDeployment.generation !== 'legacy' ||
+  initialWorkerDeployment.credentialFree !== true ||
+  JSON.stringify(initialWorkerDeployment.absentSecretNames) !==
+    JSON.stringify(previewRehearsalSecretNames) ||
   initialWorkerDeployment.captureSource !== 'wrangler-deploy-output' ||
   initialWorkerDeployment.capturedVersionId !== initialWorkerDeployment.versionId ||
   initialWorkerDeployment.commitSha !== process.env.GITHUB_SHA ||

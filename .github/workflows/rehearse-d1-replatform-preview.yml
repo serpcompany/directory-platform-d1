@@ -90,7 +90,12 @@ jobs:
             process.stdout.write(ids[0]);
           ' "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deploy.log")"
           export REPLATFORM_SOURCE_DEPLOY_VERSION_ID
-          pnpm tsx scripts/d1-replatform-cutover.ts observe-preview-deployment --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json"
+          if ! pnpm tsx scripts/d1-replatform-cutover.ts observe-preview-deployment --site "${{ inputs.site_id }}" > "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json"
+          then
+            touch "$REPLATFORM_EVIDENCE_DIR/PREEXISTING_AUTHORITY_RECOVERY_REQUIRED"
+            printf '%s\n' 'Reviewed source-bound Worker was not credential-free; no secret or database mutation was attempted. Remove preserved rehearsal authority manually, then rerun.' > "$REPLATFORM_EVIDENCE_DIR/MANUAL_RECOVERY_REQUIRED.txt"
+            exit 1
+          fi
           cp "$REPLATFORM_EVIDENCE_DIR/preview-source-worker-deployment.json" "$REPLATFORM_EVIDENCE_DIR/preview-identity.json"
 
       - name: Install transient Preview rehearsal secrets
@@ -295,6 +300,11 @@ jobs:
         run: |
           set +e
           cleanup_status=0
+          if [ -f "$REPLATFORM_EVIDENCE_DIR/PREEXISTING_AUTHORITY_RECOVERY_REQUIRED" ]
+          then
+            printf '%s\n' 'Preexisting rehearsal authority requires manual recovery; automatic cleanup was not attempted.' >> "$REPLATFORM_EVIDENCE_DIR/MANUAL_RECOVERY_REQUIRED.txt"
+            exit 1
+          fi
           if [ ! -f "$REPLATFORM_EVIDENCE_DIR/transient-authority-install-attempted" ]
           then
             printf '%s\n' 'No transient authority or binding marker was installed; no remote cleanup was required.' > "$REPLATFORM_EVIDENCE_DIR/NO_REMOTE_CLEANUP_REQUIRED.txt"
