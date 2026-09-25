@@ -169,7 +169,7 @@ jobs:
 
       - name: Upload PVD source recovery backup before sanitization
         if: inputs.site_id == 'pornvideodownloaders.com'
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: pornvideodownloaders.com-preview-pre-sanitization-backup-${{ github.sha }}
           path: ${{ runner.temp }}/d1-replatform-evidence/source-pre-bootstrap.sql
@@ -234,7 +234,7 @@ jobs:
         run: pnpm tsx scripts/worker-release.ts backup preview --site "${{ inputs.site_id }}"
 
       - name: Upload nondestructive Preview backups
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-d1-replatform-preview-backups-${{ github.sha }}
           path: |
@@ -324,7 +324,7 @@ jobs:
         run: pnpm tsx scripts/d1-replatform-cutover.ts seal-preview --file "$REPLATFORM_EVIDENCE_DIR/preview-evidence.json" > "$REPLATFORM_EVIDENCE_DIR/preview-receipt.json"
 
       - name: Retain sealed Preview evidence and browser artifacts
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-d1-replatform-preview-evidence-${{ github.sha }}
           path: |
@@ -384,7 +384,7 @@ jobs:
 
       - name: Retain cleanup and manual-recovery evidence
         if: always()
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ inputs.site_id }}-d1-replatform-cleanup-${{ github.sha }}
           path: ${{ runner.temp }}/d1-replatform-evidence/
