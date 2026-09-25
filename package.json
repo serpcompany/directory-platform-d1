@@ -114,7 +114,7 @@
     "tsx": "catalog:",
     "turbo": "^2.8.7",
     "typescript": "catalog:",
-    "vitest": "4.0.18",
+    "vitest": "4.1.11",
     "yaml": "^2.9.0"
   },
   "pnpm": {
