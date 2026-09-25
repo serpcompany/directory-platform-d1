@@ -23,6 +23,9 @@ on:
   schedule:
     - cron: '17 9 * * *'
 
+permissions:
+  contents: read
+
 jobs:
   submit:
     name: Submit sitemap indexes
