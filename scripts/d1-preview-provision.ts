@@ -31,6 +31,7 @@ interface ProvisionDependencies {
   fetchDatabase(accountId: string, databaseId: string, token: string): Promise<unknown>
   fetchDatabases(accountId: string, token: string): Promise<unknown[]>
   fetchToken(token: string): Promise<unknown>
+  fetchUser(token: string): Promise<unknown>
   fetchWorker(accountId: string, workerName: string, token: string): Promise<unknown>
   readGit(command: 'head' | 'status'): string
   now(): string
@@ -41,6 +42,23 @@ const runbookRemediation =
 
 function fail(message: string, remediation = runbookRemediation): never {
   throw new Error(`${message} Remediation: ${remediation}`)
+}
+
+interface CloudflareResponseError {
+  code: number
+  message: string
+}
+
+class CloudflareHttpError extends Error {
+  constructor(
+    readonly status: number,
+    readonly responseErrors: CloudflareResponseError[]
+  ) {
+    super(
+      `Cloudflare request failed with HTTP ${status}. Remediation: Verify the protected credential and its account/resource permissions, then retry without changing expected identities.`
+    )
+    this.name = 'CloudflareHttpError'
+  }
 }
 
 function nonempty(value: unknown, label: string): string {
@@ -75,12 +93,69 @@ function optionalText(value: unknown, label: string): string | undefined {
 
 function parseTokenIdentity(value: unknown): { status: 'active' } {
   const token = object(envelopeResult(value, 'Cloudflare token verification'), 'Token identity')
+  nonempty(token.id, 'Cloudflare token verification.result.id')
   if (token.status !== 'active')
     fail(
       'Cloudflare token is not active.',
       'Replace CLOUDFLARE_API_TOKEN in pornvideodownloaders-preview with an active scoped token, then retry.'
     )
   return { status: 'active' }
+}
+
+function parseUserIdentity(value: unknown): { email: string; id: string } {
+  const user = object(envelopeResult(value, 'Cloudflare user identity'), 'User identity')
+  return {
+    email: nonempty(user.email, 'Cloudflare user identity.result.email'),
+    id: nonempty(user.id, 'Cloudflare user identity.result.id')
+  }
+}
+
+export function parseCloudflareHttpFailure(status: number, value: unknown): CloudflareHttpError {
+  const envelope = object(value, `Cloudflare HTTP ${status} response`)
+  if (envelope.success !== false || envelope.result !== null)
+    fail(
+      `Cloudflare HTTP ${status} response was not an exact failure envelope.`,
+      'Inspect the protected workflow log and Cloudflare status before retrying.'
+    )
+  if (!Array.isArray(envelope.errors) || envelope.errors.length === 0)
+    fail(
+      `Cloudflare HTTP ${status} response did not contain a valid error list.`,
+      'Inspect the protected workflow log and Cloudflare status before retrying.'
+    )
+  const responseErrors = envelope.errors.map((value, index) => {
+    const item = object(value, `Cloudflare HTTP ${status} response.errors[${index}]`)
+    if (typeof item.code !== 'number' || !Number.isInteger(item.code))
+      fail(`Cloudflare HTTP ${status} response.errors[${index}].code must be an integer.`)
+    return {
+      code: item.code,
+      message: nonempty(item.message, `Cloudflare HTTP ${status} response.errors[${index}].message`)
+    }
+  })
+  return new CloudflareHttpError(status, responseErrors)
+}
+
+function isWranglerOAuthTokenVerifyResponse(error: unknown): error is CloudflareHttpError {
+  return (
+    error instanceof CloudflareHttpError &&
+    error.status === 401 &&
+    error.responseErrors.length === 1 &&
+    error.responseErrors[0]?.code === 1000 &&
+    error.responseErrors[0]?.message === 'Invalid API Token'
+  )
+}
+
+async function verifyCredentialIdentity(
+  token: string,
+  dependencies: ProvisionDependencies
+): Promise<'api-token' | 'wrangler-oauth'> {
+  try {
+    parseTokenIdentity(await dependencies.fetchToken(token))
+    return 'api-token'
+  } catch (error) {
+    if (!isWranglerOAuthTokenVerifyResponse(error)) throw error
+  }
+  parseUserIdentity(await dependencies.fetchUser(token))
+  return 'wrangler-oauth'
 }
 
 function parseAccountIdentity(value: unknown): { id: string } {
@@ -122,12 +197,17 @@ async function cloudflareRequest(
       ...(init.body ? { 'Content-Type': 'application/json' } : {})
     }
   })
-  if (!response.ok)
+  let body: unknown
+  try {
+    body = await response.json()
+  } catch {
     fail(
-      `Cloudflare request failed with HTTP ${response.status}.`,
-      'Verify the protected account ID and token permissions, inspect Cloudflare status, then retry without changing the expected resource identities.'
+      `Cloudflare request returned non-JSON HTTP ${response.status}.`,
+      'Inspect Cloudflare status and the protected workflow log before retrying.'
     )
-  return response.json()
+  }
+  if (!response.ok) throw parseCloudflareHttpFailure(response.status, body)
+  return body
 }
 
 const defaultDependencies: ProvisionDependencies = {
@@ -176,6 +256,9 @@ const defaultDependencies: ProvisionDependencies = {
   },
   fetchToken(token) {
     return cloudflareRequest('/user/tokens/verify', token)
+  },
+  fetchUser(token) {
+    return cloudflareRequest('/user', token)
   },
   fetchWorker(accountId, workerName, token) {
     return cloudflareRequest(
@@ -330,7 +413,7 @@ export async function provisionPvdReplacementPreview(
   )
     fail('Source and replacement Preview D1 IDs must be distinct.')
 
-  parseTokenIdentity(await dependencies.fetchToken(token))
+  const credentialIdentity = await verifyCredentialIdentity(token, dependencies)
   const account = parseAccountIdentity(await dependencies.fetchAccount(accountId, token))
   if (account.id !== expectedAccountId)
     fail('Observed Cloudflare account does not match the protected account.')
@@ -368,6 +451,7 @@ export async function provisionPvdReplacementPreview(
   const baseEvidence = {
     accountId: expectedAccountId,
     commitSha,
+    credentialIdentity,
     environment: 'preview',
     protectedEnvironment: target.protectedEnvironment.preview,
     siteId,
