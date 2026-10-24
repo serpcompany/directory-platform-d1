@@ -49,4 +49,12 @@ describe('labels workflow', () => {
     expect(globs).toContain('apps/pornvideodownloaders.com/lib/submissions/**')
     expect(globs).toContain('d1/publications/**')
   })
+
+  it('runs on a GitHub-hosted runner because the repository is public', () => {
+    const workflow = yaml.load(loadLabelsWorkflow()) as {
+      jobs: Record<string, { 'runs-on'?: string }>
+    }
+
+    expect(workflow.jobs.triage?.['runs-on']).toBe('ubuntu-latest')
+  })
 })
